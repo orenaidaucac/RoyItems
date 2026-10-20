@@ -1,0 +1,12 @@
+celestial_wings:
+  material: ELYTRA
+  name: "&f&lCelestial Wings"
+  lore:
+    - "&7Grants ethereal glide and defense."
+  lore-format: armor
+  unbreakable: true
+  stats:
+    movement-speed: 20%
+    defense: 20
+  item-tier: legendary
+  version: 1

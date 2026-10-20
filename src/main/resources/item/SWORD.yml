@@ -1,0 +1,21 @@
+excalibur:
+  material: DIAMOND_SWORD
+  name: "&6&lExcalibur"
+  lore:
+    - "&7The legendary blade of Camelot,"
+    - "&7radiating with divine blinding light."
+  lore-format: weapon
+  unbreakable: true
+  glow: true
+  stats:
+    attack-damage: 25
+    crit-rate: 20%
+    crit-damage: 50%
+    pvp-damage: 10
+  level-required: 15
+  item-tier: legendary
+  item-set: dragon_slayer
+  gem-socket:
+    - "1"
+    - "A"
+  version: 1

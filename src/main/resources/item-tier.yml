@@ -1,0 +1,29 @@
+common:
+  display-name: "&fCommon"
+  color: "&f"
+  weight: 1
+
+uncommon:
+  display-name: "&aUncommon"
+  color: "&a"
+  weight: 2
+
+rare:
+  display-name: "&9Rare"
+  color: "&9"
+  weight: 3
+
+epic:
+  display-name: "&5Epic"
+  color: "&5"
+  weight: 4
+
+legendary:
+  display-name: "&6Legendary"
+  color: "&6"
+  weight: 5
+
+mythic:
+  display-name: "&dMythic"
+  color: "&d"
+  weight: 6

@@ -1,0 +1,71 @@
+# ==============================================================================
+#                      ROYITEMS — CONFIGURATION ENGINE
+# ==============================================================================
+
+# General settings
+debug: false
+language: en
+
+# Provider preference when multiple MMORPG providers exist (MMOCore, AuraSkills, Auto)
+mana-provider: Auto
+
+# Performance tuning
+performance:
+  # Frequency in seconds for item expiration check (low overhead)
+  expiration-check-interval: 20
+  # Frequency in seconds for periodic potion effect application
+  potion-effect-interval: 3
+
+# ==============================================================================
+# COMBAT & CUSTOM DEFENSE SYSTEM
+# 'defense' là Custom Stat độc lập, trực tiếp giảm sát thương nhận vào,
+# không can thiệp nhầm vào Vanilla Armor hoặc Armor Toughness.
+# ==============================================================================
+combat:
+  # Hiệu ứng âm thanh và hạt khi đòn đánh đạt tỉ lệ chí mạng
+  critical-hit-particles: true
+
+  # Giới hạn phần trăm giảm trừ sát thương tối đa (Damage Reduction stat)
+  # Ví dụ: 0.85 = tối đa 85% sát thương bị triệt tiêu
+  max-damage-reduction: 0.85
+
+  defense:
+    # --------------------------------------------------------------------------
+    # CHẾ ĐỘ PHÒNG THỦ (DEFENSE MODE)
+    # Lựa chọn 1 trong 3 chế độ tính toán độc lập:
+    #   - SIMPLE: Trừ thẳng sát thương (Final Damage = Attack Damage - Defense).
+    #   - MMORPG: Giảm sát thương phi tuyến (đảm bảo damage nhỏ vẫn gây sát thương).
+    #   - CUSTOM_LIMIT: Trừ thẳng sát thương kèm giới hạn Min / Max Damage.
+    # --------------------------------------------------------------------------
+    mode: "MMORPG"
+
+    # MODE 1 — SIMPLE
+    # Công thức: Final Damage = Attack Damage - Effective Defense
+    # Chấp nhận kết quả tính trung gian âm khi Defense vượt Damage,
+    # nhưng tự động chặn ở sàn an toàn (floor-damage) để không hồi máu hoặc gây lỗi.
+    simple:
+      floor-damage: 0.0
+
+    # MODE 2 — MMORPG (Giảm sát thương phi tuyến)
+    # Công thức: Final Damage = Damage * (scale / (scale + Effective Defense)) * damage-factor
+    # Ví dụ với scale = 100:
+    #   - 100 Defense -> Giảm 50% sát thương nhận vào
+    #   - 200 Defense -> Giảm 66.7% sát thương nhận vào
+    #   - 300 Defense -> Giảm 75% sát thương nhận vào
+    # Đảm bảo người chơi có sát thương thấp vẫn luôn gây được sát thương lên mục tiêu có Defense cao.
+    mmorpg:
+      scale: 100.0
+      damage-factor: 1.0
+      min-damage-floor: 1.0
+
+    # MODE 3 — CUSTOM DAMAGE LIMIT
+    # Công thức: Attack Damage - Effective Defense, sau đó áp dụng giới hạn Min/Max:
+    #   - min-damage: Sát thương tối thiểu sau tính toán (kể cả khi kết quả trừ ra âm).
+    #   - max-damage: Sát thương tối đa (ngăn sát thương một đòn vượt ngưỡng cho phép).
+    custom-limit:
+      min-damage:
+        enabled: true
+        value: 2.0
+      max-damage:
+        enabled: false
+        value: 100.0

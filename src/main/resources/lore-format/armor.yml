@@ -1,0 +1,20 @@
+format:
+  - "&7Armor Piece: &f#type#"
+  - "#bar#"
+  - "#stats#"
+  - "#bar#"
+  - "#sockets#"
+  - "#bar#"
+  - "#description#"
+  - "#bar#"
+  - "#requirements#"
+  - "#bar#"
+  - "&bSet: #set# &7| #tier#"
+
+stat-format:
+  positive: "&7#name#: &a+#value#"
+  negative: "&7#name#: &c-#value#"
+  percentage-positive: "&7#name#: &a+#value#%"
+  percentage-negative: "&7#name#: &c-#value#%"
+
+bar: "&8&m------------------------"

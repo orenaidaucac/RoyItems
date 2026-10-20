@@ -1,0 +1,14 @@
+prefix: "&6&lRoyItems &8» &f"
+
+messages:
+  no-permission: "&cYou do not have permission to execute this command."
+  player-only: "&cThis command can only be executed by in-game players."
+  reload-success: "&aAll configurations, items, and lore templates reloaded successfully!"
+  item-given: "&aYou received &f#amount#x #item#&a!"
+  item-taken: "&aRemoved &f#amount#x #item# &afrom your inventory."
+  item-expired: "&cAn item in your inventory has expired and dissolved into dust!"
+  socket-success: "&aSuccessfully socketed &f#gem# &ainto socket ##slot#!"
+  socket-incompatible: "&cNo compatible empty socket found on this item!"
+  requirement-failed: "&cYou do not meet the requirements to wield this item!"
+  cooldown-active: "&cThis item is currently on cooldown! (&f#time#s&c remaining)"
+  editor-locked: "&cThis item is currently being edited by another administrator!"

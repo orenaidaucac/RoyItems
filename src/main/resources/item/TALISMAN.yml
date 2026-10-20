@@ -1,0 +1,12 @@
+power_talisman:
+  material: TOTEM_OF_UNDYING
+  name: "&e&lTalisman of Ancient Power"
+  lore:
+    - "&7Keep in your inventory to receive"
+    - "&7passive combat stat enhancements."
+  lore-format: default
+  stats:
+    attack-damage: 10
+    crit-damage: 25%
+  item-tier: epic
+  version: 1

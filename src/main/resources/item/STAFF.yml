@@ -1,0 +1,15 @@
+archmage_staff:
+  material: BLAZE_ROD
+  name: "&5&lArchmage's Ruin"
+  lore:
+    - "&7Right-Click to cast arcane bolt!"
+  lore-format: weapon
+  stats:
+    attack-damage: 18
+    pve-damage: 30
+  cooldown: 1.5
+  item-tier: mythic
+  gem-socket:
+    - "1"
+    - "A"
+  version: 1

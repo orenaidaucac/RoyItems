@@ -1,0 +1,14 @@
+titan_elixir:
+  material: POTION
+  name: "&c&lTitan Strength Elixir"
+  lore:
+    - "&7Right-click to drink and gain"
+    - "&7surge of immense physical power."
+  lore-format: default
+  cooldown: 20.0
+  effects:
+    strength:
+      level: 2
+      slot: MAIN_HAND
+  item-tier: uncommon
+  version: 1

@@ -1,0 +1,27 @@
+ruby_gem:
+  material: REDSTONE
+  name: "&c&lRuby of Might"
+  lore:
+    - "&7Drag and drop onto a weapon"
+    - "&7with a matching socket to slot!"
+  lore-format: default
+  gem-id: "A"
+  gem-stats:
+    attack-damage: 10
+    crit-rate: 5%
+  item-tier: rare
+  version: 1
+
+sapphire_gem:
+  material: LAPIS_LAZULI
+  name: "&9&lSapphire of Fortitude"
+  lore:
+    - "&7Drag and drop onto armor"
+    - "&7with a matching socket to slot!"
+  lore-format: default
+  gem-id: "1"
+  gem-stats:
+    defense: 15
+    max-health: 5
+  item-tier: rare
+  version: 1

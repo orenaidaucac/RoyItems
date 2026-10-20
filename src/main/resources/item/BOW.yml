@@ -1,0 +1,15 @@
+artemis_bow:
+  material: BOW
+  name: "&b&lBow of Artemis"
+  lore:
+    - "&7Blessed by the goddess of the hunt."
+  lore-format: weapon
+  unbreakable: true
+  stats:
+    arrow-damage: 30
+    crit-rate: 25%
+    crit-damage: 75%
+  item-tier: legendary
+  gem-socket:
+    - "1"
+  version: 1

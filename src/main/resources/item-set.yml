@@ -1,0 +1,20 @@
+dragon_slayer:
+  display-name: "&6Dragon Slayer Set"
+  bonuses:
+    2:
+      attack-damage: 15
+      crit-rate: 10%
+    4:
+      attack-damage: 35
+      crit-damage: 50%
+      pvp-damage: 20
+
+shadow_assassin:
+  display-name: "&8Shadow Assassin Set"
+  bonuses:
+    2:
+      movement-speed: 15%
+      crit-rate: 15%
+    4:
+      crit-damage: 75%
+      damage-reduction: 10%

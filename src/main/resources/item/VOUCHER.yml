@@ -1,0 +1,11 @@
+vip_scroll:
+  material: PAPER
+  name: "&a&lVIP Privilege Scroll"
+  lore:
+    - "&7Right-click to redeem your"
+    - "&7VIP rank privileges."
+  lore-format: default
+  glow: true
+  cooldown: 5.0
+  item-tier: rare
+  version: 1

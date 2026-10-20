@@ -1,0 +1,21 @@
+dragon_chestplate:
+  material: NETHERITE_CHESTPLATE
+  name: "&c&lDragon Slayer Chestplate"
+  lore:
+    - "&7Forged from the tempered scales"
+    - "&7of an ancient fire drake."
+  lore-format: armor
+  unbreakable: true
+  stats:
+    defense: 45
+    damage-reduction: 10%
+    max-health: 10
+  trim-material: netherite
+  trim-pattern: silence
+  level-required: 20
+  item-tier: epic
+  item-set: dragon_slayer
+  gem-socket:
+    - "1"
+    - "ABC"
+  version: 1

@@ -1,0 +1,53 @@
+name: RoyItems
+version: '2026.1'
+main: com.github.orenaidaucac.royItems.RoyItems
+api-version: '1.21'
+folia-supported: true
+description: Advanced MMORPG Custom Items Engine for Minecraft
+author: orenaidaucac
+
+softdepend:
+  - Vault
+  - PlaceholderAPI
+  - MythicMobs
+  - MMOCore
+  - AuraSkills
+  - WorldGuard
+  - WorldEdit
+  - FastAsyncWorldEdit
+  - HeadDatabase
+  - Nexo
+  - ItemsAdder
+  - Oraxen
+
+commands:
+  royitems:
+    description: Main command for RoyItems
+    aliases: [ri]
+    permission: royitems.admin
+
+permissions:
+  royitems.admin:
+    description: Full access to all RoyItems commands and GUI editor
+    default: op
+  royitems.command.help:
+    description: Access to /ri help
+    default: true
+  royitems.command.reload:
+    description: Access to /ri reload
+    default: op
+  royitems.command.editor:
+    description: Access to /ri editor
+    default: op
+  royitems.command.give:
+    description: Access to /ri give
+    default: op
+  royitems.command.take:
+    description: Access to /ri take
+    default: op
+  royitems.command.drop:
+    description: Access to /ri drop
+    default: op
+  royitems.item.expired.bypass:
+    description: Bypass expiration timer countdown on custom items
+    default: op
