@@ -1,9 +1,17 @@
+config-version: 1
+
 prefix: "&6&lRoyItems &8» &f"
 
 messages:
   no-permission: "&cYou do not have permission to execute this command."
   player-only: "&cThis command can only be executed by in-game players."
   reload-success: "&aAll configurations, items, and lore templates reloaded successfully!"
+  reload-report-header: "&e&m-----------------&r &6&lRoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fPlayer Inventories: &a#count# &7items updated"
+  reload-report-enderchest: " &7• &fEnder Chests: &a#count# &7items updated"
+  reload-report-total: " &7• &fTotal Synchronized: &e&l#count# &7items across &b#players# &7online players"
+  reload-report-failed: " &7• &fFailed: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
   item-given: "&aYou received &f#amount#x #item#&a!"
   item-taken: "&aRemoved &f#amount#x #item# &afrom your inventory."
   item-expired: "&cAn item in your inventory has expired and dissolved into dust!"
@@ -12,3 +20,9 @@ messages:
   requirement-failed: "&cYou do not meet the requirements to wield this item!"
   cooldown-active: "&cThis item is currently on cooldown! (&f#time#s&c remaining)"
   editor-locked: "&cThis item is currently being edited by another administrator!"
+  update-available:
+    - "<gradient:#FFD166:#06D6A0><bold>RoyItems</bold></gradient> <dark_gray>»</dark_gray> <green>A new version is available!</green>"
+    - " <gray>• Current Version: <red>#current#</red>"
+    - " <gray>• Latest Version: <green><bold>#latest#</bold></green>"
+    - " <gray>• Download: <click:open_url:'#url#'><hover:show_text:'<gray>Click to open release page'><underlined><aqua>#url#</aqua></underlined></hover></click>"
+    - " <gray>• <italic>Please consider updating to ensure maximum stability and enjoy the latest features!</italic>"

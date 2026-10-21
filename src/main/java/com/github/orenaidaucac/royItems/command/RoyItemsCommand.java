@@ -53,11 +53,10 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
         switch (sub) {
             case "reload" -> {
                 if (!sender.hasPermission("royitems.command.reload")) {
-                    sender.sendMessage(TextUtility.formatMessage("&cYou do not have permission to use this command."));
+                    plugin.getMessageManager().send(sender, "no-permission", "&cYou do not have permission to execute this command.", null);
                     return true;
                 }
-                plugin.reloadAll();
-                sender.sendMessage(TextUtility.formatMessage("&a[RoyItems] Configuration, items, and lore formats reloaded successfully!"));
+                plugin.reloadAll(sender);
                 return true;
             }
 

@@ -728,11 +728,13 @@ public class ItemDetailEditorGui {
         gui.setItem(propCfg.slot(), item);
     }
 
+    private static final java.text.DecimalFormat STAT_DF = new java.text.DecimalFormat("#,##0.##");
+
     private void renderStatIcon(Gui gui, StatType type, String configKey, int expectedPage, int defaultSlot, Material defaultMaterial) {
         StatModifier mod = def.getStat(type);
         Map<String, String> placeholders = Map.of(
-                "%flat%", String.format("%.1f", mod.getFlat()),
-                "%percent%", String.format("%.1f", mod.getPercent())
+                "%flat%", STAT_DF.format(mod.getFlat()),
+                "%percent%", STAT_DF.format(mod.getPercentValue())
         );
 
         renderProperty(gui, configKey, expectedPage, defaultSlot, defaultMaterial, placeholders, event -> {
@@ -742,7 +744,7 @@ public class ItemDetailEditorGui {
             } else {
                 manager.getChatInputManager().requestInput(player, def, currentPage,
                         type.getDefaultDisplayName(),
-                        String.format("Flat: %.1f, Percent: %.1f%%", mod.getFlat(), mod.getPercent()),
+                        String.format("Flat: %s, Percent: %s%%", STAT_DF.format(mod.getFlat()), STAT_DF.format(mod.getPercentValue())),
                         "Nhập giá trị mới (vd: '15' cho cộng thẳng, '+10%' cho phần trăm, hoặc '15 10%' cho cả hai):",
                         input -> parseStatModifier(input) != null,
                         input -> {
@@ -755,18 +757,18 @@ public class ItemDetailEditorGui {
         });
     }
 
-    private StatModifier parseStatModifier(String input) {
+    public static StatModifier parseStatModifier(String input) {
         if (input == null || input.trim().isEmpty()) return null;
         try {
             String s = input.trim();
             if (s.contains(" ")) {
                 String[] parts = s.split("\\s+");
                 double flat = Double.parseDouble(parts[0].replace("+", ""));
-                double percent = Double.parseDouble(parts[1].replace("%", "").replace("+", ""));
-                return new StatModifier(flat, percent);
+                double percentPoints = Double.parseDouble(parts[1].replace("%", "").replace("+", ""));
+                return new StatModifier(flat, percentPoints / 100.0);
             } else if (s.endsWith("%")) {
-                double percent = Double.parseDouble(s.replace("%", "").replace("+", ""));
-                return new StatModifier(0, percent);
+                double percentPoints = Double.parseDouble(s.replace("%", "").replace("+", ""));
+                return new StatModifier(0, percentPoints / 100.0);
             } else {
                 double flat = Double.parseDouble(s.replace("+", ""));
                 return new StatModifier(flat, 0);

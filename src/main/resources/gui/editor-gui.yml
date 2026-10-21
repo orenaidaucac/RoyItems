@@ -4,6 +4,7 @@
 # Hỗ trợ MiniMessage (<gold>, <bold>...), Hex (<#RRGGBB>) và mã màu & thông thường.
 # Tự động Anti-Italic theo chuẩn, chữ nghiêng chỉ hiển thị khi có thẻ &o hoặc <i>.
 # ==============================================================================
+config-version: 1
 
 # Bảng chọn Type vật phẩm (Main Dashboard)
 type-selector:

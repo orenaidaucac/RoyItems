@@ -1,8 +1,12 @@
 package com.github.orenaidaucac.royItems;
 
 import com.github.orenaidaucac.royItems.command.RoyItemsCommand;
+import com.github.orenaidaucac.royItems.core.config.ConfigMigrator;
 import com.github.orenaidaucac.royItems.core.config.ItemConfigManager;
+import com.github.orenaidaucac.royItems.core.message.MessageManager;
 import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
+import com.github.orenaidaucac.royItems.core.update.UpdateChecker;
+import com.github.orenaidaucac.royItems.core.update.UpdateListener;
 import com.github.orenaidaucac.royItems.gui.EditorGUIManager;
 import com.github.orenaidaucac.royItems.integration.IntegrationManager;
 import com.github.orenaidaucac.royItems.item.*;
@@ -50,6 +54,9 @@ public final class RoyItems extends JavaPlugin {
     private IntegrationManager integrationManager;
     private EditorGUIManager editorGUIManager;
     private RoyMetricsManager metricsManager;
+    private MessageManager messageManager;
+    private ConfigMigrator configMigrator;
+    private UpdateChecker updateChecker;
 
     public static RoyItems getInstance() {
         return instance;
@@ -74,6 +81,9 @@ public final class RoyItems extends JavaPlugin {
     public IntegrationManager getIntegrationManager() { return integrationManager; }
     public EditorGUIManager getEditorGUIManager() { return editorGUIManager; }
     public RoyMetricsManager getMetricsManager() { return metricsManager; }
+    public MessageManager getMessageManager() { return messageManager; }
+    public ConfigMigrator getConfigMigrator() { return configMigrator; }
+    public UpdateChecker getUpdateChecker() { return updateChecker; }
 
     @Override
     public void onEnable() {
@@ -81,7 +91,15 @@ public final class RoyItems extends JavaPlugin {
         long startTime = System.currentTimeMillis();
 
         getLogger().info("Initializing RoyItems v" + getPluginMeta().getVersion() + "...");
+
+        // -1. Automatic Configuration Migration System
+        this.configMigrator = new ConfigMigrator(this);
+        this.configMigrator.migrateAll();
+
         saveDefaultConfig();
+
+        // 0. Messages & Localization
+        this.messageManager = new MessageManager(this);
 
         // 1. Core Platform & Scheduling
         this.platformScheduler = new PlatformScheduler(this);
@@ -112,6 +130,7 @@ public final class RoyItems extends JavaPlugin {
 
         // 7. Stat & Combat Engines
         this.statManager = new StatManager(itemRegistry, itemPDCManager, itemSetManager);
+        this.liveUpdateService.setStatManager(this.statManager);
         this.defenseManager = new DefenseManager(this, statManager);
 
         // 8. Mechanics & Integrations
@@ -142,6 +161,10 @@ public final class RoyItems extends JavaPlugin {
         this.metricsManager = new RoyMetricsManager(this);
         this.metricsManager.initialize();
 
+        // 14. Update Checker (Asynchronous & Admin-Only Notification)
+        this.updateChecker = new UpdateChecker(this, platformScheduler);
+        this.updateChecker.checkForUpdates(null);
+
         long elapsed = System.currentTimeMillis() - startTime;
         getLogger().info("RoyItems successfully enabled in " + elapsed + "ms! Fully operational.");
     }
@@ -167,30 +190,67 @@ public final class RoyItems extends JavaPlugin {
      * Reloads all configurations, lore templates, tiers, sets, and triggers LiveUpdate on all players.
      */
     public void reloadAll() {
+        reloadAll(null);
+    }
+
+    /**
+     * Reloads all configurations, lore templates, tiers, sets, messages, and triggers LiveUpdate on all players,
+     * sending a professional synchronization report to the sender and server console.
+     */
+    public void reloadAll(org.bukkit.command.CommandSender sender) {
+        // 0. Automatically migrate updated configuration files
+        if (configMigrator != null) {
+            configMigrator.migrateAll();
+        }
+
         // 1. Close active GUI editor sessions and reload GUI configs
         if (editorGUIManager != null) {
             editorGUIManager.closeAll();
             editorGUIManager.reloadConfig();
         }
 
-        // 2. Reload main config & combat defense engine
+        // 2. Reload main config, combat defense engine, and update checker
         reloadConfig();
         if (defenseManager != null) {
             defenseManager.loadConfig();
         }
+        if (updateChecker != null) {
+            updateChecker.loadConfig();
+            updateChecker.checkForUpdates(null);
+        }
 
-        // 2. Reload Lore formats
+        // 3. Reload Messages
+        if (messageManager != null) {
+            messageManager.loadMessages();
+        }
+
+        // 4. Reload Lore formats
         dynamicLoreEngine.loadFormats();
 
-        // 3. Reload Tiers and Sets
+        // 5. Reload Tiers and Sets
         itemTierManager.loadTiers();
         itemSetManager.loadSets();
 
-        // 4. Reload Items from item/<TYPE>.yml
+        // 6. Reload Items from item/<TYPE>.yml
         itemConfigManager.loadAll();
 
-        // 5. Trigger LiveUpdate across all online players
-        liveUpdateService.updateAllOnlinePlayers();
+        // 7. Trigger LiveUpdate across all online players and report statistics
+        liveUpdateService.updateAllOnlinePlayers(report -> {
+            if (messageManager != null) {
+                if (sender != null) {
+                    messageManager.sendReloadReport(sender, report);
+                    if (updateChecker != null && updateChecker.isUpdateAvailable() && (sender.hasPermission("royitems.admin") || sender.isOp())) {
+                        messageManager.sendUpdateNotification(sender, updateChecker.getCurrentVersion(), updateChecker.getLatestVersion(), updateChecker.getDownloadUrl());
+                    }
+                }
+                if (!(sender instanceof org.bukkit.command.ConsoleCommandSender)) {
+                    messageManager.sendReloadReport(getServer().getConsoleSender(), report);
+                    if (updateChecker != null && updateChecker.isUpdateAvailable()) {
+                        messageManager.sendUpdateNotification(getServer().getConsoleSender(), updateChecker.getCurrentVersion(), updateChecker.getLatestVersion(), updateChecker.getDownloadUrl());
+                    }
+                }
+            }
+        });
     }
 
     private void registerListeners() {
@@ -202,6 +262,7 @@ public final class RoyItems extends JavaPlugin {
         pm.registerEvents(expirationManager, this);
         pm.registerEvents(editorGUIManager, this);
         pm.registerEvents(editorGUIManager.getChatInputManager(), this);
+        pm.registerEvents(new UpdateListener(this, updateChecker, platformScheduler), this);
     }
 
     private void registerCommands() {

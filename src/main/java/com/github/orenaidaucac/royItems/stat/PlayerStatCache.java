@@ -46,11 +46,20 @@ public class PlayerStatCache {
     }
 
     /**
-     * Calculates total stat using formula: Total = (Base + Flat) * (1 + Percent)
+     * Calculates total stat using formula: Total = (Base + Flat) * (1 + Percent).
+     * If base and flat are 0 but a percentage is specified (e.g. crit-rate: 20%),
+     * returns the direct percentage points (e.g. 20.0).
      */
     public double calculateTotal(StatType type, double baseValue) {
         StatModifier mod = getModifier(type);
-        double total = (baseValue + mod.getFlat()) * (1.0 + mod.getPercent());
-        return Math.max(0, total);
+        double flatSum = baseValue + mod.getFlat();
+        if (Math.abs(flatSum) > 0.00001) {
+            double total = flatSum * (1.0 + mod.getPercent());
+            return Math.max(0, total);
+        }
+        if (Math.abs(mod.getPercent()) > 0.00001) {
+            return Math.max(0, mod.getPercent() * 100.0);
+        }
+        return 0.0;
     }
 }

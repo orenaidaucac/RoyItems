@@ -33,6 +33,20 @@ public class StatModifier {
         this.percent = percent;
     }
 
+    /**
+     * Gets the percentage value in human-readable percent points (e.g. 15.0 for 15%).
+     */
+    public double getPercentValue() {
+        return percent * 100.0;
+    }
+
+    /**
+     * Sets the percentage value from human-readable percent points (e.g. 15.0 for 15%).
+     */
+    public void setPercentValue(double percentPoints) {
+        this.percent = percentPoints / 100.0;
+    }
+
     public boolean isEmpty() {
         return Math.abs(flat) < 0.0001 && Math.abs(percent) < 0.0001;
     }

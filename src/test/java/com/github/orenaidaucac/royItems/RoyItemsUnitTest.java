@@ -206,4 +206,202 @@ class RoyItemsUnitTest {
     void testBStatsPluginId() {
         assertEquals(34832, com.github.orenaidaucac.royItems.metrics.RoyMetricsManager.BSTATS_PLUGIN_ID);
     }
+
+    @Test
+    @DisplayName("GUI Editor: Percentage Parsing & Standardization (1% = 1%, 0.5% = 0.5%)")
+    void testEditorPercentageParsing() {
+        // 1% must be 0.01 fraction, 1.0 percent points
+        StatModifier m1 = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("1%");
+        assertNotNull(m1);
+        assertEquals(0.0, m1.getFlat());
+        assertEquals(0.01, m1.getPercent(), 0.00001);
+        assertEquals(1.0, m1.getPercentValue(), 0.00001);
+
+        // 10%
+        StatModifier m10 = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("10%");
+        assertNotNull(m10);
+        assertEquals(0.10, m10.getPercent(), 0.00001);
+        assertEquals(10.0, m10.getPercentValue(), 0.00001);
+
+        // 0.5% (Decimal)
+        StatModifier mHalf = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("0.5%");
+        assertNotNull(mHalf);
+        assertEquals(0.005, mHalf.getPercent(), 0.00001);
+        assertEquals(0.5, mHalf.getPercentValue(), 0.00001);
+
+        // -15% (Negative percentage)
+        StatModifier mNeg = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("-15%");
+        assertNotNull(mNeg);
+        assertEquals(-0.15, mNeg.getPercent(), 0.00001);
+        assertEquals(-15.0, mNeg.getPercentValue(), 0.00001);
+
+        // 100%
+        StatModifier m100 = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("100%");
+        assertNotNull(m100);
+        assertEquals(1.0, m100.getPercent(), 0.00001);
+        assertEquals(100.0, m100.getPercentValue(), 0.00001);
+
+        // Flat only
+        StatModifier mFlat = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("25");
+        assertNotNull(mFlat);
+        assertEquals(25.0, mFlat.getFlat());
+        assertEquals(0.0, mFlat.getPercent());
+
+        // Combined Flat + Percent
+        StatModifier mComb = com.github.orenaidaucac.royItems.gui.ItemDetailEditorGui.parseStatModifier("15 10%");
+        assertNotNull(mComb);
+        assertEquals(15.0, mComb.getFlat());
+        assertEquals(0.10, mComb.getPercent(), 0.00001);
+
+        // Formatting roundtrip in YAML config manager
+        assertEquals("1", com.github.orenaidaucac.royItems.core.config.ItemConfigManager.formatPercent(m1.getPercentValue()));
+        assertEquals("0.5", com.github.orenaidaucac.royItems.core.config.ItemConfigManager.formatPercent(mHalf.getPercentValue()));
+        assertEquals("10", com.github.orenaidaucac.royItems.core.config.ItemConfigManager.formatPercent(m10.getPercentValue()));
+    }
+
+    @Test
+    @DisplayName("Stat Calculation: Base = 0 Percentage Stats (Crit Rate, Damage Reduction)")
+    void testBaseZeroPercentageStats() {
+        PlayerStatCache cache = new PlayerStatCache();
+
+        // 20% Crit Rate configured with percent
+        cache.addStat(StatType.CRIT_RATE, new StatModifier(0.0, 0.20));
+        assertEquals(20.0, cache.calculateTotal(StatType.CRIT_RATE, 0.0), 0.001);
+
+        // 15% Damage Reduction configured with percent
+        cache.addStat(StatType.DAMAGE_REDUCTION, new StatModifier(0.0, 0.15));
+        assertEquals(15.0, cache.calculateTotal(StatType.DAMAGE_REDUCTION, 0.0), 0.001);
+
+        // Damage Reduction configured with flat
+        PlayerStatCache cache2 = new PlayerStatCache();
+        cache2.addStat(StatType.DAMAGE_REDUCTION, new StatModifier(10.0, 0.0));
+        assertEquals(10.0, cache2.calculateTotal(StatType.DAMAGE_REDUCTION, 0.0), 0.001);
+    }
+
+    @Test
+    @DisplayName("Dynamic Lore Engine: Independent Stat Placeholders & Smart Omission")
+    void testDynamicLoreStatPlaceholders() {
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine = new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null);
+        com.github.orenaidaucac.royItems.item.ItemDefinition def = new com.github.orenaidaucac.royItems.item.ItemDefinition(
+                com.github.orenaidaucac.royItems.item.ItemType.SWORD, "test_blade");
+        def.setName("&cTest Blade");
+        def.setStat(StatType.ATTACK_DAMAGE, new StatModifier(25.0, 0.0));
+        def.setStat(StatType.CRIT_RATE, new StatModifier(0.0, 0.20)); // 20%
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat format = new com.github.orenaidaucac.royItems.lore.LoreFormat();
+        format.setFormat(java.util.List.of(
+                "&7Category: &f#type#",
+                "#bar#",
+                "#attack-damage#",
+                "#defense#", // Absent! Must be omitted
+                "&c⚔ Damage: &f+#attack-damage#",
+                "&9🛡 Defense: &f+#defense#", // Absent! Entire line must be omitted
+                "&e🎯 Crit: &a#crit-rate#",
+                "#bar#"
+        ));
+        format.setBar("&8&m------------------------");
+        format.setPosStat("&7#name#: &a+#value#");
+
+        java.util.List<String> processed = new java.util.ArrayList<>();
+        java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0.##");
+
+        // Test formatStatValue
+        assertEquals("25", format.formatStatValue(def.getStat(StatType.ATTACK_DAMAGE), df));
+        assertEquals("20%", format.formatStatValue(def.getStat(StatType.CRIT_RATE), df));
+
+        // Test isStatPlaceholder
+        assertTrue(engine.isStatPlaceholder("#attack-damage#"));
+        assertTrue(engine.isStatPlaceholder("#defense#"));
+        assertFalse(engine.isStatPlaceholder("#type#"));
+        assertFalse(engine.isStatPlaceholder("#bar#"));
+
+        // Test findStatModifier
+        assertNotNull(engine.findStatModifier(def, "attack-damage"));
+        assertNull(engine.findStatModifier(def, "defense"));
+    }
+
+    @Test
+    @DisplayName("LiveUpdate Report: Counts verification")
+    void testLiveUpdateReport() {
+        com.github.orenaidaucac.royItems.item.LiveUpdateReport report =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateReport(14, 6, 0, 5);
+
+        assertEquals(14, report.getInventoryCount());
+        assertEquals(6, report.getEnderChestCount());
+        assertEquals(20, report.getTotalCount());
+        assertEquals(0, report.getFailedCount());
+        assertEquals(5, report.getOnlinePlayersCount());
+    }
+
+    @Test
+    @DisplayName("Config Migration: Deep merge preserves user values and inserts missing keys")
+    void testConfigMigrationDeepMerge() {
+        org.bukkit.configuration.file.YamlConfiguration source = new org.bukkit.configuration.file.YamlConfiguration();
+        source.set("config-version", 2);
+        source.set("debug", false);
+        source.set("performance.expiration-check-interval", 20);
+        source.set("performance.new-performance-option", 50);
+        source.set("update-checker.enabled", true);
+        source.set("update-checker.repository", "orenaidaucac/RoyItems");
+
+        org.bukkit.configuration.file.YamlConfiguration target = new org.bukkit.configuration.file.YamlConfiguration();
+        target.set("config-version", 1);
+        target.set("debug", true); // User customized!
+        target.set("performance.expiration-check-interval", 15); // User customized!
+
+        boolean modified = com.github.orenaidaucac.royItems.core.config.ConfigMigrator.deepMerge(source, target, "");
+        assertTrue(modified);
+
+        // User customized values must be strictly preserved
+        assertTrue(target.getBoolean("debug"));
+        assertEquals(15, target.getInt("performance.expiration-check-interval"));
+
+        // Missing keys must be added from source
+        assertEquals(50, target.getInt("performance.new-performance-option"));
+        assertTrue(target.getBoolean("update-checker.enabled"));
+        assertEquals("orenaidaucac/RoyItems", target.getString("update-checker.repository"));
+    }
+
+    @Test
+    @DisplayName("Update Checker: Version comparison semantics")
+    void testUpdateCheckerVersionComparison() {
+        // Newer versions
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.2"));
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("v2026.1", "v2026.2"));
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.1.1"));
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("1.0.0", "1.0.1"));
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("1.0.0", "2.0.0"));
+
+        // Equal or older versions
+        assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.1"));
+        assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("v2026.1", "2026.1"));
+        assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.2", "2026.1"));
+        assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2.0.0", "1.9.9"));
+    }
+
+    @Test
+    @DisplayName("Lore Format Wiki: '_example' format is strictly suppressed and returns empty lore")
+    void testWikiExampleLoreSuppression() {
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine =
+                new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null);
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "test_item");
+        def.setLore(java.util.List.of("&7Line 1", "&7Line 2"));
+
+        // When using reserved wiki "_example", lore must be completely suppressed (empty)
+        def.setLoreFormat("_example");
+        java.util.List<String> suppressedLore1 = engine.buildLore(def, java.util.List.of(), 0);
+        assertTrue(suppressedLore1.isEmpty());
+
+        // When using "_example.yml", lore must also be suppressed
+        def.setLoreFormat("_example.yml");
+        java.util.List<String> suppressedLore2 = engine.buildLore(def, java.util.List.of(), 0);
+        assertTrue(suppressedLore2.isEmpty());
+
+        // When using standard format (e.g. "default"), lore is NOT suppressed
+        def.setLoreFormat("default");
+        java.util.List<String> standardLore = engine.buildLore(def, java.util.List.of(), 0);
+        assertFalse(standardLore.isEmpty());
+    }
 }

@@ -1,6 +1,7 @@
 # ==============================================================================
 #                      ROYITEMS — CONFIGURATION ENGINE
 # ==============================================================================
+config-version: 1
 
 # General settings
 debug: false
@@ -15,6 +16,15 @@ performance:
   expiration-check-interval: 20
   # Frequency in seconds for periodic potion effect application
   potion-effect-interval: 3
+
+# ==============================================================================
+# UPDATE CHECKER
+# Tự động kiểm tra bản phát hành mới và gửi thông báo riêng cho Server Admin
+# ==============================================================================
+update-checker:
+  enabled: true
+  notify-admins-on-join: true
+  repository: "orenaidaucac/RoyItems"
 
 # ==============================================================================
 # COMBAT & CUSTOM DEFENSE SYSTEM

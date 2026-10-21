@@ -8,6 +8,7 @@ import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -89,7 +90,18 @@ public class ItemConfigManager {
         def.setMaterial(sec.getString("material", "DIAMOND_SWORD"));
         def.setName(sec.getString("name", id));
         def.setLore(sec.getStringList("lore"));
-        def.setLoreFormat(sec.getString("lore-format", "default"));
+        String loreFormat = sec.getString("lore-format", "default");
+        def.setLoreFormat(loreFormat);
+        if (loreFormat != null && (loreFormat.equalsIgnoreCase("_example") || loreFormat.equalsIgnoreCase("_example.yml"))) {
+            plugin.getLogger().severe("======================================================================");
+            plugin.getLogger().severe("[RoyItems] [CONFIGURATION ERROR] Item '" + id + "' in " + type.name() + ".yml");
+            plugin.getLogger().severe("is configured with reserved lore-format: '" + loreFormat + "'!");
+            plugin.getLogger().severe("The file 'lore-format/_example.yml' is a WIKI / DOCUMENTATION guide only,");
+            plugin.getLogger().severe("and CANNOT be used as an active item lore template!");
+            plugin.getLogger().severe("Lore display has been suppressed (hidden) for this item.");
+            plugin.getLogger().severe("Please change 'lore-format' to 'default', 'weapon', 'armor', or a custom template.");
+            plugin.getLogger().severe("======================================================================");
+        }
         def.setUnbreakable(sec.getBoolean("unbreakable", false));
         def.setGlow(sec.getBoolean("glow", false));
         def.setItemModel(sec.getString("item-model", null));
@@ -103,6 +115,25 @@ public class ItemConfigManager {
                     def.setStat(statType, StatModifier.parse(statSec.get(statKey)));
                 }
             }
+        }
+
+        // Vanilla Attributes
+        ConfigurationSection attrSec = sec.getConfigurationSection("attributes");
+        if (attrSec != null) {
+            Map<Attribute, StatModifier> attrs = new HashMap<>();
+            for (String attrKey : attrSec.getKeys(false)) {
+                try {
+                    NamespacedKey key = attrKey.contains(":") ? NamespacedKey.fromString(attrKey) : NamespacedKey.minecraft(attrKey.toLowerCase().replace('-', '_'));
+                    Attribute attr = Registry.ATTRIBUTE.get(key);
+                    if (attr == null && !attrKey.startsWith("generic.")) {
+                        attr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic." + attrKey.toLowerCase().replace('-', '_')));
+                    }
+                    if (attr != null) {
+                        attrs.put(attr, StatModifier.parse(attrSec.get(attrKey)));
+                    }
+                } catch (Throwable ignored) {}
+            }
+            def.setVanillaAttributes(attrs);
         }
 
         // Enchantments
@@ -212,13 +243,44 @@ public class ItemConfigManager {
         config.set(path + ".item-model", def.getItemModel());
 
         // Stats
+        config.set(path + ".stats", null);
         if (def.getStats() != null && !def.getStats().isEmpty()) {
             for (Map.Entry<StatType, StatModifier> e : def.getStats().entrySet()) {
                 StatModifier mod = e.getValue();
-                if (mod.getPercent() != 0) {
-                    config.set(path + ".stats." + e.getKey().getKey(), (int)(mod.getPercent() * 100) + "%");
+                if (mod == null || mod.isEmpty()) continue;
+                boolean hasFlat = Math.abs(mod.getFlat()) > 0.00001;
+                boolean hasPct = Math.abs(mod.getPercent()) > 0.00001;
+                if (hasFlat && hasPct) {
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("flat", mod.getFlat());
+                    map.put("percent", formatPercent(mod.getPercentValue()) + "%");
+                    config.set(path + ".stats." + e.getKey().getKey(), map);
+                } else if (hasPct) {
+                    config.set(path + ".stats." + e.getKey().getKey(), formatPercent(mod.getPercentValue()) + "%");
                 } else {
                     config.set(path + ".stats." + e.getKey().getKey(), mod.getFlat());
+                }
+            }
+        }
+
+        // Vanilla Attributes
+        config.set(path + ".attributes", null);
+        if (def.getVanillaAttributes() != null && !def.getVanillaAttributes().isEmpty()) {
+            for (Map.Entry<Attribute, StatModifier> e : def.getVanillaAttributes().entrySet()) {
+                StatModifier mod = e.getValue();
+                if (mod == null || mod.isEmpty()) continue;
+                String attrKey = e.getKey().getKey().getKey();
+                boolean hasFlat = Math.abs(mod.getFlat()) > 0.00001;
+                boolean hasPct = Math.abs(mod.getPercent()) > 0.00001;
+                if (hasFlat && hasPct) {
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("flat", mod.getFlat());
+                    map.put("percent", formatPercent(mod.getPercentValue()) + "%");
+                    config.set(path + ".attributes." + attrKey, map);
+                } else if (hasPct) {
+                    config.set(path + ".attributes." + attrKey, formatPercent(mod.getPercentValue()) + "%");
+                } else {
+                    config.set(path + ".attributes." + attrKey, mod.getFlat());
                 }
             }
         }
@@ -247,6 +309,12 @@ public class ItemConfigManager {
             plugin.getLogger().log(Level.SEVERE, "Failed to save item " + def.getId() + " atomically: " + e.getMessage(), e);
             return false;
         }
+    }
+
+    private static final java.text.DecimalFormat PERCENT_DF = new java.text.DecimalFormat("#,##0.##");
+
+    public static String formatPercent(double val) {
+        return PERCENT_DF.format(val);
     }
 
     /**
