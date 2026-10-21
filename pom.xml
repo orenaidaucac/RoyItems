@@ -5,7 +5,7 @@
 
     <groupId>com.github.orenaidaucac</groupId>
     <artifactId>royitems</artifactId>
-    <version>2026.1</version>
+    <version>2026.1.1</version>
     <packaging>jar</packaging>
 
     <name>RoyItems</name>
@@ -104,7 +104,7 @@
     </dependencies>
 
     <build>
-        <finalName>RoyItems-2026.1</finalName>
+        <finalName>RoyItems-${project.version}</finalName>
         <defaultGoal>clean package</defaultGoal>
         <resources>
             <resource>

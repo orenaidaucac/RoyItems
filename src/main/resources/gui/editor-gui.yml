@@ -1,14 +1,14 @@
 # ==============================================================================
 #                      ROYITEMS — INGAME GUI EDITOR
-# Cấu hình giao diện Ingame Editor theo phong cách phân trang MMOItems.
-# Hỗ trợ MiniMessage (<gold>, <bold>...), Hex (<#RRGGBB>) và mã màu & thông thường.
-# Tự động Anti-Italic theo chuẩn, chữ nghiêng chỉ hiển thị khi có thẻ &o hoặc <i>.
+# Paginated MMOItems-style Ingame Item Editor configuration.
+# Fully supports MiniMessage (<gold>, <bold>...), Hex (<#RRGGBB>), and legacy & codes.
+# Anti-Italic by default: italic formatting only appears when using &o or <i>.
 # ==============================================================================
 config-version: 1
 
-# Bảng chọn Type vật phẩm (Main Dashboard)
+# Item Type Selector (Main Dashboard)
 type-selector:
-  title: "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>Chọn Danh Mục</yellow>"
+  title: "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>Select Category</yellow>"
   rows: 6
   border:
     material: BLACK_STAINED_GLASS_PANE
@@ -16,18 +16,18 @@ type-selector:
   close-button:
     slot: 49
     material: BARRIER
-    name: "<#EF476F><bold>Đóng Menu</bold></#EF476F>"
+    name: "<#EF476F><bold>Close Menu</bold></#EF476F>"
     lore:
-      - "<gray>Click để thoát khỏi giao diện Editor."
+      - "<gray>Click to exit the editor."
   type-item:
     name: "<#FFD166><bold>%type%</bold></#FFD166>"
     lore:
-      - "<gray>Phân loại: <white>%description%</white>"
-      - "<gray>Tổng số vật phẩm: <#06D6A0>%count%</#06D6A0>"
+      - "<gray>Category: <white>%description%</white>"
+      - "<gray>Total Items: <#06D6A0>%count%</#06D6A0>"
       - ""
-      - "<#FFD166>▶ Click để xem và quản lý danh sách!</#FFD166>"
+      - "<#FFD166>▶ Click to browse and manage items!</#FFD166>"
 
-# Trình duyệt danh sách vật phẩm (Item Browser)
+# Item Browser (Category View)
 item-browser:
   title: "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>%type% (%count%)</yellow>"
   rows: 6
@@ -39,34 +39,34 @@ item-browser:
     back:
       slot: 45
       material: ARROW
-      name: "<#FFD166><bold>◀ Quay Lại Danh Mục</bold></#FFD166>"
+      name: "<#FFD166><bold>◀ Back to Categories</bold></#FFD166>"
       lore:
-        - "<gray>Trở về bảng chọn danh mục vật phẩm."
+        - "<gray>Return to the main category selector."
     prev-page:
       slot: 48
       material: SPECTRAL_ARROW
-      name: "<#FFD166>Trang Trước</#FFD166>"
+      name: "<#FFD166>Previous Page</#FFD166>"
     create-item:
       slot: 49
       material: NETHERITE_UPGRADE_SMITHING_TEMPLATE
-      name: "<#06D6A0><bold>+ Tạo Vật Phẩm Mới</bold></#06D6A0>"
+      name: "<#06D6A0><bold>+ Create New Item</bold></#06D6A0>"
       lore:
-        - "<gray>Tạo nhanh vật phẩm mới trong <yellow>%type%</yellow>."
+        - "<gray>Create a new custom item in <yellow>%type%</yellow>."
     next-page:
       slot: 50
       material: SPECTRAL_ARROW
-      name: "<#FFD166>Trang Tiếp Theo</#FFD166>"
+      name: "<#FFD166>Next Page</#FFD166>"
     close:
       slot: 53
       material: BARRIER
-      name: "<#EF476F><bold>Đóng Menu</bold></#EF476F>"
+      name: "<#EF476F><bold>Close Menu</bold></#EF476F>"
   item-actions-lore:
     - ""
-    - "<#FFD166>Chuột trái: <white>Chỉnh sửa chi tiết thuộc tính</white></#FFD166>"
-    - "<#118AB2>Chuột phải: <white>Lấy 1x vật phẩm vào túi đồ</white></#118AB2>"
-    - "<#EF476F>Shift + Phải: <white>Xóa vĩnh viễn vật phẩm</white></#EF476F>"
+    - "<#FFD166>Left-Click: <white>Edit properties in detail</white></#FFD166>"
+    - "<#118AB2>Right-Click: <white>Give 1x item to your inventory</white></#118AB2>"
+    - "<#EF476F>Shift + Right-Click: <white>Delete item permanently</white></#EF476F>"
 
-# Giao diện chỉnh sửa chi tiết phân trang (MMOItems-style Paginated Item Editor)
+# Paginated Detail Item Editor
 detail-editor:
   title: "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>%id%</yellow> <gray>(%page%/%max_pages%)</gray>"
   rows: 6
@@ -78,592 +78,592 @@ detail-editor:
     material: GRAY_STAINED_GLASS_PANE
     name: " "
 
-  # Live Item Preview tại Hàng 1
+  # Live Item Preview at Row 1
   preview:
     slot: 4
     lore-hint:
       - ""
-      - "<#06D6A0>▶ Click để lấy 1x bản sao vào túi đồ!</#06D6A0>"
+      - "<#06D6A0>▶ Click to take a 1x copy into your inventory!</#06D6A0>"
 
-  # Thanh điều khiển điều hướng tại Hàng 6
+  # Navigation controls at Row 6
   navigation:
     back:
       slot: 45
       material: ARROW
-      name: "<#FFD166><bold>◀ Quay Lại</bold></#FFD166>"
+      name: "<#FFD166><bold>◀ Back</bold></#FFD166>"
       lore:
-        - "<gray>Trở về danh sách vật phẩm."
+        - "<gray>Return to the item list."
     prev-page:
       slot: 48
       material: SPECTRAL_ARROW
-      name: "<#FFD166>◀ Trang Trước <gray>(%prev_page%/%max_pages%)</gray></#FFD166>"
+      name: "<#FFD166>◀ Previous Page <gray>(%prev_page%/%max_pages%)</gray></#FFD166>"
       lore:
-        - "<gray>Chuyển về trang thuộc tính trước."
+        - "<gray>Switch to the previous property page."
     save:
       slot: 49
       material: EMERALD_BLOCK
-      name: "<#06D6A0><bold>✔ Lưu Thay Đổi</bold></#06D6A0>"
+      name: "<#06D6A0><bold>✔ Save Changes</bold></#06D6A0>"
       lore:
-        - "<gray>Lưu toàn bộ thay đổi vào file cấu hình</gray>"
-        - "<gray>và kích hoạt LiveUpdate tức thì.</gray>"
+        - "<gray>Save all modifications to file</gray>"
+        - "<gray>and trigger instant LiveUpdate.</gray>"
     next-page:
       slot: 50
       material: SPECTRAL_ARROW
-      name: "<#FFD166>Trang Tiếp Theo <gray>(%next_page%/%max_pages%)</gray> ▶</#FFD166>"
+      name: "<#FFD166>Next Page <gray>(%next_page%/%max_pages%)</gray> ▶</#FFD166>"
       lore:
-        - "<gray>Chuyển sang trang thuộc tính tiếp theo."
+        - "<gray>Switch to the next property page."
     close:
       slot: 53
       material: BARRIER
-      name: "<#EF476F><bold>Đóng Menu</bold></#EF476F>"
+      name: "<#EF476F><bold>Close Menu</bold></#EF476F>"
 
   # ============================================================================
-  # DANH SÁCH THUỘC TÍNH PHÂN TRANG (PAGINATED PROPERTIES)
-  # Mỗi thuộc tính có icon độc lập, cấu hình page (1-3), slot (0-53), material, name, lore
+  # PAGINATED PROPERTIES
+  # Each property has an independent icon, configured page (1-3), and slot (0-53)
   # ============================================================================
   properties:
 
     # --------------------------------------------------------------------------
-    # TRANG 1: CƠ BẢN & HIỂN THỊ (GENERAL & VISUALS)
+    # PAGE 1: GENERAL & VISUALS
     # --------------------------------------------------------------------------
     material:
       page: 1
       slot: 10
       material: ANVIL
-      name: "<#FFD166>Chất Liệu (Material)"
+      name: "<#FFD166>Material"
       lore:
-        - "<gray>Chất liệu Minecraft gốc của vật phẩm."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>Vanilla Minecraft material of this item."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Material mới qua Chat</white>"
-        - "<#118AB2>Chuột phải: <white>Đổi nhanh Material thông dụng</white>"
+        - "<#FFD166>Left-Click: <white>Enter new Material in Chat</white>"
+        - "<#118AB2>Right-Click: <white>Cycle common materials</white>"
 
     name:
       page: 1
       slot: 11
       material: NAME_TAG
-      name: "<#FFD166>Tên Hiển Thị (Name)"
+      name: "<#FFD166>Display Name"
       lore:
-        - "<gray>Tên vật phẩm khi hiển thị trong game."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>In-game display name for this item."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập tên mới qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về tên mặc định</white>"
+        - "<#FFD166>Left-Click: <white>Enter new name in Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to default name</white>"
 
     lore:
       page: 1
       slot: 12
       material: WRITABLE_BOOK
-      name: "<#FFD166>Mô Tả Vật Phẩm (Lore)"
+      name: "<#FFD166>Item Lore"
       lore:
-        - "<gray>Các dòng mô tả bổ sung trong tooltip."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%count% dòng</white>"
+        - "<gray>Custom description lines in item tooltip."
+        - "<dark_gray>▪ <gray>Current: <white>%count% lines</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Thêm 1 dòng Lore qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa dòng Lore cuối cùng</white>"
-        - "<#EF476F>Shift + Phải: <white>Xóa sạch toàn bộ Lore</white>"
+        - "<#FFD166>Left-Click: <white>Add a new line via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove last line</white>"
+        - "<#EF476F>Shift + Right-Click: <white>Clear all lore</white>"
 
     item-model:
       page: 1
       slot: 13
       material: PAINTING
-      name: "<#FFD166>Item Model (Custom Model)"
+      name: "<#FFD166>Custom Item Model"
       lore:
-        - "<gray>Định danh model cho Resource Pack 26.2+."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>Custom Model identifier for 1.21.4+ Resource Packs."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Model ID qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa Custom Model</white>"
+        - "<#FFD166>Left-Click: <white>Enter Model ID via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove Custom Model</white>"
 
     lore-format:
       page: 1
       slot: 14
       material: MAP
-      name: "<#FFD166>Mẫu Định Dạng Lore"
+      name: "<#FFD166>Lore Template"
       lore:
-        - "<gray>Template bố cục lore từ lore-format/."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>Lore format layout from lore-format/."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Đổi sang template tiếp theo</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 'default'</white>"
+        - "<#FFD166>Left-Click: <white>Switch to next template</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 'default'</white>"
 
     unbreakable:
       page: 1
       slot: 15
       material: NETHERITE_INGOT
-      name: "<#FFD166>Không Bị Hỏng (Unbreakable)"
+      name: "<#FFD166>Unbreakable"
       lore:
-        - "<gray>Ngăn độ bền vật phẩm bị suy giảm."
-        - "<dark_gray>▪ <gray>Trạng thái: %status%"
+        - "<gray>Prevents durability degradation on this item."
+        - "<dark_gray>▪ <gray>Status: %status%"
         - ""
-        - "<#FFD166>Click: <white>Bật / Tắt Unbreakable</white>"
+        - "<#FFD166>Click: <white>Toggle Unbreakable</white>"
 
     glow:
       page: 1
       slot: 16
       material: GLOWSTONE_DUST
-      name: "<#FFD166>Hiệu Ứng Phát Sáng (Glow)"
+      name: "<#FFD166>Glow Effect"
       lore:
-        - "<gray>Tạo hào quang phù phép lấp lánh."
-        - "<dark_gray>▪ <gray>Trạng thái: %status%"
+        - "<gray>Applies an enchanting shimmer effect."
+        - "<dark_gray>▪ <gray>Status: %status%"
         - ""
-        - "<#FFD166>Click: <white>Bật / Tắt Glow</white>"
+        - "<#FFD166>Click: <white>Toggle Glow Effect</white>"
 
     item-tier:
       page: 1
       slot: 20
       material: AMETHYST_SHARD
-      name: "<#FFD166>Cấp Bậc (Item Tier)"
+      name: "<#FFD166>Item Tier"
       lore:
-        - "<gray>Độ hiếm vật phẩm từ item-tier.yml."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>Item rarity defined in item-tier.yml."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Tier qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa Tier</white>"
+        - "<#FFD166>Left-Click: <white>Set Tier via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove Tier</white>"
 
     item-set:
       page: 1
       slot: 21
       material: CHAINMAIL_CHESTPLATE
-      name: "<#FFD166>Bộ Trang Bị (Item Set)"
+      name: "<#FFD166>Item Set"
       lore:
-        - "<gray>Kích hoạt Set Bonus từ item-set.yml."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>Item set definition from item-set.yml."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Set qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa Set</white>"
+        - "<#FFD166>Left-Click: <white>Set Set ID via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove Set</white>"
 
     hide-enchantments:
       page: 1
       slot: 23
       material: ENCHANTED_BOOK
-      name: "<#FFD166>Ẩn Phù Phép (Hide Enchants)"
+      name: "<#FFD166>Hide Enchantments"
       lore:
-        - "<gray>Ẩn danh sách phù phép trong tooltip."
-        - "<dark_gray>▪ <gray>Trạng thái: %status%"
+        - "<gray>Hides enchantment list from tooltip."
+        - "<dark_gray>▪ <gray>Status: %status%"
         - ""
-        - "<#FFD166>Click: <white>Bật / Tắt Ẩn Phù Phép</white>"
+        - "<#FFD166>Click: <white>Toggle Hide Enchantments</white>"
 
     hide-attributes:
       page: 1
       slot: 24
       material: COMPASS
-      name: "<#FFD166>Ẩn Chỉ Số Vanilla"
+      name: "<#FFD166>Hide Vanilla Attributes"
       lore:
-        - "<gray>Ẩn dòng thuộc tính gốc của Minecraft."
-        - "<dark_gray>▪ <gray>Trạng thái: %status%"
+        - "<gray>Hides standard Minecraft attribute modifiers."
+        - "<dark_gray>▪ <gray>Status: %status%"
         - ""
-        - "<#FFD166>Click: <white>Bật / Tắt Ẩn Chỉ Số</white>"
+        - "<#FFD166>Click: <white>Toggle Hide Attributes</white>"
 
     # --------------------------------------------------------------------------
-    # TRANG 2: CHỈ SỐ CHIẾN ĐẤU & RPG (COMBAT & RPG STATS)
+    # PAGE 2: COMBAT & RPG STATS
     # --------------------------------------------------------------------------
     attack-damage:
       page: 2
       slot: 10
       material: IRON_SWORD
-      name: "<#FF6B6B>Sát Thương Cơ Bản (Attack Damage)"
+      name: "<#FF6B6B>Attack Damage"
       lore:
-        - "<gray>Sát thương vật lý khi cận chiến."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Physical damage dealt in melee combat."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat (vd: 15, +10%)</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat (e.g. 15, +10%)</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     attack-speed:
       page: 2
       slot: 11
       material: FEATHER
-      name: "<#FFD166>Tốc Độ Đánh (Attack Speed)"
+      name: "<#FFD166>Attack Speed"
       lore:
-        - "<gray>Tốc độ hồi thanh tấn công."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Attack recharge and swing speed."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     crit-rate:
       page: 2
       slot: 12
       material: TARGET
-      name: "<#FFD166>Tỉ Lệ Chí Mạng (Crit Rate)"
+      name: "<#FFD166>Critical Rate"
       lore:
-        - "<gray>Xác suất gây đòn đánh chí mạng."
-        - "<dark_gray>▪ <gray>Tỉ lệ: <white>%flat%%</white>"
+        - "<gray>Probability to trigger a critical strike."
+        - "<dark_gray>▪ <gray>Rate: <white>%flat%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     crit-damage:
       page: 2
       slot: 13
       material: TNT
-      name: "<#FF6B6B>Sát Thương Chí Mạng (Crit Damage)"
+      name: "<#FF6B6B>Critical Damage"
       lore:
-        - "<gray>Hệ số sát thương thêm khi đánh chí mạng."
-        - "<dark_gray>▪ <gray>Cộng thêm: <white>%percent%%</white>"
+        - "<gray>Bonus damage multiplier on critical strikes."
+        - "<dark_gray>▪ <gray>Bonus: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     arrow-damage:
       page: 2
       slot: 14
       material: ARROW
-      name: "<#FFD166>Sát Thương Bắn Tên (Arrow Damage)"
+      name: "<#FFD166>Arrow Damage"
       lore:
-        - "<gray>Sát thương gia tăng từ Cung hoặc Nỏ."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Projectile damage bonus for Bows & Crossbows."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     defense:
       page: 2
       slot: 15
       material: SHIELD
-      name: "<#118AB2>Phòng Thủ Custom (Defense)"
+      name: "<#118AB2>Custom Defense"
       lore:
-        - "<gray>Chỉ số phòng ngự trực tiếp giảm sát thương nhận vào."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Custom defense points directly mitigating damage."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     armor:
       page: 2
       slot: 16
       material: IRON_CHESTPLATE
-      name: "<#118AB2>Điểm Giáp Vanilla (Armor)"
+      name: "<#118AB2>Vanilla Armor"
       lore:
-        - "<gray>Điểm giáp cơ bản của Minecraft."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
+        - "<gray>Standard Minecraft vanilla armor points."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     armor-toughness:
       page: 2
       slot: 19
       material: DIAMOND_CHESTPLATE
-      name: "<#118AB2>Độ Cứng Giáp (Armor Toughness)"
+      name: "<#118AB2>Armor Toughness"
       lore:
-        - "<gray>Chống xuyên giáp trước các đòn đánh mạnh."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
+        - "<gray>Resists armor degradation from heavy strikes."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     max-health:
       page: 2
       slot: 20
       material: RED_DYE
-      name: "<#EF476F>Máu Tối Đa (Max Health)"
+      name: "<#EF476F>Max Health"
       lore:
-        - "<gray>Gia tăng lượng máu tối đa cho nhân vật."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat% ❤</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Increases maximum character hit points."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat% ❤</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     movement-speed:
       page: 2
       slot: 21
       material: SUGAR
-      name: "<#06D6A0>Tốc Độ Di Chuyển (Speed)"
+      name: "<#06D6A0>Movement Speed"
       lore:
-        - "<gray>Gia tăng tốc độ chạy của nhân vật."
-        - "<dark_gray>▪ <gray>Cộng thêm: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Bonus walking and running speed."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     knockback-resistance:
       page: 2
       slot: 22
       material: ANVIL
-      name: "<#A0AAB2>Kháng Đẩy Lùi (Knockback Resist)"
+      name: "<#A0AAB2>Knockback Resistance"
       lore:
-        - "<gray>Giảm độ giật lùi khi bị trúng đòn."
-        - "<dark_gray>▪ <gray>Giá trị: <white>%flat%</white>"
+        - "<gray>Reduces distance pushed back when damaged."
+        - "<dark_gray>▪ <gray>Value: <white>%flat%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     damage-reduction:
       page: 2
       slot: 23
       material: TOTEM_OF_UNDYING
-      name: "<#06D6A0>Giảm Thiệt Hại (Damage Reduction)"
+      name: "<#06D6A0>Damage Reduction"
       lore:
-        - "<gray>Phần trăm sát thương trực tiếp bị triệt tiêu."
-        - "<dark_gray>▪ <gray>Tỉ lệ: <white>%flat%%</white>"
+        - "<gray>Direct percentage of incoming damage absorbed."
+        - "<dark_gray>▪ <gray>Rate: <white>%flat%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     pvp-damage:
       page: 2
       slot: 24
       material: GOLDEN_SWORD
-      name: "<#FF6B6B>Sát Thương PvP (PvP Damage)"
+      name: "<#FF6B6B>PvP Damage"
       lore:
-        - "<gray>Sát thương gia tăng riêng khi đánh người chơi."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Additional damage dealt specifically to players."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     pve-damage:
       page: 2
       slot: 25
       material: CROSSBOW
-      name: "<#FF6B6B>Sát Thương PvE (PvE Damage)"
+      name: "<#FF6B6B>PvE Damage"
       lore:
-        - "<gray>Sát thương gia tăng riêng khi đánh quái vật / boss."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Additional damage dealt to monsters and bosses."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     pvp-defense:
       page: 2
       slot: 30
       material: TURTLE_HELMET
-      name: "<#118AB2>Phòng Thủ PvP (PvP Defense)"
+      name: "<#118AB2>PvP Defense"
       lore:
-        - "<gray>Cộng trực tiếp vào Defense khi nhận đòn từ Player."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Bonus defense when receiving damage from players."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     pve-defense:
       page: 2
       slot: 32
       material: CARVED_PUMPKIN
-      name: "<#118AB2>Phòng Thủ PvE (PvE Defense)"
+      name: "<#118AB2>PvE Defense"
       lore:
-        - "<gray>Cộng trực tiếp vào Defense khi nhận đòn từ Mob."
-        - "<dark_gray>▪ <gray>Cộng thẳng: <white>%flat%</white>"
-        - "<dark_gray>▪ <gray>Phần trăm: <white>%percent%%</white>"
+        - "<gray>Bonus defense when receiving damage from mobs."
+        - "<dark_gray>▪ <gray>Flat: <white>%flat%</white>"
+        - "<dark_gray>▪ <gray>Percent: <white>%percent%%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập giá trị qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     # --------------------------------------------------------------------------
-    # TRANG 3: YÊU CẦU, CƠ CHẾ & SOCKET (REQUIREMENTS & MECHANICS)
+    # PAGE 3: REQUIREMENTS & MECHANICS
     # --------------------------------------------------------------------------
     level-required:
       page: 3
       slot: 10
       material: EXPERIENCE_BOTTLE
-      name: "<#06D6A0>Cấp Độ Yêu Cầu (Player Level)"
+      name: "<#06D6A0>Player Level Requirement"
       lore:
-        - "<gray>Cấp độ XP tối thiểu để sử dụng trang bị."
-        - "<dark_gray>▪ <gray>Cấp độ: <white>%value%</white>"
+        - "<gray>Minimum player XP level required to equip."
+        - "<dark_gray>▪ <gray>Level: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Level qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter Level via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     permission:
       page: 3
       slot: 11
       material: TRIPWIRE_HOOK
-      name: "<#FFD166>Quyền Hạn (Permission Node)"
+      name: "<#FFD166>Permission Requirement"
       lore:
-        - "<gray>Node quyền hạn bắt buộc để cầm/dùng."
-        - "<dark_gray>▪ <gray>Quyền hạn: <white>%value%</white>"
+        - "<gray>Permission node required to wield this item."
+        - "<dark_gray>▪ <gray>Permission: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Permission qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa quyền hạn</white>"
+        - "<#FFD166>Left-Click: <white>Enter Permission via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove permission requirement</white>"
 
     drop-on-death:
       page: 3
       slot: 12
       material: SKELETON_SKULL
-      name: "<#EF476F>Rơi Khi Chết (Drop on Death)"
+      name: "<#EF476F>Drop on Death"
       lore:
-        - "<gray>Quyết định trang bị có rơi khi nhân vật chết hay không."
-        - "<dark_gray>▪ <gray>Trạng thái: %status%"
+        - "<gray>Determines if the item drops when player dies."
+        - "<dark_gray>▪ <gray>Status: %status%"
         - ""
-        - "<#FFD166>Click: <white>Bật / Tắt Rơi Khi Chết</white>"
+        - "<#FFD166>Click: <white>Toggle Drop on Death</white>"
 
     mmocore-class:
       page: 3
       slot: 13
       material: IRON_HELMET
-      name: "<#118AB2>Lớp Nhân Vật MMOCore (Class)"
+      name: "<#118AB2>MMOCore Class"
       lore:
-        - "<gray>Yêu cầu class nhân vật từ plugin MMOCore."
+        - "<gray>Class requirement from MMOCore."
         - "<dark_gray>▪ <gray>Class: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập tên Class qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa yêu cầu Class</white>"
+        - "<#FFD166>Left-Click: <white>Enter Class name via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove Class requirement</white>"
 
     mmocore-level:
       page: 3
       slot: 14
       material: DRAGON_BREATH
-      name: "<#118AB2>Cấp MMOCore (Class Level)"
+      name: "<#118AB2>MMOCore Class Level"
       lore:
-        - "<gray>Cấp độ Class MMOCore tối thiểu."
-        - "<dark_gray>▪ <gray>Cấp độ: <white>%value%</white>"
+        - "<gray>Minimum MMOCore class level required."
+        - "<dark_gray>▪ <gray>Level: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Cấp Class qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter Class Level via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     auraskill:
       page: 3
       slot: 15
       material: BOOKSHELF
-      name: "<#FFD166>Kỹ Năng AuraSkills (Skill)"
+      name: "<#FFD166>AuraSkills Skill"
       lore:
-        - "<gray>Yêu cầu kỹ năng từ plugin AuraSkills."
-        - "<dark_gray>▪ <gray>Kỹ năng: <white>%value%</white>"
+        - "<gray>Skill requirement from AuraSkills."
+        - "<dark_gray>▪ <gray>Skill: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập tên Skill qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa yêu cầu Skill</white>"
+        - "<#FFD166>Left-Click: <white>Enter Skill name via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Remove Skill requirement</white>"
 
     auraskill-level:
       page: 3
       slot: 16
       material: ENCHANTING_TABLE
-      name: "<#FFD166>Cấp AuraSkills (Skill Level)"
+      name: "<#FFD166>AuraSkills Skill Level"
       lore:
-        - "<gray>Cấp độ AuraSkills tối thiểu."
-        - "<dark_gray>▪ <gray>Cấp độ: <white>%value%</white>"
+        - "<gray>Minimum AuraSkills level required."
+        - "<dark_gray>▪ <gray>Level: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Cấp Skill qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0</white>"
+        - "<#FFD166>Left-Click: <white>Enter Skill Level via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
     world-required:
       page: 3
       slot: 19
       material: GRASS_BLOCK
-      name: "<#06D6A0>Thế Giới Giới Hạn (World Required)"
+      name: "<#06D6A0>Required Worlds"
       lore:
-        - "<gray>Chỉ cho phép sử dụng trong các thế giới chỉ định."
-        - "<dark_gray>▪ <gray>Danh sách: <white>%value%</white>"
+        - "<gray>Item can only be used in specified worlds."
+        - "<dark_gray>▪ <gray>List: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Thêm thế giới qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa toàn bộ thế giới</white>"
+        - "<#FFD166>Left-Click: <white>Add world via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Clear all worlds</white>"
 
     biome-required:
       page: 3
       slot: 20
       material: OAK_SAPLING
-      name: "<#06D6A0>Quần Xã Giới Hạn (Biome Required)"
+      name: "<#06D6A0>Required Biomes"
       lore:
-        - "<gray>Chỉ cho phép sử dụng trong các quần xã chỉ định."
-        - "<dark_gray>▪ <gray>Danh sách: <white>%value%</white>"
+        - "<gray>Item can only be used in specified biomes."
+        - "<dark_gray>▪ <gray>List: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Thêm quần xã qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa toàn bộ quần xã</white>"
+        - "<#FFD166>Left-Click: <white>Add biome via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Clear all biomes</white>"
 
     gem-sockets:
       page: 3
       slot: 21
       material: EMERALD
-      name: "<#06D6A0>Lỗ Khảm Ngọc (Gem Sockets)"
+      name: "<#06D6A0>Gem Sockets"
       lore:
-        - "<gray>Hệ thống socket khảm ngọc kéo thả."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%</white>"
+        - "<gray>Drag-and-drop gem socketing system."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Thêm socket mới (vd: '1', 'A')</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa socket cuối cùng</white>"
-        - "<#EF476F>Shift + Phải: <white>Xóa sạch socket</white>"
+        - "<#FFD166>Left-Click: <white>Add socket (e.g. '1', 'A')</white>"
+        - "<#EF476F>Right-Click: <white>Remove last socket</white>"
+        - "<#EF476F>Shift + Right-Click: <white>Clear all sockets</white>"
 
     cooldown:
       page: 3
       slot: 22
       material: CLOCK
-      name: "<#118AB2>Hồi Chiêu Kỹ Năng (Cooldown)"
+      name: "<#118AB2>Ability Cooldown"
       lore:
-        - "<gray>Thời gian hồi chiêu kích hoạt kỹ năng/vật phẩm."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%value%s</white>"
+        - "<gray>Cooldown seconds between item activations."
+        - "<dark_gray>▪ <gray>Current: <white>%value%s</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập Cooldown (giây) qua Chat</white>"
-        - "<#EF476F>Chuột phải: <white>Reset về 0 (Không hồi chiêu)</white>"
+        - "<#FFD166>Left-Click: <white>Enter Cooldown seconds via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0 (No cooldown)</white>"
 
     expiration:
       page: 3
       slot: 23
       material: COMPASS
-      name: "<#EF476F>Hạn Dùng Real-Time (Expiration)"
+      name: "<#EF476F>Real-Time Expiration"
       lore:
-        - "<gray>Thời gian đếm lùi thực trước khi vật phẩm biến mất."
-        - "<dark_gray>▪ <gray>Hạn dùng: <white>%value%</white>"
+        - "<gray>Real-world countdown before item dissolves."
+        - "<dark_gray>▪ <gray>Duration: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập hạn dùng (vd: 3 days, 12 hours)</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa hạn dùng (Vĩnh viễn)</white>"
+        - "<#FFD166>Left-Click: <white>Enter duration (e.g. 3 days, 12 hours)</white>"
+        - "<#EF476F>Right-Click: <white>Remove expiration (Permanent)</white>"
 
     enchantments:
       page: 3
       slot: 24
       material: ENCHANTED_BOOK
-      name: "<#FFD166>Phù Phép Vanilla (Enchantments)"
+      name: "<#FFD166>Vanilla Enchantments"
       lore:
-        - "<gray>Các enchant Minecraft gắn cố định vào vật phẩm."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%count% enchant</white>"
+        - "<gray>Fixed enchantments attached to the item."
+        - "<dark_gray>▪ <gray>Current: <white>%count% enchantments</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Thêm/Sửa Enchant (<Tên> <Cấp>)</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa toàn bộ enchant</white>"
+        - "<#FFD166>Left-Click: <white>Add/Edit Enchant (<Name> <Level>)</white>"
+        - "<#EF476F>Right-Click: <white>Clear all enchantments</white>"
 
     effects:
       page: 3
       slot: 25
       material: POTION
-      name: "<#FFD166>Hiệu Ứng Bùa Chú (Potion Effects)"
+      name: "<#FFD166>Potion Effects"
       lore:
-        - "<gray>Hiệu ứng duy trì khi cầm hoặc mặc trang bị."
-        - "<dark_gray>▪ <gray>Hiện tại: <white>%count% hiệu ứng</white>"
+        - "<gray>Passive potion effects while holding/wearing."
+        - "<dark_gray>▪ <gray>Current: <white>%count% effects</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Thêm Effect (<Tên> <Cấp>)</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa toàn bộ hiệu ứng</white>"
+        - "<#FFD166>Left-Click: <white>Add Effect (<Type> <Amplifier>)</white>"
+        - "<#EF476F>Right-Click: <white>Clear all effects</white>"
 
     trim-customization:
       page: 3
       slot: 30
       material: ARMOR_STAND
-      name: "<#FFD166>Họa Tiết Giáp (Armor Trim)"
+      name: "<#FFD166>Armor Trim"
       lore:
-        - "<gray>Hoa văn giáp Minecraft 1.20+ (Chỉ dành cho Armor)."
-        - "<dark_gray>▪ <gray>Vật liệu Trim: <white>%material%</white>"
-        - "<dark_gray>▪ <gray>Họa tiết Trim: <white>%pattern%</white>"
+        - "<gray>Minecraft 1.20+ Armor Trim pattern (Armor only)."
+        - "<dark_gray>▪ <gray>Trim Material: <white>%material%</white>"
+        - "<dark_gray>▪ <gray>Trim Pattern: <white>%pattern%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Đổi hoa văn Trim</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa Trim</white>"
+        - "<#FFD166>Left-Click: <white>Change Trim Pattern</white>"
+        - "<#EF476F>Right-Click: <white>Remove Trim</white>"
 
     dye-color:
       page: 3
       slot: 31
       material: CYAN_DYE
-      name: "<#118AB2>Màu Nhuộm Giáp Da (Dye Color)"
+      name: "<#118AB2>Leather Dye Color"
       lore:
-        - "<gray>Màu da nhuộm hex cho giáp da (Chỉ dành cho Armor)."
-        - "<dark_gray>▪ <gray>Mã màu: <white>%value%</white>"
+        - "<gray>Hex color for leather armor pieces (Armor only)."
+        - "<dark_gray>▪ <gray>Color Code: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập mã màu Hex (#RRGGBB)</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa màu nhuộm</white>"
+        - "<#FFD166>Left-Click: <white>Enter Hex Color (#RRGGBB)</white>"
+        - "<#EF476F>Right-Click: <white>Clear Dye Color</white>"
 
     gem-id:
       page: 3
       slot: 32
       material: NETHER_STAR
-      name: "<#FFD166>Mã Nhận Diện Ngọc (Gem ID)"
+      name: "<#FFD166>Gem Identification ID"
       lore:
-        - "<gray>Mã tương thích để khảm vào socket (Chỉ cho GEM_STONE)."
-        - "<dark_gray>▪ <gray>Mã ngọc: <white>%value%</white>"
+        - "<gray>Socket compatibility identifier (GEM_STONE only)."
+        - "<dark_gray>▪ <gray>Gem ID: <white>%value%</white>"
         - ""
-        - "<#FFD166>Chuột trái: <white>Nhập mã ngọc qua Chat (vd: 1, A)</white>"
-        - "<#EF476F>Chuột phải: <white>Xóa mã ngọc</white>"
+        - "<#FFD166>Left-Click: <white>Enter Gem ID via Chat (e.g. 1, A)</white>"
+        - "<#EF476F>Right-Click: <white>Clear Gem ID</white>"

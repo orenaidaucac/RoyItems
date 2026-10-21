@@ -1,0 +1,49 @@
+# ==============================================================================
+#                      ROYITEMS — NGÔN NGỮ (VI-VN)
+# ==============================================================================
+config-version: 1
+
+prefix: "&6RoyItems &8» &f"
+
+messages:
+  no-permission: "&cBạn không có quyền thực hiện lệnh này."
+  player-only: "&cLệnh này chỉ có thể thực hiện bởi người chơi trong game."
+  reload-success: "&aTất cả cấu hình, vật phẩm và mẫu lore đã được tải lại thành công!"
+  reload-report-header: "&e&m-----------------&r &6RoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fTúi đồ người chơi: &a#count# &7vật phẩm đã đồng bộ"
+  reload-report-enderchest: " &7• &fRương Ender: &a#count# &7vật phẩm đã đồng bộ"
+  reload-report-total: " &7• &fTổng đã đồng bộ: &e#count# &7vật phẩm trên &b#players# &7người chơi"
+  reload-report-failed: " &7• &fThất bại: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
+  item-given: "&aBạn đã nhận &f#amount#x #item#&a!"
+  item-taken: "&aĐã xóa &f#amount#x #item# &akhỏi túi đồ của bạn."
+  item-expired: "&cMột vật phẩm trong túi đồ của bạn đã hết hạn sử dụng và tan biến!"
+  socket-success: "&aKhảm thành công &f#gem# &avào ô số ##slot#!"
+  socket-incompatible: "&cKhông tìm thấy ô khảm tương thích còn trống trên vật phẩm này!"
+  requirement-failed: "&cBạn không đủ điều kiện để sử dụng vật phẩm này!"
+  cooldown-active: "&cVật phẩm này đang trong thời gian hồi chiêu! (Còn &f#time#s&c)"
+  editor-locked: "&cVật phẩm này hiện đang được chỉnh sửa bởi một quản trị viên khác!"
+
+  # Thông báo update (Admin khi vào server và khi reload)
+  update-available:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>Đã có phiên bản mới!</green>"
+    - " <gray>• Phiên bản hiện tại: <red>v#current#</red></gray>"
+    - " <gray>• Phiên bản mới nhất: <green>v#latest#</green></gray>"
+    - " <gray>• Tải về: <click:open_url:'#url#'><hover:show_text:'<gray>Nhấp để mở trang tải về'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• <italic>Vui lòng cập nhật để đảm bảo độ ổn định và trải nghiệm các tính năng mới nhất!</italic></gray>"
+
+  # Lệnh /ri checkupdate
+  checkupdate-checking: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Đang kiểm tra các bản cập nhật mới từ kho lưu trữ...</gray>"
+  checkupdate-up-to-date:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>Bạn đang sử dụng phiên bản RoyItems mới nhất.</green>"
+    - " <gray>• Phiên bản hiện tại: <aqua>v#current#</aqua></gray>"
+    - " <gray>• Trạng thái: <green>Đã cập nhật mới nhất</green></gray>"
+    - " <gray>• Hệ thống đang hoạt động ổn định và không có bản cập nhật nào tồn đọng.</gray>"
+  checkupdate-update-found:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <yellow>Đã có phiên bản mới cho RoyItems!</yellow>"
+    - " <gray>• Phiên bản hiện tại: <red>v#current#</red></gray>"
+    - " <gray>• Phiên bản mới nhất: <green>v#latest#</green></gray>"
+    - " <gray>• Số phiên bản mới phía trước: <gold>#behind#</gold></gray>"
+    - " <gray>• Tải về: <click:open_url:'#url#'><hover:show_text:'<gray>Nhấp để mở trang phát hành'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• Bạn nên sớm nâng cấp để trải nghiệm các tính năng và tối ưu mới nhất.</gray>"
+  checkupdate-error: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <red>Không thể kiểm tra bản cập nhật. Vui lòng kiểm tra kết nối mạng của máy chủ hoặc thử lại sau.</red>"

@@ -404,4 +404,55 @@ class RoyItemsUnitTest {
         java.util.List<String> standardLore = engine.buildLore(def, java.util.List.of(), 0);
         assertFalse(standardLore.isEmpty());
     }
+
+    @Test
+    @DisplayName("Language System: Normalize language codes accurately")
+    void testLanguageNormalization() {
+        assertEquals("en-US", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("en"));
+        assertEquals("en-US", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("en-US"));
+        assertEquals("en-US", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("english"));
+
+        assertEquals("vi-VN", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("vi"));
+        assertEquals("vi-VN", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("vi-VN"));
+        assertEquals("vi-VN", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("vietnamese"));
+
+        assertEquals("de-DE", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("de"));
+        assertEquals("de-DE", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("deutsch"));
+
+        assertEquals("ja-JP", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("ja"));
+        assertEquals("ja-JP", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("japanese"));
+
+        assertEquals("ko-KR", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("ko"));
+        assertEquals("ko-KR", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("korean"));
+
+        assertEquals("ru-RU", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("ru"));
+        assertEquals("ru-RU", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("russian"));
+
+        assertEquals("es-ES", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("es"));
+        assertEquals("es-ES", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("spanish"));
+
+        // Fallback for null or unknown
+        assertEquals("en-US", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode(null));
+        assertEquals("en-US", com.github.orenaidaucac.royItems.core.message.MessageManager.normalizeLanguageCode("unknown_language"));
+    }
+
+    @Test
+    @DisplayName("Language System: Verify all 7 language resource files are valid YAML")
+    void testLanguageFilesValidity() throws Exception {
+        for (String lang : com.github.orenaidaucac.royItems.core.message.MessageManager.SUPPORTED_LANGUAGES) {
+            java.io.File file = new java.io.File("src/main/resources/lang/" + lang + ".yml");
+            assertTrue(file.exists(), "Language file missing: " + file.getPath());
+
+            org.bukkit.configuration.file.YamlConfiguration config =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+
+            assertEquals(1, config.getInt("config-version"));
+            assertNotNull(config.getString("prefix"));
+            assertNotNull(config.getString("messages.no-permission"));
+            assertNotNull(config.getString("messages.reload-success"));
+            assertNotNull(config.getString("messages.checkupdate-checking"));
+            assertTrue(config.isList("messages.checkupdate-up-to-date"));
+            assertTrue(config.isList("messages.checkupdate-update-found"));
+        }
+    }
 }

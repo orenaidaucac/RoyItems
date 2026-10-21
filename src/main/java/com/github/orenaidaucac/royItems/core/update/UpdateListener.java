@@ -33,19 +33,20 @@ public class UpdateListener implements Listener {
             return;
         }
 
-        if (!updateChecker.isEnabled() || !updateChecker.isNotifyAdminsOnJoin()) {
+        UpdateChecker checker = this.updateChecker != null ? this.updateChecker : plugin.getUpdateChecker();
+        if (checker == null || !checker.isEnabled() || !checker.isNotifyAdminsOnJoin()) {
             return;
         }
 
-        if (updateChecker.isUpdateAvailable()) {
+        if (checker.isUpdateAvailable()) {
             // Schedule notification ~2.5 seconds (50 ticks) after join for optimal user experience
             scheduler.runEntityDelayed(player, () -> {
-                if (player.isOnline() && updateChecker.isUpdateAvailable()) {
+                if (player.isOnline() && checker.isUpdateAvailable()) {
                     plugin.getMessageManager().sendUpdateNotification(
                             player,
-                            updateChecker.getCurrentVersion(),
-                            updateChecker.getLatestVersion(),
-                            updateChecker.getDownloadUrl()
+                            checker.getCurrentVersion(),
+                            checker.getLatestVersion(),
+                            checker.getDownloadUrl()
                     );
                 }
             }, 50L);

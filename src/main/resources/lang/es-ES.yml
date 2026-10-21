@@ -1,0 +1,49 @@
+# ==============================================================================
+#                      ROYITEMS — LOCALIZACIÓN (ES-ES)
+# ==============================================================================
+config-version: 1
+
+prefix: "&6RoyItems &8» &f"
+
+messages:
+  no-permission: "&cNo tienes permiso para ejecutar este comando."
+  player-only: "&cEste comando solo puede ser ejecutado por jugadores en el juego."
+  reload-success: "&a¡Todas las configuraciones, objetos y plantillas de lore se recargaron con éxito!"
+  reload-report-header: "&e&m-----------------&r &6RoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fInventarios de jugadores: &a#count# &7objetos actualizados"
+  reload-report-enderchest: " &7• &fCofres de Ender: &a#count# &7objetos actualizados"
+  reload-report-total: " &7• &fTotal sincronizado: &e#count# &7objetos en &b#players# &7jugadores conectados"
+  reload-report-failed: " &7• &fFallidos: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
+  item-given: "&a¡Has recibido &f#amount#x #item#&a!"
+  item-taken: "&aSe ha eliminado &f#amount#x #item# &ade tu inventario."
+  item-expired: "&c¡Un objeto de tu inventario ha expirado y se ha desvanecido!"
+  socket-success: "&a¡Se ha engastado con éxito &f#gem# &aen la ranura ##slot#!"
+  socket-incompatible: "&c¡No se encontró una ranura vacía compatible en este objeto!"
+  requirement-failed: "&c¡No cumples con los requisitos para usar este objeto!"
+  cooldown-active: "&c¡Este objeto está en enfriamiento! (Quedan &f#time#s&c)"
+  editor-locked: "&c¡Este objeto está siendo editado actualmente por otro administrador!"
+
+  # Notificaciones de actualización (Administradores al unirse y al recargar)
+  update-available:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>¡Una nueva versión está disponible!</green>"
+    - " <gray>• Versión actual: <red>v#current#</red></gray>"
+    - " <gray>• Última versión: <green>v#latest#</green></gray>"
+    - " <gray>• Descargar: <click:open_url:'#url#'><hover:show_text:'<gray>Haz clic para abrir la página de descargas'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• <italic>¡Por favor, considera actualizar para garantizar la máxima estabilidad y nuevas funciones!</italic></gray>"
+
+  # Comando /ri checkupdate
+  checkupdate-checking: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Comprobando actualizaciones disponibles en el repositorio remoto...</gray>"
+  checkupdate-up-to-date:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>Estás utilizando la última versión de RoyItems.</green>"
+    - " <gray>• Versión actual: <aqua>v#current#</aqua></gray>"
+    - " <gray>• Estado: <green>Actualizado</green></gray>"
+    - " <gray>• Todo funciona correctamente sin actualizaciones pendientes.</gray>"
+  checkupdate-update-found:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <yellow>¡Hay una nueva versión de RoyItems disponible!</yellow>"
+    - " <gray>• Versión actual: <red>v#current#</red></gray>"
+    - " <gray>• Última versión: <green>v#latest#</green></gray>"
+    - " <gray>• Nuevas versiones por delante: <gold>#behind#</gold></gray>"
+    - " <gray>• Descargar: <click:open_url:'#url#'><hover:show_text:'<gray>Haz clic para abrir la página de descargas'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• Se recomienda actualizar pronto para disfrutar de las últimas mejoras y optimizaciones.</gray>"
+  checkupdate-error: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <red>No se pudieron verificar las actualizaciones. Comprueba la conexión de red o inténtalo más tarde.</red>"

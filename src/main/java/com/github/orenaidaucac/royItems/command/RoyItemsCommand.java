@@ -73,6 +73,20 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
+            case "checkupdate" -> {
+                if (!sender.hasPermission("royitems.command.checkupdate") && !sender.hasPermission("royitems.admin") && !sender.isOp()) {
+                    plugin.getMessageManager().send(sender, "no-permission", "&cYou do not have permission to execute this command.", null);
+                    return true;
+                }
+                plugin.getMessageManager().send(sender, "checkupdate-checking",
+                        "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Checking for available updates from remote repository...</gray>", null);
+
+                plugin.getUpdateChecker().checkForUpdates(result -> {
+                    plugin.getMessageManager().sendCheckUpdateResult(sender, result);
+                });
+                return true;
+            }
+
             case "give" -> {
                 // /ri give <player|all> <type> <id> <amount>
                 if (!sender.hasPermission("royitems.command.give")) {
@@ -292,10 +306,11 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(TextUtility.formatMessage("&6&lRoyItems &7— &eAdvanced MMORPG Items Engine v2026.1"));
+        sender.sendMessage(TextUtility.formatMessage("&6&lRoyItems &7— &eAdvanced MMORPG Items Engine v2026.1.1"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri help &7- Display help message"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri reload &7- Reload all configs, items, and lore formats"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri editor &7- Open Ingame GUI Editor"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri checkupdate &7- Check for plugin updates and new releases"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri give <player|all> <type> <id> [amount] &7- Give custom item"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri take <player|all> <type> <id> [amount] &7- Remove custom item"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri drop <player|all> <type> <id> [amount] &7- Drop item at player"));
@@ -307,7 +322,7 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
-            List<String> subs = List.of("help", "reload", "editor", "give", "take", "drop");
+            List<String> subs = List.of("help", "reload", "editor", "checkupdate", "give", "take", "drop");
             for (String s : subs) {
                 if (s.startsWith(args[0].toLowerCase())) completions.add(s);
             }

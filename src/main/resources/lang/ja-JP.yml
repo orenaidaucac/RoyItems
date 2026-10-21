@@ -1,0 +1,49 @@
+# ==============================================================================
+#                      ROYITEMS — 日本語ローカリゼーション (JA-JP)
+# ==============================================================================
+config-version: 1
+
+prefix: "&6RoyItems &8» &f"
+
+messages:
+  no-permission: "&cこのコマンドを実行する権限がありません。"
+  player-only: "&cこのコマンドはゲーム内のプレイヤーのみ実行できます。"
+  reload-success: "&aすべての設定、アイテム、Loreテンプレートが正常に再読み込みされました！"
+  reload-report-header: "&e&m-----------------&r &6RoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fプレイヤーインベントリ: &a#count# &7個のアイテムを同期しました"
+  reload-report-enderchest: " &7• &fエンダーチェスト: &a#count# &7個のアイテムを同期しました"
+  reload-report-total: " &7• &f合計同期数: &e#count# &7個のアイテム (&b#players# &7人のオンラインプレイヤー)"
+  reload-report-failed: " &7• &f失敗: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
+  item-given: "&a#item# &aを &f#amount#個 &a受け取りました！"
+  item-taken: "&aインベントリから &f#amount#個 &aの #item# &aを削除しました。"
+  item-expired: "&cインベントリ内のアイテムの有効期限が切れ、消滅しました！"
+  socket-success: "&aスロット ##slot# &aに &f#gem# &aを正常に装着しました！"
+  socket-incompatible: "&cこのアイテムには互換性のある空きスロットがありません！"
+  requirement-failed: "&cこのアイテムを装備するための要件を満たしていません！"
+  cooldown-active: "&cこのアイテムは現在クールダウン中です！ (残り &f#time#秒&c)"
+  editor-locked: "&cこのアイテムは現在、別の管理者によって編集中です！"
+
+  # アップデート通知 (参加時およびリロード時の管理者向け)
+  update-available:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>新しいバージョンが利用可能です！</green>"
+    - " <gray>• 現在のバージョン: <red>v#current#</red></gray>"
+    - " <gray>• 最新バージョン: <green>v#latest#</green></gray>"
+    - " <gray>• ダウンロード: <click:open_url:'#url#'><hover:show_text:'<gray>クリックしてリリースを開く'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• <italic>最新の機能と安定性を確保するため、アップデートをおすすめします！</italic></gray>"
+
+  # コマンド /ri checkupdate
+  checkupdate-checking: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>リポジトリから利用可能なアップデートを確認しています...</gray>"
+  checkupdate-up-to-date:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>最新バージョンの RoyItems を使用しています。</green>"
+    - " <gray>• 現在のバージョン: <aqua>v#current#</aqua></gray>"
+    - " <gray>• 状態: <green>最新</green></gray>"
+    - " <gray>• 保留中のアップデートはなく、正常に動作しています。</gray>"
+  checkupdate-update-found:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <yellow>RoyItems の新しいバージョンが利用可能です！</yellow>"
+    - " <gray>• 現在のバージョン: <red>v#current#</red></gray>"
+    - " <gray>• 最新バージョン: <green>v#latest#</green></gray>"
+    - " <gray>• 先行する新しいバージョン数: <gold>#behind#</gold></gray>"
+    - " <gray>• ダウンロード: <click:open_url:'#url#'><hover:show_text:'<gray>クリックしてリリースを開く'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• 最新機能と最適化を利用するために、早めの更新をおすすめします。</gray>"
+  checkupdate-error: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <red>アップデートを確認できませんでした。ネットワーク接続を確認するか、後でもう一度お試しください。</red>"

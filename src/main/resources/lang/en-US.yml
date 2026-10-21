@@ -1,0 +1,49 @@
+# ==============================================================================
+#                      ROYITEMS — LOCALIZATION (EN-US)
+# ==============================================================================
+config-version: 1
+
+prefix: "&6RoyItems &8» &f"
+
+messages:
+  no-permission: "&cYou do not have permission to execute this command."
+  player-only: "&cThis command can only be executed by in-game players."
+  reload-success: "&aAll configurations, items, and lore templates reloaded successfully!"
+  reload-report-header: "&e&m-----------------&r &6RoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fPlayer Inventories: &a#count# &7items updated"
+  reload-report-enderchest: " &7• &fEnder Chests: &a#count# &7items updated"
+  reload-report-total: " &7• &fTotal Synchronized: &e#count# &7items across &b#players# &7online players"
+  reload-report-failed: " &7• &fFailed: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
+  item-given: "&aYou received &f#amount#x #item#&a!"
+  item-taken: "&aRemoved &f#amount#x #item# &afrom your inventory."
+  item-expired: "&cAn item in your inventory has expired and dissolved into dust!"
+  socket-success: "&aSuccessfully socketed &f#gem# &ainto socket ##slot#!"
+  socket-incompatible: "&cNo compatible empty socket found on this item!"
+  requirement-failed: "&cYou do not meet the requirements to wield this item!"
+  cooldown-active: "&cThis item is currently on cooldown! (&f#time#s&c remaining)"
+  editor-locked: "&cThis item is currently being edited by another administrator!"
+
+  # Update notifications (Admin on join and on reload)
+  update-available:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>A new version is available!</green>"
+    - " <gray>• Current version: <red>v#current#</red></gray>"
+    - " <gray>• Latest version: <green>v#latest#</green></gray>"
+    - " <gray>• Download: <click:open_url:'#url#'><hover:show_text:'<gray>Click to open release page'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• <italic>Please consider updating to ensure maximum stability and enjoy the latest features!</italic></gray>"
+
+  # Command /ri checkupdate
+  checkupdate-checking: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Checking for available updates from remote repository...</gray>"
+  checkupdate-up-to-date:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>You are running the latest version of RoyItems.</green>"
+    - " <gray>• Current version: <aqua>v#current#</aqua></gray>"
+    - " <gray>• Status: <green>Up to date</green></gray>"
+    - " <gray>• Everything is running smoothly with no pending updates.</gray>"
+  checkupdate-update-found:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <yellow>A new version of RoyItems is available!</yellow>"
+    - " <gray>• Current version: <red>v#current#</red></gray>"
+    - " <gray>• Latest version: <green>v#latest#</green></gray>"
+    - " <gray>• Releases ahead: <gold>#behind#</gold> new version(s)</gray>"
+    - " <gray>• Download: <click:open_url:'#url#'><hover:show_text:'<gray>Click to open release page'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• Please consider updating soon to enjoy the latest features and optimizations.</gray>"
+  checkupdate-error: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <red>Could not check for updates. Please verify your network connection or try again later.</red>"

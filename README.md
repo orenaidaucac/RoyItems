@@ -1,80 +1,90 @@
-# ⚔ RoyItems — Advanced MMORPG Custom Items Engine
+# ⚔️ RoyItems — Advanced MMORPG Custom Items Engine
 
-![Version](https://img.shields.io/badge/version-2026.1-blue.svg)
-![Minecraft](https://img.shields.io/badge/minecraft-26.2%2B%20%2F%201.21.4%2B-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-2026.1.1-blue.svg)
+![Minecraft](https://img.shields.io/badge/minecraft-1.21.x%20%7C%2026.2%2B-brightgreen.svg)
 ![Platforms](https://img.shields.io/badge/platforms-Paper%20%7C%20Spigot%20%7C%20Folia-orange.svg)
 ![Java](https://img.shields.io/badge/java-21%2B-red.svg)
 ![Build](https://img.shields.io/badge/build-Maven-informational.svg)
 ![Discord](https://img.shields.io/badge/community-Discord-7289DA.svg)
 
-> **RoyItems** là một nền tảng MMORPG Custom Items Engine chuyên nghiệp, hiện đại, hiệu năng cao và sở hữu bản sắc riêng dành cho Minecraft máy chủ 26.2+ (Paper, Spigot và Folia đa luồng). Plugin cho phép quản trị viên định nghĩa không giới hạn vật phẩm tùy chỉnh, chỉ số mở rộng, socket khảm ngọc, bộ trang bị (Item Sets), phẩm chất (Tiers), hiệu ứng độc quyền và quản lý 100% qua file YAML hoặc Ingame GUI Editor.
+> **RoyItems** is an enterprise-grade, high-performance MMORPG Custom Items Engine engineered for Minecraft 1.21+ / 26.2+ servers running on **Paper**, **Spigot**, or **Folia** (multi-threaded regionized architecture). Define unlimited custom items, complex RPG stats, socketable gems, set bonuses, tiers, and real-time expiration with 100% hot-reload synchronization — manageable entirely via YAML configuration or the intuitive Ingame GUI Editor.
 
 ---
 
-## 📑 Mục Lục
-1. [Giới thiệu & Triết lý Thiết kế](#1-giới-thiệu--triết-lý-thiết-kế)
-2. [Điểm nổi bật (Feature Highlights)](#2-điểm-nổi-bật-feature-highlights)
-3. [Yêu cầu Hệ thống](#3-yêu-cầu-hệ-thống)
-4. [Cài đặt & Khởi động lần đầu](#4-cài-đặt--khởi-động-lần-đầu)
-5. [Cấu trúc Thư mục & Tệp tin](#5-cấu-trúc-thư-mục--tệp-tin)
-6. [Hệ thống 14 Item Types](#6-hệ-thống-14-item-types)
+## 📑 Table of Contents
+1. [Overview & Architecture](#1-overview--architecture)
+2. [Feature Highlights](#2-feature-highlights)
+3. [System Requirements](#3-system-requirements)
+4. [Installation & Setup](#4-installation--setup)
+5. [Directory & File Layout](#5-directory--file-layout)
+6. [Supported Item Types (14 Total)](#6-supported-item-types-14-total)
 7. [Material Providers](#7-material-providers)
-8. [Engine Chỉ số (Custom Stats & Vanilla Attributes)](#8-engine-chỉ-số-custom-stats--vanilla-attributes)
-9. [Dynamic Lore Engine (#stats# & #bar#)](#9-dynamic-lore-engine-stats--bar)
-10. [Hệ thống Phẩm chất (Tier) & Bộ Trang Bị (Set)](#10-hệ-thống-phẩm-chất-tier--bộ-trang-bị-set)
-11. [Cơ chế Khảm Ngọc (Gem Socket & Gem Stone)](#11-cơ-chế-khảm-ngọc-gem-socket--gem-stone)
-12. [Hạn Sử Dụng (Item Expiration) & LiveUpdate](#12-hạn-sử-dụng-item-expiration--liveupdate)
-13. [Ingame GUI Editor (`/ri editor`)](#13-ingame-gui-editor-ri-editor)
-14. [Lệnh & Quyền hạn (Commands & Permissions)](#14-lệnh--quyền-hạn-commands--permissions)
-15. [Tích hợp Bên thứ ba (Integrations)](#15-tích-hợp-bên-thứ-ba-integrations)
-16. [Tài liệu Chi tiết Cấu hình Vật phẩm](#16-tài-liệu-chi-tiết-cấu-hình-vật-phẩm)
-17. [Hướng dẫn Biên dịch từ Mã nguồn](#17-hướng-dẫn-biên-dịch-từ-mã-nguồn)
-18. [Hỗ trợ & Cộng đồng](#18-hỗ-trợ--cộng-đồng)
+8. [Combat & Custom Defense System](#8-combat--custom-defense-system)
+9. [16 Custom Stats & Vanilla Attributes](#9-16-custom-stats--vanilla-attributes)
+10. [Dynamic Lore Engine & Formatting](#10-dynamic-lore-engine--formatting)
+11. [Item Tiers & Set Bonuses](#11-item-tiers--set-bonuses)
+12. [Gem Sockets & Drag-and-Drop Socketing](#12-gem-sockets--drag-and-drop-socketing)
+13. [Real-Time Item Expiration & LiveUpdate](#13-real-time-item-expiration--liveupdate)
+14. [Ingame GUI Editor (`/ri editor`)](#14-ingame-gui-editor-ri-editor)
+15. [Internationalization & Language System](#15-internationalization--language-system)
+16. [Commands & Permissions](#16-commands--permissions)
+17. [Third-Party Integrations](#17-third-party-integrations)
+18. [Item Configuration Example](#18-item-configuration-example)
+19. [Building from Source](#19-building-from-source)
+20. [Community & Support](#20-community--support)
 
 ---
 
-## 1. Giới thiệu & Triết lý Thiết kế
-RoyItems được xây dựng nhằm mang lại giải pháp toàn diện cho các máy chủ RPG/MMORPG:
-- **Kiến trúc Tách biệt:** Tách rời `ItemDefinition` (cấu hình mẫu) và `ItemInstance` (vật phẩm thực tế trong tay người chơi).
-- **Định danh Tuyệt đối qua PDC:** Sử dụng `PersistentDataContainer` để nhận diện `royitems:item_type`, `royitems:item_id`, `royitems:item_version`, `royitems:item_expire`, `royitems:item_sockets`. Không bao giờ dựa vào Tên hoặc Lore để nhận diện vật phẩm.
-- **Tương thích Folia Native:** Mọi tác vụ truy cập Entity, Player, Inventory hay Location đều được gửi qua Scheduler tương ứng (`entity.getScheduler()`, `Bukkit.getRegionScheduler()`).
+## 1. Overview & Architecture
+RoyItems is built from the ground up to solve the most demanding challenges of modern Minecraft MMORPG servers:
+- **Decoupled Architecture:** Strict separation between static configuration (`ItemDefinition`) and active player items (`ItemStack` / `ItemInstance`).
+- **Persistent Identification (PDC):** Items are permanently tracked through native `PersistentDataContainer` keys (`royitems:item_type`, `royitems:item_id`, `royitems:item_version`, `royitems:item_expire`, `royitems:item_sockets`). Custom items are never identified by volatile display names or lore.
+- **Native Folia Multi-Threading:** Every operation interacting with players, entities, inventories, or locations is dispatched through safe platform schedulers (`entity.getScheduler()`, `Bukkit.getRegionScheduler()`, and `Bukkit.getAsyncScheduler()`).
 
 ---
 
-## 2. Điểm nổi bật (Feature Highlights)
-- 💎 **14 Item Types MMORPG Mặc định:** Hỗ trợ SWORD, ARMOR, BOW, CROSSBOW, STAFF, TOOL, GEM_STONE, CONSUMABLE, MATERIAL, OFF_HAND, WING, VOUCHER, PET, TALISMAN.
-- ⚔ **16 Custom Stats + Full Vanilla Attributes:** Tính toán theo công thức:
+## 2. Feature Highlights
+- 💎 **14 Default MMORPG Item Types:** Supports `SWORD`, `ARMOR`, `BOW`, `CROSSBOW`, `STAFF`, `TOOL`, `GEM_STONE`, `CONSUMABLE`, `MATERIAL`, `OFF_HAND`, `WING`, `VOUCHER`, `PET`, and `TALISMAN`.
+- ⚔️ **16 Custom RPG Stats + Full Vanilla Attributes:** Flat and percentage stat scaling computed via:
   $$\text{Total} = (\text{Base} + \sum \text{Flat}) \times (1 + \sum \text{Percent})$$
-- 📜 **Dynamic Lore Engine Độc quyền:** Tự động tạo lore với `#stats#`, lọc phân cách `#bar#` thông minh không để lại dòng trống hoặc separator dư thừa.
-- 💎 **Gem Socket System:** Kéo thả trực tiếp ngọc vào trang bị, kiểm tra tương thích socket mã màu/loại (`1`, `A`, `ABC`), tháo ngọc và bảo toàn dữ liệu.
-- ⏳ **Real-Time Expiration:** Đếm ngược thời gian thực (Epoch Timestamp), tự động hủy khi hết hạn trong kho đồ hoặc rương chứa.
-- 🔄 **LiveUpdate Engine:** Tự động cập nhật chỉ số, lore, model của toàn bộ item cũ trong túi đồ và Ender Chest người chơi ngay khi Admin `/ri reload` cấu hình.
-- 🖥 **Chuyên nghiệp với Ingame GUI Editor:** Quản trị toàn bộ thuộc tính, tìm kiếm, phân trang, khóa chỉnh sửa đa admin chống xung đột.
+- 🛡️ **3-Mode Custom Defense System:** Flat reduction (`SIMPLE`), non-linear diminishing returns curve (`MMORPG`), or clamped bounds (`CUSTOM_LIMIT`).
+- 📜 **Dynamic Lore Engine:** Independent placeholders per stat (`#attack-damage#`, `#defense#`), smart `#bar#` auto-pruning, and automatic suppression of absent/zero stats without blank lines.
+- 🌍 **Multi-Language Localization:** Built-in grammar-accurate translations for 7 languages (`en-US`, `vi-VN`, `de-DE`, `ja-JP`, `ko-KR`, `ru-RU`, `es-ES`) with seamless fallback.
+- 🔄 **LiveUpdate Engine:** Hot-reloads all existing items in player inventories and ender chests on `/ri reload` without wiping socketed gems or durability.
+- 🖥️ **Ingame GUI Editor:** Paginated MMOItems-style editor with live preview, dedicated buttons for every attribute, safe chat input, and concurrent edit locks.
+- ⚡ **Auto Config Migrator:** Automatically checks `config-version`, creates `.bak` backups on version upgrades, and deep-merges missing keys without overwriting server settings.
+- 🔔 **Admin-Only Update Checker & `/ri checkupdate`:** Asynchronously verifies releases against GitHub and reports exactly how many releases are ahead.
 
 ---
 
-## 3. Yêu cầu Hệ thống
-- **Java:** `Java 21` trở lên (Khuyến nghị Java 21 hoặc Java 25 LTS).
-- **Minecraft Server:** `Paper 1.21.x+`, `Spigot 1.21.x+`, hoặc `Folia 1.21.x+` (Chuẩn Minecraft 26.2+).
-- **RAM:** Tối thiểu 4GB RAM cho máy chủ Paper/Folia.
+## 3. System Requirements
+- **Java Runtime:** `Java 21` or newer.
+- **Server Platform:** `Paper 1.21.x+`, `Purpur 1.21.x+`, `Spigot 1.21.x+`, or `Folia 1.21.x+` (Minecraft 26.2+ ready).
+- **Memory Allocation:** Minimum 4 GB RAM recommended for Paper/Folia.
 
 ---
 
-## 4. Cài đặt & Khởi động lần đầu
-1. Tải bản build mới nhất `RoyItems-2026.1.jar` từ thư mục `target/` hoặc Releases.
-2. Đặt `RoyItems-2026.1.jar` vào thư mục `plugins/` của máy chủ.
-3. Khởi động lại máy chủ (hoặc dùng `/ri reload`).
-4. Plugin sẽ tự động tạo cấu trúc thư mục mặc định với các ví dụ chuẩn.
+## 4. Installation & Setup
+1. Download the latest release `RoyItems-2026.1.1.jar`.
+2. Place the jar file into your server's `plugins/` directory.
+3. Start or restart your server.
+4. Default configuration files, language templates, and item examples will generate automatically.
 
 ---
 
-## 5. Cấu trúc Thư mục & Tệp tin
+## 5. Directory & File Layout
 ```
 plugins/RoyItems/
- ├── config.yml              # Cấu hình chung, combat, performance
- ├── lang/
- │    └── message.yml        # Toàn bộ thông báo trong game
- ├── item/                   # Tệp cấu hình phân loại theo TYPE
+ ├── config.yml              # Core settings, defense formulas, update checker
+ ├── lang/                   # Localization files
+ │    ├── en-US.yml          # English (Default)
+ │    ├── vi-VN.yml          # Vietnamese
+ │    ├── de-DE.yml          # German
+ │    ├── ja-JP.yml          # Japanese
+ │    ├── ko-KR.yml          # Korean
+ │    ├── ru-RU.yml          # Russian
+ │    └── es-ES.yml          # Spanish
+ ├── item/                   # Item definitions organized by TYPE
  │    ├── SWORD.yml
  │    ├── ARMOR.yml
  │    ├── BOW.yml
@@ -84,173 +94,183 @@ plugins/RoyItems/
  │    ├── TALISMAN.yml
  │    ├── CONSUMABLE.yml
  │    └── VOUCHER.yml
- ├── lore-format/            # Định dạng lore động
+ ├── lore-format/            # Dynamic lore layout templates
+ │    ├── _example.yml       # Protected wiki documentation reference
  │    ├── default.yml
  │    ├── weapon.yml
  │    └── armor.yml
- ├── item-tier.yml           # Định nghĩa phẩm chất (Common, Rare, Legendary...)
- ├── item-set.yml            # Định nghĩa bộ trang bị và mốc kích hoạt bonus
+ ├── item-tier.yml           # Rarity tiers (Common, Rare, Legendary, etc.)
+ ├── item-set.yml            # Equipment sets and threshold bonus stats
  └── gui/
-      └── editor-gui.yml     # Cấu hình giao diện GUI Editor
+      └── editor-gui.yml     # Ingame GUI Editor layout and buttons
 ```
 
 ---
 
-## 6. Hệ thống 14 Item Types
+## 6. Supported Item Types (14 Total)
 
-| TYPE | Mục đích sử dụng | Vị trí kích hoạt / Slot |
+| Item Type | Primary Purpose | Trigger Slot / Action |
 |---|---|---|
-| `SWORD` | Vũ khí cận chiến, kích hoạt Attack Damage, Crit, PvP/PvE | `MAIN_HAND` |
-| `ARMOR` | Mũ, Giáp, Quần, Giày (hỗ trợ Armor Trim & Dye) | `HEAD`, `CHEST`, `LEGS`, `FEET` |
-| `BOW` | Cung tên bắn xa, áp dụng Arrow Damage | `MAIN_HAND` |
-| `CROSSBOW` | Nỏ bắn xa | `MAIN_HAND` |
-| `STAFF` | Gậy phép, Right-Click gọi skill MythicMobs hoặc phép thuật | `MAIN_HAND` |
-| `TOOL` | Cuốc, xẻng, rìu khai khoáng | `MAIN_HAND` |
-| `GEM_STONE` | Ngọc khảm socket, kéo thả trực tiếp lên trang bị | Inventory drag |
-| `CONSUMABLE` | Bình thuốc, thức ăn kích hoạt Potion Effects và cooldown | Right-Click |
-| `MATERIAL` | Nguyên liệu rèn đúc, nâng cấp | Kho đồ |
-| `OFF_HAND` | Khiên, trang bị tay phụ | `OFF_HAND` |
-| `WING` | Cánh bay (Elytra model) tăng tốc độ lượn và phòng ngự | `CHEST` |
-| `VOUCHER` | Phiếu quà tặng, thẻ đặc quyền thực thi lệnh | Right-Click |
-| `PET` | Thú cưng đồng hành | Cầm tay / Kho đồ |
-| `TALISMAN` | Bùa chú hỗ trợ tăng chỉ số bị động | Nằm trong kho đồ (`INV`) |
+| `SWORD` | Melee combat weapon with attack damage, crit, and PvP/PvE bonuses | `MAIN_HAND` |
+| `ARMOR` | Helmets, Chestplates, Leggings, Boots with trims and dye colors | Armor Slots |
+| `BOW` | Ranged bow weapon with arrow damage scaling | `MAIN_HAND` |
+| `CROSSBOW` | Ranged crossbow weapon | `MAIN_HAND` |
+| `STAFF` | Magical catalyst triggering spellcasts and MythicMobs skills | `MAIN_HAND` (Right-Click) |
+| `TOOL` | Pickaxes, axes, shovels, hoes | `MAIN_HAND` |
+| `GEM_STONE` | Socketable gem drag-and-dropped directly onto slotted items | Inventory Cursor |
+| `CONSUMABLE` | Potions, scrolls, and food applying potion effects and cooldowns | Right-Click |
+| `MATERIAL` | Crafting reagents, smithing components, and raw materials | Inventory |
+| `OFF_HAND` | Shields, tomes, and off-hand charms | `OFF_HAND` |
+| `WING` | Elytra-based flight gear granting defense and gliding speed | `CHEST` |
+| `VOUCHER` | Reward coupons executing console commands | Right-Click |
+| `PET` | Companion pet items | Hand / Inventory |
+| `TALISMAN` | Passive stat-granting trinkets active while in the inventory | Inventory (`INV`) |
 
 ---
 
 ## 7. Material Providers
-RoyItems hỗ trợ linh hoạt các nguồn vật liệu:
+RoyItems supports standard and custom resource pack identifiers:
 - **Vanilla:** `DIAMOND_SWORD`, `NETHERITE_CHESTPLATE`, `BOW`...
-- **HeadDatabase:** `hdb-<id>` (Tự động lấy skin đầu từ plugin HeadDatabase).
-- **Base64 Head:** `basehead-<base64>` (Skin đầu giải mã trực tiếp từ chuỗi Base64).
-- **Nexo:** `nexo:<id>` (Bảo tồn model và dữ liệu Nexo).
-- **ItemsAdder:** `itemsadder:<id>` hoặc `ia:<id>`.
+- **HeadDatabase:** `hdb-<id>` (Fetches custom skulls via HeadDatabase).
+- **Base64 Head:** `basehead-<base64>` (Direct Base64 encoded skull skin).
+- **Nexo:** `nexo:<id>` (Preserves custom item model and component data).
+- **ItemsAdder:** `itemsadder:<id>` or `ia:<id>`.
 - **Oraxen:** `oraxen:<id>`.
 
 ---
 
-## 8. Engine Chỉ số (Custom Stats & Vanilla Attributes)
+## 8. Combat & Custom Defense System
+Custom defense is configured in `config.yml` and operates independently of vanilla armor formulas:
 
-### Danh sách 16 Custom Stats:
-- `attack-damage`: Sát thương vật lý cận chiến.
-- `arrow-damage`: Sát thương bắn cung tên.
-- `max-health`: Máu tối đa của nhân vật.
-- `attack-speed`: Tốc độ ra đòn.
-- `crit-rate`: Tỷ lệ bộc kích chí mạng (%).
-- `crit-damage`: Sát thương chí mạng thêm (%).
-- `defense`: Chỉ số phòng thủ (theo đường cong `100 / (100 + defense)`).
-- `pvp-damage`: Sát thương cộng thêm khi đánh người chơi.
-- `pve-damage`: Sát thương cộng thêm khi đánh quái vật.
-- `pvp-defense`: Kháng sát thương từ người chơi.
-- `pve-defense`: Kháng sát thương từ quái vật.
-- `damage-reduction`: Giảm trực tiếp % sát thương nhận vào (hỗ trợ migration cho `damage-redution`).
-- `armor`: Giáp Vanilla.
-- `armor-toughness`: Độ cứng giáp Vanilla.
-- `knockback-resistance`: Kháng giật lùi.
-- `movement-speed`: Tốc độ di chuyển.
+- **Mode 1 — SIMPLE:**
+  $$\text{Final Damage} = \text{Attack Damage} - \text{Defense}$$
+- **Mode 2 — MMORPG (Default):**
+  $$\text{Final Damage} = \text{Damage} \times \left(\frac{\text{scale}}{\text{scale} + \text{Defense}}\right) \times \text{damage-factor}$$
+- **Mode 3 — CUSTOM_LIMIT:** Flat subtraction bounded by configurable `min-damage` and `max-damage` limits.
 
 ---
 
-## 9. Dynamic Lore Engine (`#stats#` & `#bar#`)
-Cấu hình tại `lore-format/<id>.yml`:
+## 9. 16 Custom Stats & Vanilla Attributes
+
+### Custom MMORPG Stats:
+- `attack-damage`: Base physical melee damage.
+- `arrow-damage`: Bonus ranged projectile damage.
+- `max-health`: Additional maximum player health points.
+- `attack-speed`: Attack bar recharge and swing speed multiplier.
+- `crit-rate`: Critical strike chance percentage (`%`).
+- `crit-damage`: Bonus damage multiplier on critical strike (`%`).
+- `defense`: Custom defense mitigating incoming damage via the MMORPG curve.
+- `pvp-damage`: Bonus damage dealt against players.
+- `pve-damage`: Bonus damage dealt against monsters and bosses.
+- `pvp-defense`: Bonus defense against player attacks.
+- `pve-defense`: Bonus defense against monster attacks.
+- `damage-reduction`: Percentage of total damage absorbed directly (`%`).
+- `lifesteal`: Restores health as a percentage of damage dealt (`%`).
+- `armor-penetration`: Bypasses a percentage of enemy defense (`%`).
+- `cooldown-reduction`: Reduces cooldowns for skills and items (`%`).
+- `mana`: Increases player maximum mana pool (MMOCore / AuraSkills).
+- `mana-regeneration`: Accelerates passive mana regeneration rate (`%`).
+
+---
+
+## 10. Dynamic Lore Engine & Formatting
+Configure layout templates in `lore-format/<name>.yml`:
+- Use `#bar#` for smart dividers that automatically prune consecutive or dangling lines.
+- Use independent stat placeholders (e.g. `#attack-damage#`, `#defense#`). Any stat not present on the item is omitted cleanly without leaving blank lines.
+- Refer to `lore-format/_example.yml` for an exhaustive wiki of all placeholders.
+
+---
+
+## 11. Item Tiers & Set Bonuses
+- **Item Tiers (`item-tier.yml`):** Define item rarities (Common, Uncommon, Rare, Epic, Legendary, Mythic) with custom prefixes and colors.
+- **Item Sets (`item-set.yml`):** Configure multi-piece equipment sets granting bonus stats at piece milestones (e.g. 2-piece and 4-piece bonuses).
+
+---
+
+## 12. Gem Sockets & Drag-and-Drop Socketing
+Equip gems onto gear seamlessly via cursor drag-and-drop:
 ```yaml
-format:
-  - "&7Type: &f#type#"
-  - "#bar#"
-  - "#stats#"
-  - "#bar#"
-  - "#sockets#"
-  - "#bar#"
-  - "#description#"
-  - "#bar#"
-  - "&8#tier#"
+gem-socket:
+  - "1"     # Universal socket (accepts any gem)
+  - "A"     # Strict socket (only accepts gems with gem-id: "A")
+  - "ABC"   # Flexible socket (accepts gem-id "A", "B", or "C")
 ```
-- `#stats#`: Tự động điền các dòng chỉ số thực tế của vật phẩm.
-- `#bar#`: Bộ phân cách thông minh. Tự động lược bỏ nếu khối phía trên hoặc phía dưới rỗng, không bao giờ xuất hiện 2 thanh phân cách liên tiếp.
 
 ---
 
-## 10. Hệ thống Phẩm chất (Tier) & Bộ Trang Bị (Set)
-- **Item Tier (`item-tier.yml`):** Định nghĩa phẩm chất (Common, Rare, Epic, Legendary, Mythic) với màu sắc và tên hiển thị riêng.
-- **Item Set (`item-set.yml`):** Cung cấp các mốc bonus khi người chơi trang bị đủ số món trong cùng 1 bộ (ví dụ: mốc 2 món, mốc 4 món).
+## 13. Real-Time Item Expiration & LiveUpdate
+- **Expiration (`expired: 3 days`):** Tracks real-time Epoch countdowns. Expired items turn to dust when handled. Server operators and players with `royitems.item.expired.bypass` are exempt.
+- **LiveUpdate:** Executing `/ri reload` scans player inventories and ender chests, instantly upgrading old item versions to new configs without wiping socketed gems or durability.
 
 ---
 
-## 11. Cơ chế Khảm Ngọc (Gem Socket & Gem Stone)
-- Định nghĩa socket trên trang bị:
-  ```yaml
-  gem-socket:
-    - "1"     # Universal Socket (Nhận mọi loại ngọc)
-    - "A"     # Chỉ nhận ngọc có gem-id: "A"
-    - "ABC"   # Nhận ngọc có gem-id "A", "B", hoặc "C"
-  ```
-- **Cách khảm:** Người chơi cầm viên ngọc `GEM_STONE` trên con trỏ chuột, nhấp chuột vào trang bị có socket tương thích. Ngọc sẽ được khảm ngay lập tức vào ổ trống đầu tiên, cập nhật Lore và cộng chỉ số.
-
----
-
-## 12. Hạn Sử Dụng (Item Expiration) & LiveUpdate
-- **Expiration (`expired: 3 days` / `1 month`):** Lưu trữ theo Epoch Timestamp trong PDC. Khi quá hạn, vật phẩm tự động tan biến thành bụi khói khi người chơi mở kho đồ hoặc nhặt lên. Người có quyền OP hoặc `royitems.item.expired.bypass` sẽ được miễn trừ.
-- **LiveUpdate:** Khi quản trị viên cập nhật file YAML và gõ `/ri reload`:
-  - Quét an toàn túi đồ và Ender Chest của toàn bộ người chơi đang online.
-  - So khớp phiên bản `item_version`, tự động xây dựng lại ItemStack theo cấu hình mới nhất.
-  - Giữ nguyên vẹn toàn bộ ngọc đã khảm và thời gian hết hạn của từng item!
-
----
-
-## 13. Ingame GUI Editor (`/ri editor`)
-Truy cập qua lệnh:
+## 14. Ingame GUI Editor (`/ri editor`)
+Access the editor anytime via:
 ```bash
 /ri editor
 ```
-- **Dashboard Type Selector:** Chọn 1 trong 14 Item Types với số lượng vật phẩm hiển thị trực quan.
-- **Item Browser:** Phân trang, hiển thị mô hình thực tế, xem trước, xóa hoặc nhận vật phẩm ngay lập tức.
-- **Item Detail Editor:**
-  - Chỉnh sửa Material, Custom Model Data / Item Model.
-  - Điều chỉnh Stats thô và % trực quan.
-  - Bật/tắt Unbreakable, Glow, Hide Enchants, Hide Attributes.
-  - Thêm bớt Gem Sockets (`1`, `A`, `ABC`).
-  - Tùy chỉnh Armor Trim (Netherite, Silence, Vex...) và màu nhuộm áo da.
-  - Khóa chỉnh sửa đa Admin (`EditorSessionLock`) chống ghi đè tệp.
+- **Category Selector:** Browse the 14 item types with item counts.
+- **Paginated Item Browser:** Inspect, give, or delete items.
+- **Detail Property Editor:** 3 organized pages to adjust stats, models, lore, enchantments, and requirements with real-time preview and multi-admin concurrency locking.
 
 ---
 
-## 14. Lệnh & Quyền hạn (Commands & Permissions)
+## 15. Internationalization & Language System
+Set your preferred language in `config.yml`:
+```yaml
+language: en-US
+```
+Supported out of the box:
+- `en-US` — English (Default)
+- `vi-VN` — Vietnamese (Tiếng Việt)
+- `de-DE` — German (Deutsch)
+- `ja-JP` — Japanese (日本語)
+- `ko-KR` — Korean (한국어)
+- `ru-RU` — Russian (Русский)
+- `es-ES` — Spanish (Español)
 
-| Lệnh | Mô tả | Quyền hạn |
+Missing keys in any language file automatically fall back to `en-US.yml` without disruption.
+
+---
+
+## 16. Commands & Permissions
+
+| Command | Description | Permission |
 |---|---|---|
-| `/ri help` | Hiển thị menu hướng dẫn | `royitems.command.help` |
-| `/ri reload` | Reload cấu hình và kích hoạt LiveUpdate | `royitems.command.reload` |
-| `/ri editor` | Mở Ingame GUI Editor | `royitems.command.editor` |
-| `/ri give <player\|all> <type> <id> [amount]` | Phát vật phẩm (hỗ trợ khoảng ngẫu nhiên e.g. `1-3`) | `royitems.command.give` |
-| `/ri take <player\|all> <type> <id> [amount]` | Thu hồi vật phẩm chính xác theo ID | `royitems.command.take` |
-| `/ri drop <player\|all> <type> <id> [amount]` | Rơi vật phẩm tại vị trí người chơi | `royitems.command.drop` |
-| `/ri drop <world> <x> <y> <z> <type> <id> [amount]` | Rơi vật phẩm tại tọa độ thế giới | `royitems.command.drop` |
+| `/ri help` | Displays the help menu | `royitems.command.help` |
+| `/ri reload` | Reloads configurations and triggers LiveUpdate | `royitems.command.reload` |
+| `/ri editor` | Opens the Ingame GUI Editor | `royitems.command.editor` |
+| `/ri checkupdate` | Checks current version and pending releases | `royitems.command.checkupdate` |
+| `/ri give <player\|all> <type> <id> [amount]` | Gives custom items (supports ranges like `1-3`) | `royitems.command.give` |
+| `/ri take <player\|all> <type> <id> [amount]` | Removes custom items by exact ID | `royitems.command.take` |
+| `/ri drop <player\|all> <type> <id> [amount]` | Drops item at player location | `royitems.command.drop` |
+| `/ri drop <world> <x> <y> <z> <type> <id> [amount]` | Drops item at specified world coordinates | `royitems.command.drop` |
 
 ---
 
-## 15. Tích hợp Bên thứ ba (Integrations)
+## 17. Third-Party Integrations
 
-| Plugin | Loại | Trạng thái Tương thích & Tài liệu |
+| Plugin | Type | Compatibility Status |
 |---|---|---|
-| [Vault](https://www.spigotmc.org/resources/vault.34315/) | Optional | Hỗ trợ kiểm tra và giao dịch kinh tế. |
-| [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) | Optional | Cung cấp placeholder `%royitems_stat_<stat>%`. |
-| [MythicMobs](https://mythiccraft.io/) | Optional | Kích hoạt kỹ năng MythicMobs từ gậy phép và vũ khí. |
-| [MMOCore](https://www.spigotmc.org/resources/mmocore.70575/) | Optional | Kiểm tra Class, Level và tiêu hao Mana. |
-| [AuraSkills](https://www.spigotmc.org/resources/auraskills.81069/) | Optional | Kiểm tra Skill Level và Mana. |
-| [WorldGuard](https://enginehub.org/worldguard/) | Optional | Kiểm tra cờ khu vực (PvP, item-use). |
-| [HeadDatabase](https://www.spigotmc.org/resources/head-database.14280/) | Optional | Lấy skin đầu `hdb-<id>`. |
-| [Nexo](https://polymart.org/resource/nexo.6212) | Optional | Giữ nguyên model và data component. |
-| [ItemsAdder](https://itemsadder.devs.beer/) | Optional | Tương thích model và custom items. |
-| [Oraxen](https://oraxen.com/) | Optional | Tương thích model và textures. |
-| [TriumphGUI](https://github.com/TriumphTeam/triumph-gui) | **Shaded** | Thư viện GUI hiện đại, không NMS, an toàn tuyệt đối trên Paper 26.2+ & Folia. |
+| [Vault](https://www.spigotmc.org/resources/vault.34315/) | Soft-depend | Economy balances and transaction validation |
+| [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) | Soft-depend | Stat placeholders (`%royitems_stat_<stat>%`) |
+| [MythicMobs](https://mythiccraft.io/) | Soft-depend | Triggers MythicMobs skills via weapon clicks |
+| [MMOCore](https://www.spigotmc.org/resources/mmocore.70575/) | Soft-depend | Class, Level, and Mana integration |
+| [AuraSkills](https://www.spigotmc.org/resources/auraskills.81069/) | Soft-depend | Skill Level requirements and Mana pools |
+| [WorldGuard](https://enginehub.org/worldguard/) | Soft-depend | Region flag protection (PvP, item usage) |
+| [HeadDatabase](https://www.spigotmc.org/resources/head-database.14280/) | Soft-depend | Skull texture provider (`hdb-<id>`) |
+| [Nexo](https://polymart.org/resource/nexo.6212) | Soft-depend | Custom models and item components |
+| [ItemsAdder](https://itemsadder.devs.beer/) | Soft-depend | Custom models and texture packs |
+| [Oraxen](https://oraxen.com/) | Soft-depend | Custom models and glyphs |
+| [TriumphGUI](https://github.com/TriumphTeam/triumph-gui) | Shaded | Modern, zero-NMS GUI library compatible with Paper and Folia |
 
 ---
 
-## 16. Tài liệu Chi tiết Cấu hình Vật phẩm
-
+## 18. Item Configuration Example
 ```yaml
 excalibur:
   material: DIAMOND_SWORD
-  name: "&6&lExcalibur"
+  name: "<gradient:#FFD166:#06D6A0>Excalibur</gradient>"
   lore:
     - "&7The legendary blade of Camelot,"
     - "&7radiating with divine blinding light."
@@ -273,25 +293,20 @@ excalibur:
 
 ---
 
-## 17. Hướng dẫn Biên dịch từ Mã nguồn
-
-Dự án sử dụng **Maven** và yêu cầu **Java 21 trở lên**:
-
+## 19. Building from Source
+RoyItems is built with **Maven** and requires **Java 21+**:
 ```bash
-# Clone repository
 git clone https://github.com/orenaidaucac/RoyItems.git
-
-# Biên dịch và đóng gói
+cd RoyItems
 mvn clean package
 ```
-Tệp JAR hoàn thiện sẽ xuất hiện tại `target/RoyItems-2026.1.jar`.
+The compiled jar will be located at `target/RoyItems-2026.1.1.jar`.
 
 ---
 
-## 18. Hỗ trợ & Cộng đồng
-
-- 💬 **Discord Hỗ trợ Chính thức:** [https://discord.gg/zNpkXGFQRS](https://discord.gg/zNpkXGFQRS)
-- 🐛 **Báo cáo lỗi & Đóng góp:** Tạo Issue trên GitHub Repository.
+## 20. Community & Support
+- 💬 **Discord Support:** [https://discord.gg/zNpkXGFQRS](https://discord.gg/zNpkXGFQRS)
+- 🐛 **Issue Tracker:** Report bugs or submit feature requests on GitHub.
 
 ---
-*Phát triển bởi orenaidaucac với tiêu chuẩn chất lượng cao nhất dành cho cộng đồng Minecraft MMORPG.*
+*Maintained by orenaidaucac with uncompromising standards for Minecraft MMORPG servers.*

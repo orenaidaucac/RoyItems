@@ -1,5 +1,5 @@
 name: RoyItems
-version: '2026.1'
+version: '2026.1.1'
 main: com.github.orenaidaucac.royItems.RoyItems
 api-version: '1.21'
 folia-supported: true
@@ -38,6 +38,9 @@ permissions:
     default: op
   royitems.command.editor:
     description: Access to /ri editor
+    default: op
+  royitems.command.checkupdate:
+    description: Access to /ri checkupdate
     default: op
   royitems.command.give:
     description: Access to /ri give

@@ -147,23 +147,23 @@ public final class RoyItems extends JavaPlugin {
         // 9. Ingame GUI Editor
         this.editorGUIManager = new EditorGUIManager(this, itemRegistry, itemConfigManager, itemBuilder, platformScheduler);
 
-        // 10. Register Event Listeners
+        // 10. Update Checker (Asynchronous & Admin-Only Notification)
+        this.updateChecker = new UpdateChecker(this, platformScheduler);
+        this.updateChecker.checkForUpdates(null);
+
+        // 11. Register Event Listeners
         registerListeners();
 
-        // 11. Register Commands
+        // 12. Register Commands
         registerCommands();
 
-        // 12. Start Background Mechanics
+        // 13. Start Background Mechanics
         this.expirationManager.startTask();
         this.potionEffectManager.startTask();
 
-        // 13. bStats Metrics Telemetry
+        // 14. bStats Metrics Telemetry
         this.metricsManager = new RoyMetricsManager(this);
         this.metricsManager.initialize();
-
-        // 14. Update Checker (Asynchronous & Admin-Only Notification)
-        this.updateChecker = new UpdateChecker(this, platformScheduler);
-        this.updateChecker.checkForUpdates(null);
 
         long elapsed = System.currentTimeMillis() - startTime;
         getLogger().info("RoyItems successfully enabled in " + elapsed + "ms! Fully operational.");

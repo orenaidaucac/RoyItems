@@ -1,0 +1,152 @@
+# ==============================================================================
+#                      ROYITEMS — LORE FORMAT WIKI & REFERENCE
+# ==============================================================================
+# [!] IMPORTANT NOTICE / GUIDELINES:
+# This file serves as an authoritative documentation wiki detailing all available
+# placeholders, attributes, and statistics supported by the RoyItems engine.
+#
+# ❌ THIS FILE CANNOT BE USED AS AN ACTIVE ITEM TEMPLATE:
+#    (lore-format: _example or lore-format: _example.yml).
+#    If an item is configured with this file as its lore-format, the plugin will
+#    log a severe configuration error to the console and COMPLETELY SUPPRESS (hide)
+#    that item's lore in-game!
+#
+# 🛡️ AUTOMATIC PROTECTION:
+#    This file is automatically restored and updated upon server startup and
+#    configuration reload (/ri reload) to ensure you always have the most up-to-date
+#    documentation. Any manual edits to this file will be reverted automatically.
+# ==============================================================================
+
+# ==============================================================================
+# 1. GENERAL ITEM PLACEHOLDERS
+# ==============================================================================
+# The following placeholders can be placed anywhere in your format:
+#
+#   #name#               - Item display name with configured colors
+#   #type#               - Item category (SWORD, ARMOR, BOW, TALISMAN, etc.)
+#   #tier#               - Tier display name (Common, Rare, Epic, Legendary, etc.)
+#   #tier-color#         - Tier color or gradient code
+#   #lore# / #description#- Description lines configured under the item's lore section
+#   #enchantments#       - Formatted list of item enchantments
+#   #requirements#       - Equipped requirements (Level, Class, Permissions)
+#   #sockets#            - Gem socket slots and currently socketed gems
+#   #bar#                - Smart divider line (automatically pruned if isolated/empty)
+#   #durability#         - Current and maximum durability (or Unbreakable status)
+#   #cooldown#           - Ability activation cooldown duration
+#   #expiration#         - Real-time expiration timer countdown
+#   #custom-model-data#  - CustomModelData integer for 3D resource packs
+#   #stats#              - Aggregate block containing all item statistics
+# ==============================================================================
+
+# ==============================================================================
+# 2. INDEPENDENT STAT PLACEHOLDERS
+# ==============================================================================
+# RoyItems supports standalone placeholders for every single statistic.
+# SMART PRUNING BEHAVIOR:
+# - If an item DOES NOT possess a statistic or its value is 0, THE ENTIRE LINE
+#   containing that placeholder is automatically omitted without blank lines or
+#   dangling characters!
+# - Automatically formats raw numbers (e.g., 15) or percentages (e.g., 15%)
+#   depending on how the stat modifier is defined in the item configuration.
+#
+# A. 16 CUSTOM MMORPG STATS:
+#   #attack-damage#       - Base physical attack damage
+#   #defense#             - Defense points (mitigates incoming damage via MMORPG formula)
+#   #pve-defense#         - Defense against PvE monster attacks
+#   #pvp-damage#          - Bonus damage dealt against other players (PvP)
+#   #attack-speed#        - Weapon swing recovery speed multiplier
+#   #max-health#          - Maximum bonus health points (HP)
+#   #critical-rate#       - Critical hit strike chance (%)
+#   #critical-damage#     - Bonus damage dealt when triggering a critical strike (%)
+#   #movement-speed#      - Walking and sprinting movement speed bonus (%)
+#   #health-regeneration# - Natural passive health regeneration rate (%)
+#   #lifesteal#           - Life steal percentage: recovers HP based on damage dealt (%)
+#   #armor-penetration#   - Armor penetration: bypasses target's defense (%)
+#   #damage-reduction#    - Direct incoming damage reduction percentage (%)
+#   #cooldown-reduction#  - Skill and ability cooldown reduction (%)
+#   #mana#                - Maximum mana pool increase (supports MMOCore, AuraSkills)
+#   #mana-regeneration#   - Mana regeneration rate (%)
+#
+# B. VANILLA MINECRAFT ATTRIBUTES:
+#   #vanilla-attack-damage#        - minecraft:generic.attack_damage
+#   #vanilla-attack-speed#         - minecraft:generic.attack_speed
+#   #vanilla-armor#                - minecraft:generic.armor
+#   #vanilla-armor-toughness#      - minecraft:generic.armor_toughness
+#   #vanilla-max-health#           - minecraft:generic.max_health
+#   #vanilla-movement-speed#       - minecraft:generic.movement_speed
+#   #vanilla-knockback-resistance# - minecraft:generic.knockback_resistance
+# ==============================================================================
+
+# ==============================================================================
+# 3. COLOR & TEXT FORMATTING RULES
+# ==============================================================================
+# - MiniMessage Tags:
+#     <red>, <green>, <gold>, <yellow>, <aqua>, <white>, <gray>, <dark_gray>...
+#     <bold>, <italic>, <underlined>, <strikethrough>
+#     Gradients: <gradient:#FFD166:#06D6A0>Custom Styled Text</gradient>
+#     Hex Codes: <#FFD166>, <#06D6A0>, <#EF476F>
+# - Legacy Color Codes:
+#     &0 through &9, &a through &f, &l (bold), &o (italic), &n (underline), &m (strike).
+# - Anti-Italic Rule:
+#     RoyItems turns off default Minecraft italics by default.
+#     Italic formatting will ONLY appear if you explicitly specify &o or <i>.
+# ==============================================================================
+
+# Reference template layout (equivalent to default.yml):
+bar: "<dark_gray><strikethrough>------------------------</strikethrough></dark_gray>"
+
+format:
+  - "<yellow><bold>%type%</bold></yellow> <dark_gray>•</dark_gray> %tier-color%%tier%"
+  - "#bar#"
+  - "#description#"
+  - "#bar#"
+  - "#attack-damage#"
+  - "#defense#"
+  - "#pve-defense#"
+  - "#pvp-damage#"
+  - "#attack-speed#"
+  - "#max-health#"
+  - "#critical-rate#"
+  - "#critical-damage#"
+  - "#movement-speed#"
+  - "#health-regeneration#"
+  - "#lifesteal#"
+  - "#armor-penetration#"
+  - "#damage-reduction#"
+  - "#cooldown-reduction#"
+  - "#mana#"
+  - "#mana-regeneration#"
+  - "#vanilla-attack-damage#"
+  - "#vanilla-armor#"
+  - "#bar#"
+  - "#enchantments#"
+  - "#sockets#"
+  - "#requirements#"
+  - "#bar#"
+  - "<gray>Durability: <white>#durability#</white>"
+
+# ==============================================================================
+# PER-STAT FORMATTING CONFIGURATION (STAT-FORMAT SECTION)
+# Customize display names, symbols, number formats, and colors per individual stat:
+# ==============================================================================
+stat-format:
+  attack-damage:
+    display-name: "Attack Damage"
+    symbol: "⚔"
+    format: "<gray>%symbol% %name%: <#EF476F>+%value%</#EF476F></gray>"
+    percent-format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"
+  defense:
+    display-name: "Defense"
+    symbol: "🛡"
+    format: "<gray>%symbol% %name%: <#118AB2>+%value%</#118AB2></gray>"
+    percent-format: "<gray>%symbol% %name%: <#118AB2>+%value%%</#118AB2></gray>"
+  critical-rate:
+    display-name: "Critical Rate"
+    symbol: "🎯"
+    format: "<gray>%symbol% %name%: <#FFD166>+%value%%</#FFD166></gray>"
+    percent-format: "<gray>%symbol% %name%: <#FFD166>+%value%%</#FFD166></gray>"
+  lifesteal:
+    display-name: "Lifesteal"
+    symbol: "🩸"
+    format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"
+    percent-format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"

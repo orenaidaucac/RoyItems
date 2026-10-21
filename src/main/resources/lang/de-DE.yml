@@ -1,0 +1,49 @@
+# ==============================================================================
+#                      ROYITEMS — LOKALISIERUNG (DE-DE)
+# ==============================================================================
+config-version: 1
+
+prefix: "&6RoyItems &8» &f"
+
+messages:
+  no-permission: "&cDu hast keine Berechtigung, diesen Befehl auszuführen."
+  player-only: "&cDieser Befehl kann nur von Spielern im Spiel ausgeführt werden."
+  reload-success: "&aAlle Konfigurationen, Gegenstände und Lore-Vorlagen wurden erfolgreich neu geladen!"
+  reload-report-header: "&e&m-----------------&r &6RoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fSpielerinventare: &a#count# &7Gegenstände aktualisiert"
+  reload-report-enderchest: " &7• &fEnderkisten: &a#count# &7Gegenstände aktualisiert"
+  reload-report-total: " &7• &fGesamt synchronisiert: &e#count# &7Gegenstände bei &b#players# &7Online-Spielern"
+  reload-report-failed: " &7• &fFehlgeschlagen: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
+  item-given: "&aDu hast &f#amount#x #item# &aerhalten!"
+  item-taken: "&a&f#amount#x #item# &awurden aus deinem Inventar entfernt."
+  item-expired: "&cEin Gegenstand in deinem Inventar ist abgelaufen und zu Staub zerfallen!"
+  socket-success: "&a&f#gem# &aerfolgreich in Sockel ##slot# &aeingesetzt!"
+  socket-incompatible: "&cKein kompatibler freier Sockel auf diesem Gegenstand gefunden!"
+  requirement-failed: "&cDu erfüllst nicht die Voraussetzungen, um diesen Gegenstand zu führen!"
+  cooldown-active: "&cDieser Gegenstand hat noch Abklingzeit! (Noch &f#time#s&c)"
+  editor-locked: "&cDieser Gegenstand wird derzeit von einem anderen Administrator bearbeitet!"
+
+  # Update-Benachrichtigungen (Admin beim Beitreten und Neuladen)
+  update-available:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>Eine neue Version ist verfügbar!</green>"
+    - " <gray>• Aktuelle Version: <red>v#current#</red></gray>"
+    - " <gray>• Neueste Version: <green>v#latest#</green></gray>"
+    - " <gray>• Download: <click:open_url:'#url#'><hover:show_text:'<gray>Klicken, um die Release-Seite zu öffnen'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• <italic>Bitte aktualisiere das Plugin, um maximale Stabilität und neue Funktionen zu nutzen!</italic></gray>"
+
+  # Befehl /ri checkupdate
+  checkupdate-checking: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Suche nach verfügbaren Updates im Remote-Repository...</gray>"
+  checkupdate-up-to-date:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>Du verwendest die neueste Version von RoyItems.</green>"
+    - " <gray>• Aktuelle Version: <aqua>v#current#</aqua></gray>"
+    - " <gray>• Status: <green>Auf dem neuesten Stand</green></gray>"
+    - " <gray>• Alles läuft einwandfrei ohne ausstehende Updates.</gray>"
+  checkupdate-update-found:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <yellow>Eine neue Version von RoyItems ist verfügbar!</yellow>"
+    - " <gray>• Aktuelle Version: <red>v#current#</red></gray>"
+    - " <gray>• Neueste Version: <green>v#latest#</green></gray>"
+    - " <gray>• Neuere Versionen voraus: <gold>#behind#</gold></gray>"
+    - " <gray>• Download: <click:open_url:'#url#'><hover:show_text:'<gray>Klicken, um die Release-Seite zu öffnen'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• Bitte aktualisiere bald, um neue Funktionen und Optimierungen zu nutzen.</gray>"
+  checkupdate-error: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <red>Updates konnten nicht überprüft werden. Bitte Netzwerkverbindung prüfen oder später erneut versuchen.</red>"

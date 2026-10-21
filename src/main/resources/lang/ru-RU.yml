@@ -1,0 +1,49 @@
+# ==============================================================================
+#                      ROYITEMS — ЛОКАЛИЗАЦИЯ (RU-RU)
+# ==============================================================================
+config-version: 1
+
+prefix: "&6RoyItems &8» &f"
+
+messages:
+  no-permission: "&cУ вас недостаточно прав для выполнения этой команды."
+  player-only: "&cЭту команду могут выполнять только игроки в игре."
+  reload-success: "&aВсе конфигурации, предметы и шаблоны описания успешно перезагружены!"
+  reload-report-header: "&e&m-----------------&r &6RoyItems LiveUpdate &e&m-----------------"
+  reload-report-inventory: " &7• &fИнвентари игроков: &a#count# &7предм. обновлено"
+  reload-report-enderchest: " &7• &fЭндер-сундуки: &a#count# &7предм. обновлено"
+  reload-report-total: " &7• &fВсего синхронизировано: &e#count# &7предм. у &b#players# &7игроков онлайн"
+  reload-report-failed: " &7• &fНе удалось: &c#count#"
+  reload-report-footer: "&e&m----------------------------------------------------"
+  item-given: "&aВы получили &f#amount#x #item#&a!"
+  item-taken: "&aИз вашего инвентаря удалено &f#amount#x #item#&a."
+  item-expired: "&cСрок действия предмета в вашем инвентаре истек, и он обратился в прах!"
+  socket-success: "&a&f#gem# &aуспешно вставлен в гнездо ##slot#!"
+  socket-incompatible: "&cНа этом предмете нет подходящих свободных гнезд!"
+  requirement-failed: "&cВы не соответствуете требованиям для использования этого предмета!"
+  cooldown-active: "&cЭтот предмет перезаряжается! (Осталось &f#time# сек.&c)"
+  editor-locked: "&cЭтот предмет в данный момент редактируется другим администратором!"
+
+  # Уведомления об обновлениях (для администраторов при входе и перезагрузке)
+  update-available:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>Доступна новая версия!</green>"
+    - " <gray>• Текущая версия: <red>v#current#</red></gray>"
+    - " <gray>• Последняя версия: <green>v#latest#</green></gray>"
+    - " <gray>• Скачать: <click:open_url:'#url#'><hover:show_text:'<gray>Нажмите, чтобы открыть страницу релиза'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• <italic>Рекомендуем обновиться для максимальной стабильности и новых возможностей!</italic></gray>"
+
+  # Команда /ri checkupdate
+  checkupdate-checking: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Проверка наличия обновлений в удаленном репозитории...</gray>"
+  checkupdate-up-to-date:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <green>У вас установлена последняя версия RoyItems.</green>"
+    - " <gray>• Текущая версия: <aqua>v#current#</aqua></gray>"
+    - " <gray>• Статус: <green>Актуальная</green></gray>"
+    - " <gray>• Все работает стабильно, ожидающих обновлений нет.</gray>"
+  checkupdate-update-found:
+    - "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <yellow>Доступна новая версия RoyItems!</yellow>"
+    - " <gray>• Текущая версия: <red>v#current#</red></gray>"
+    - " <gray>• Последняя версия: <green>v#latest#</green></gray>"
+    - " <gray>• Доступно новых версий: <gold>#behind#</gold></gray>"
+    - " <gray>• Скачать: <click:open_url:'#url#'><hover:show_text:'<gray>Нажмите, чтобы открыть страницу релиза'><underlined><aqua>#url#</aqua></underlined></hover></click></gray>"
+    - " <gray>• Рекомендуем обновиться в ближайшее время для получения новых функций.</gray>"
+  checkupdate-error: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <red>Не удалось проверить обновления. Проверьте сетевое подключение или повторите попытку позже.</red>"

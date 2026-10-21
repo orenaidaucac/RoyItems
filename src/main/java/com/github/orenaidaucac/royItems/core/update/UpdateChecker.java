@@ -2,6 +2,8 @@ package com.github.orenaidaucac.royItems.core.update;
 
 import com.github.orenaidaucac.royItems.RoyItems;
 import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -20,6 +22,16 @@ import java.util.function.Consumer;
  */
 public class UpdateChecker {
 
+    public record UpdateCheckResult(
+            boolean success,
+            boolean updateAvailable,
+            String currentVersion,
+            String latestVersion,
+            int versionsBehind,
+            String downloadUrl,
+            String errorMessage
+    ) {}
+
     private final RoyItems plugin;
     private final PlatformScheduler scheduler;
 
@@ -27,9 +39,10 @@ public class UpdateChecker {
     private boolean notifyAdminsOnJoin = true;
     private String repository = "orenaidaucac/RoyItems";
 
-    private String currentVersion;
-    private String latestVersion = null;
-    private String downloadUrl = null;
+    private final String currentVersion;
+    private String latestVersion;
+    private String downloadUrl;
+    private int versionsBehind = 0;
     private volatile boolean updateAvailable = false;
     private volatile boolean checkCompleted = false;
 
@@ -37,6 +50,8 @@ public class UpdateChecker {
         this.plugin = plugin;
         this.scheduler = scheduler;
         this.currentVersion = plugin.getPluginMeta().getVersion();
+        this.latestVersion = currentVersion;
+        this.downloadUrl = "https://github.com/" + repository + "/releases/latest";
         loadConfig();
     }
 
@@ -71,6 +86,10 @@ public class UpdateChecker {
         return latestVersion != null ? latestVersion : currentVersion;
     }
 
+    public int getVersionsBehind() {
+        return versionsBehind;
+    }
+
     public String getDownloadUrl() {
         return downloadUrl != null ? downloadUrl : "https://github.com/" + repository + "/releases/latest";
     }
@@ -78,16 +97,18 @@ public class UpdateChecker {
     /**
      * Executes the asynchronous update check.
      */
-    public void checkForUpdates(Consumer<Boolean> callback) {
+    public void checkForUpdates(Consumer<UpdateCheckResult> callback) {
         if (!enabled) {
-            if (callback != null) callback.accept(false);
+            UpdateCheckResult res = new UpdateCheckResult(true, false, currentVersion, currentVersion, 0, getDownloadUrl(), null);
+            if (callback != null) callback.accept(res);
             return;
         }
 
         scheduler.runAsync(() -> {
-            boolean result = false;
+            UpdateCheckResult result = null;
             try {
-                URL apiUrl = URI.create("https://api.github.com/repos/" + repository + "/releases/latest").toURL();
+                // Query release list to accurately compute how many versions ahead
+                URL apiUrl = URI.create("https://api.github.com/repos/" + repository + "/releases?per_page=30").toURL();
                 HttpURLConnection connection = (HttpURLConnection) apiUrl.openConnection();
                 connection.setRequestMethod("GET");
                 connection.setRequestProperty("User-Agent", "RoyItems-UpdateChecker");
@@ -105,33 +126,74 @@ public class UpdateChecker {
                         }
                     }
 
-                    JsonObject json = JsonParser.parseString(response.toString()).getAsJsonObject();
-                    if (json.has("tag_name")) {
-                        String remoteTag = json.get("tag_name").getAsString().trim();
-                        String htmlUrl = json.has("html_url")
-                                ? json.get("html_url").getAsString()
-                                : "https://github.com/" + repository + "/releases/latest";
+                    JsonElement parsed = JsonParser.parseString(response.toString());
+                    int behindCount = 0;
+                    String newestTag = null;
+                    String newestUrl = null;
 
-                        this.latestVersion = remoteTag;
-                        this.downloadUrl = htmlUrl;
-
-                        if (isNewerVersion(currentVersion, remoteTag)) {
-                            this.updateAvailable = true;
-                            result = true;
-                            plugin.getLogger().info("[Update] A newer version of RoyItems is available: " + remoteTag + " (Current: v" + currentVersion + ")");
-                            plugin.getLogger().info("[Update] Download at: " + htmlUrl);
-                        } else {
-                            this.updateAvailable = false;
+                    if (parsed.isJsonArray()) {
+                        JsonArray releases = parsed.getAsJsonArray();
+                        for (JsonElement el : releases) {
+                            if (!el.isJsonObject()) continue;
+                            JsonObject rel = el.getAsJsonObject();
+                            if (rel.has("tag_name")) {
+                                String tag = rel.get("tag_name").getAsString().trim();
+                                if (isNewerVersion(currentVersion, tag)) {
+                                    behindCount++;
+                                    if (newestTag == null) {
+                                        newestTag = tag;
+                                        newestUrl = rel.has("html_url")
+                                                ? rel.get("html_url").getAsString()
+                                                : "https://github.com/" + repository + "/releases/tag/" + tag;
+                                    }
+                                }
+                            }
+                        }
+                    } else if (parsed.isJsonObject()) {
+                        JsonObject obj = parsed.getAsJsonObject();
+                        if (obj.has("tag_name")) {
+                            String tag = obj.get("tag_name").getAsString().trim();
+                            if (isNewerVersion(currentVersion, tag)) {
+                                behindCount = 1;
+                                newestTag = tag;
+                                newestUrl = obj.has("html_url") ? obj.get("html_url").getAsString() : null;
+                            }
                         }
                     }
+
+                    this.versionsBehind = behindCount;
+                    this.updateAvailable = behindCount > 0;
+                    if (newestTag != null) {
+                        this.latestVersion = newestTag;
+                        this.downloadUrl = newestUrl != null ? newestUrl : "https://github.com/" + repository + "/releases/latest";
+                    } else {
+                        this.latestVersion = currentVersion;
+                    }
+
+                    result = new UpdateCheckResult(
+                            true,
+                            this.updateAvailable,
+                            this.currentVersion,
+                            this.latestVersion,
+                            this.versionsBehind,
+                            getDownloadUrl(),
+                            null
+                    );
+
+                    if (this.updateAvailable) {
+                        plugin.getLogger().info("[Update] A newer version of RoyItems is available: " + this.latestVersion + " (" + behindCount + " release(s) ahead, Current: v" + currentVersion + ")");
+                        plugin.getLogger().info("[Update] Download at: " + getDownloadUrl());
+                    }
+                } else {
+                    result = new UpdateCheckResult(false, false, currentVersion, currentVersion, 0, getDownloadUrl(), "HTTP " + responseCode);
                 }
                 connection.disconnect();
-            } catch (Exception ignored) {
-                // Silently ignore network / API rate limit errors so server operations are unaffected
+            } catch (Exception e) {
+                result = new UpdateCheckResult(false, false, currentVersion, currentVersion, 0, getDownloadUrl(), e.getMessage());
             } finally {
                 this.checkCompleted = true;
                 if (callback != null) {
-                    final boolean finalResult = result;
+                    final UpdateCheckResult finalResult = result;
                     scheduler.runGlobal(() -> callback.accept(finalResult));
                 }
             }

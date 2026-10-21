@@ -5,7 +5,10 @@ config-version: 1
 
 # General settings
 debug: false
-language: en
+
+# Active localization language:
+# Supported: en-US, vi-VN, de-DE, ja-JP, ko-KR, ru-RU, es-ES (or custom lang/<language>.yml)
+language: en-US
 
 # Provider preference when multiple MMORPG providers exist (MMOCore, AuraSkills, Auto)
 mana-provider: Auto
@@ -19,7 +22,7 @@ performance:
 
 # ==============================================================================
 # UPDATE CHECKER
-# Tự động kiểm tra bản phát hành mới và gửi thông báo riêng cho Server Admin
+# Automatically checks for new releases and notifies server administrators
 # ==============================================================================
 update-checker:
   enabled: true
@@ -28,50 +31,50 @@ update-checker:
 
 # ==============================================================================
 # COMBAT & CUSTOM DEFENSE SYSTEM
-# 'defense' là Custom Stat độc lập, trực tiếp giảm sát thương nhận vào,
-# không can thiệp nhầm vào Vanilla Armor hoặc Armor Toughness.
+# 'defense' is an independent custom stat directly mitigating incoming damage,
+# operating cleanly without conflicting with Vanilla Armor or Armor Toughness.
 # ==============================================================================
 combat:
-  # Hiệu ứng âm thanh và hạt khi đòn đánh đạt tỉ lệ chí mạng
+  # Particle and sound effects when an attack triggers a critical strike
   critical-hit-particles: true
 
-  # Giới hạn phần trăm giảm trừ sát thương tối đa (Damage Reduction stat)
-  # Ví dụ: 0.85 = tối đa 85% sát thương bị triệt tiêu
+  # Hard ceiling for final damage reduction percentage (Damage Reduction stat)
+  # Example: 0.85 = maximum 85% of incoming damage can be absorbed
   max-damage-reduction: 0.85
 
   defense:
     # --------------------------------------------------------------------------
-    # CHẾ ĐỘ PHÒNG THỦ (DEFENSE MODE)
-    # Lựa chọn 1 trong 3 chế độ tính toán độc lập:
-    #   - SIMPLE: Trừ thẳng sát thương (Final Damage = Attack Damage - Defense).
-    #   - MMORPG: Giảm sát thương phi tuyến (đảm bảo damage nhỏ vẫn gây sát thương).
-    #   - CUSTOM_LIMIT: Trừ thẳng sát thương kèm giới hạn Min / Max Damage.
+    # DEFENSE CALCULATION MODE
+    # Choose one of three calculation modes:
+    #   - SIMPLE: Direct subtraction (Final Damage = Attack Damage - Defense).
+    #   - MMORPG: Non-linear scaling curve with diminishing returns.
+    #   - CUSTOM_LIMIT: Flat subtraction bounded by Min and Max damage limits.
     # --------------------------------------------------------------------------
     mode: "MMORPG"
 
     # MODE 1 — SIMPLE
-    # Công thức: Final Damage = Attack Damage - Effective Defense
-    # Chấp nhận kết quả tính trung gian âm khi Defense vượt Damage,
-    # nhưng tự động chặn ở sàn an toàn (floor-damage) để không hồi máu hoặc gây lỗi.
+    # Formula: Final Damage = Attack Damage - Effective Defense
+    # Allows negative intermediate values when defense exceeds damage,
+    # safely clamping at floor-damage to prevent accidental player healing.
     simple:
       floor-damage: 0.0
 
-    # MODE 2 — MMORPG (Giảm sát thương phi tuyến)
-    # Công thức: Final Damage = Damage * (scale / (scale + Effective Defense)) * damage-factor
-    # Ví dụ với scale = 100:
-    #   - 100 Defense -> Giảm 50% sát thương nhận vào
-    #   - 200 Defense -> Giảm 66.7% sát thương nhận vào
-    #   - 300 Defense -> Giảm 75% sát thương nhận vào
-    # Đảm bảo người chơi có sát thương thấp vẫn luôn gây được sát thương lên mục tiêu có Defense cao.
+    # MODE 2 — MMORPG (Diminishing returns non-linear mitigation)
+    # Formula: Final Damage = Damage * (scale / (scale + Effective Defense)) * damage-factor
+    # Example with scale = 100:
+    #   - 100 Defense -> 50% damage reduction
+    #   - 200 Defense -> 66.7% damage reduction
+    #   - 300 Defense -> 75% damage reduction
+    # Guarantees that lower-damage players will always deal baseline chip damage to high-defense targets.
     mmorpg:
       scale: 100.0
       damage-factor: 1.0
       min-damage-floor: 1.0
 
     # MODE 3 — CUSTOM DAMAGE LIMIT
-    # Công thức: Attack Damage - Effective Defense, sau đó áp dụng giới hạn Min/Max:
-    #   - min-damage: Sát thương tối thiểu sau tính toán (kể cả khi kết quả trừ ra âm).
-    #   - max-damage: Sát thương tối đa (ngăn sát thương một đòn vượt ngưỡng cho phép).
+    # Formula: Attack Damage - Effective Defense, then bounded by clamp thresholds:
+    #   - min-damage: Minimum damage floor dealt per attack (even if subtracted below zero).
+    #   - max-damage: Maximum damage ceiling allowed per single hit.
     custom-limit:
       min-damage:
         enabled: true

@@ -1,5 +1,6 @@
 package com.github.orenaidaucac.royItems.core.config;
 
+import com.github.orenaidaucac.royItems.core.message.MessageManager;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
@@ -34,19 +35,24 @@ public class ConfigMigrator {
     /**
      * Migrates all core configuration files:
      * - config.yml
-     * - lang/message.yml
+     * - lang/<language>.yml (all supported languages)
      * - gui/editor-gui.yml
      */
     public void migrateAll() {
         migrateFile("config.yml", new File(plugin.getDataFolder(), "config.yml"));
-        migrateFile("lang/message.yml", new File(plugin.getDataFolder(), "lang/message.yml"));
+
+        for (String lang : MessageManager.SUPPORTED_LANGUAGES) {
+            String path = "lang/" + lang + ".yml";
+            migrateFile(path, new File(plugin.getDataFolder(), path));
+        }
+
         migrateFile("gui/editor-gui.yml", new File(plugin.getDataFolder(), "gui/editor-gui.yml"));
     }
 
     /**
      * Migrates a single configuration file against its embedded jar resource.
      *
-     * @param resourcePath Path inside the jar resources, e.g. "lang/message.yml"
+     * @param resourcePath Path inside the jar resources, e.g. "lang/en-US.yml"
      * @param targetFile   File on the server disk
      * @return true if file was updated / migrated
      */

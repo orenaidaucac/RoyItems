@@ -4,7 +4,7 @@
   <groupId>com.github.orenaidaucac</groupId>
   <artifactId>royitems</artifactId>
   <name>RoyItems</name>
-  <version>2026.1</version>
+  <version>2026.1.1</version>
   <description>Advanced MMORPG Custom Items Engine for Minecraft Paper/Spigot/Folia</description>
   <build>
     <defaultGoal>clean package</defaultGoal>
@@ -14,7 +14,7 @@
         <directory>src/main/resources</directory>
       </resource>
     </resources>
-    <finalName>RoyItems-2026.1</finalName>
+    <finalName>RoyItems-${project.version}</finalName>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
