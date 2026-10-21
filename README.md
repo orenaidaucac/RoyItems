@@ -279,7 +279,7 @@ Dự án sử dụng **Maven** và yêu cầu **Java 21 trở lên**:
 
 ```bash
 # Clone repository
-git clone https://github.com/orenaidaucac/RoyMC-Plugin.git
+git clone https://github.com/orenaidaucac/RoyItems.git
 
 # Biên dịch và đóng gói
 mvn clean package
