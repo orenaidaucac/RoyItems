@@ -21,6 +21,8 @@ import com.github.orenaidaucac.royItems.stat.PlayerEquipmentListener;
 import com.github.orenaidaucac.royItems.stat.StatManager;
 import com.github.orenaidaucac.royItems.tier_set.ItemSetManager;
 import com.github.orenaidaucac.royItems.tier_set.ItemTierManager;
+import com.github.orenaidaucac.royItems.tier_set.TierDropGlowListener;
+import com.github.orenaidaucac.royItems.mechanics.DamageParticleFilterManager;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -57,6 +59,8 @@ public final class RoyItems extends JavaPlugin {
     private MessageManager messageManager;
     private ConfigMigrator configMigrator;
     private UpdateChecker updateChecker;
+    private TierDropGlowListener tierDropGlowListener;
+    private DamageParticleFilterManager particleFilterManager;
 
     public static RoyItems getInstance() {
         return instance;
@@ -84,6 +88,8 @@ public final class RoyItems extends JavaPlugin {
     public MessageManager getMessageManager() { return messageManager; }
     public ConfigMigrator getConfigMigrator() { return configMigrator; }
     public UpdateChecker getUpdateChecker() { return updateChecker; }
+    public TierDropGlowListener getTierDropGlowListener() { return tierDropGlowListener; }
+    public DamageParticleFilterManager getParticleFilterManager() { return particleFilterManager; }
 
     @Override
     public void onEnable() {
@@ -151,17 +157,25 @@ public final class RoyItems extends JavaPlugin {
         this.updateChecker = new UpdateChecker(this, platformScheduler);
         this.updateChecker.checkForUpdates(null);
 
-        // 11. Register Event Listeners
-        registerListeners();
+        // 11. Tier Drop Glow System
+        this.tierDropGlowListener = new TierDropGlowListener(itemPDCManager, itemRegistry, itemTierManager);
 
-        // 12. Register Commands
+        // 12. Damage Heart Particle Filter (PacketEvents / ProtocolLib)
+        this.particleFilterManager = new DamageParticleFilterManager(this);
+        this.particleFilterManager.initialize();
+
+        // 13. Register Event Listeners
+        registerListeners();
+        this.tierDropGlowListener.applyToAllGroundItems();
+
+        // 14. Register Commands
         registerCommands();
 
-        // 13. Start Background Mechanics
+        // 15. Start Background Mechanics
         this.expirationManager.startTask();
         this.potionEffectManager.startTask();
 
-        // 14. bStats Metrics Telemetry
+        // 16. bStats Metrics Telemetry
         this.metricsManager = new RoyMetricsManager(this);
         this.metricsManager.initialize();
 
@@ -178,7 +192,17 @@ public final class RoyItems extends JavaPlugin {
             editorGUIManager.closeAll();
         }
 
-        // 2. Cancel all scheduled platform tasks
+        // 2. Cleanup Tier Drop Glow Teams
+        if (tierDropGlowListener != null) {
+            tierDropGlowListener.cleanup();
+        }
+
+        // 3. Disable Damage Particle Filter Hook
+        if (particleFilterManager != null) {
+            particleFilterManager.disable();
+        }
+
+        // 4. Cancel all scheduled platform tasks
         if (platformScheduler != null) {
             platformScheduler.cancelAllTasks();
         }
@@ -214,6 +238,9 @@ public final class RoyItems extends JavaPlugin {
         if (defenseManager != null) {
             defenseManager.loadConfig();
         }
+        if (particleFilterManager != null) {
+            particleFilterManager.loadConfig();
+        }
         if (updateChecker != null) {
             updateChecker.loadConfig();
             updateChecker.checkForUpdates(null);
@@ -230,6 +257,9 @@ public final class RoyItems extends JavaPlugin {
         // 5. Reload Tiers and Sets
         itemTierManager.loadTiers();
         itemSetManager.loadSets();
+        if (tierDropGlowListener != null) {
+            tierDropGlowListener.applyToAllGroundItems();
+        }
 
         // 6. Reload Items from item/<TYPE>.yml
         itemConfigManager.loadAll();
@@ -263,6 +293,9 @@ public final class RoyItems extends JavaPlugin {
         pm.registerEvents(editorGUIManager, this);
         pm.registerEvents(editorGUIManager.getChatInputManager(), this);
         pm.registerEvents(new UpdateListener(this, updateChecker, platformScheduler), this);
+        if (tierDropGlowListener != null) {
+            pm.registerEvents(tierDropGlowListener, this);
+        }
     }
 
     private void registerCommands() {

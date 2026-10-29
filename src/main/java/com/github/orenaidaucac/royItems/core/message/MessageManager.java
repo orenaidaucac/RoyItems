@@ -218,10 +218,10 @@ public class MessageManager {
             String processed = line
                     .replace("#current#", currentVersion != null ? currentVersion : "Unknown")
                     .replace("#latest#", latestVersion != null ? latestVersion : "Unknown")
-                    .replace("#url#", downloadUrl != null ? downloadUrl : "https://github.com/orenaidaucac/RoyItems/releases/latest")
+                    .replace("#url#", downloadUrl != null ? downloadUrl : "https://modrinth.com/plugin/royitems")
                     .replace("%current%", currentVersion != null ? currentVersion : "Unknown")
                     .replace("%latest%", latestVersion != null ? latestVersion : "Unknown")
-                    .replace("%url%", downloadUrl != null ? downloadUrl : "https://github.com/orenaidaucac/RoyItems/releases/latest");
+                    .replace("%url%", downloadUrl != null ? downloadUrl : "https://modrinth.com/plugin/royitems");
             sender.sendMessage(TextUtility.formatMessage(processed));
         }
     }

@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.io.BufferedReader;
@@ -17,10 +18,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
 /**
- * Asynchronous update checker for RoyItems.
- * Safely queries GitHub Releases API without blocking the main server thread or Folia region threads.
+ * Asynchronous update checker for RoyItems via Modrinth Labrinth API.
+ * Safely queries Modrinth API without blocking the main server thread or Folia region threads.
+ *
+ * Enforces strict configuration integrity: Only 'enabled' and 'notify-admins-on-join'
+ * are customizable by administrators; any unauthorized edits are immediately reverted upon reload or restart.
  */
 public class UpdateChecker {
+
+    public static final String MODRINTH_SLUG = "royitems";
+    public static final String MODRINTH_PROJECT_URL = "https://modrinth.com/plugin/royitems";
+    public static final String MODRINTH_API_URL = "https://api.modrinth.com/v2/project/" + MODRINTH_SLUG + "/version";
 
     public record UpdateCheckResult(
             boolean success,
@@ -37,7 +45,6 @@ public class UpdateChecker {
 
     private boolean enabled = true;
     private boolean notifyAdminsOnJoin = true;
-    private String repository = "orenaidaucac/RoyItems";
 
     private final String currentVersion;
     private String latestVersion;
@@ -51,15 +58,67 @@ public class UpdateChecker {
         this.scheduler = scheduler;
         this.currentVersion = plugin.getPluginMeta().getVersion();
         this.latestVersion = currentVersion;
-        this.downloadUrl = "https://github.com/" + repository + "/releases/latest";
+        this.downloadUrl = MODRINTH_PROJECT_URL;
         loadConfig();
     }
 
     public void loadConfig() {
+        if (plugin == null) return;
         FileConfiguration config = plugin.getConfig();
+
+        // 1. Read allowed customizable parameters
         this.enabled = config.getBoolean("update-checker.enabled", true);
         this.notifyAdminsOnJoin = config.getBoolean("update-checker.notify-admins-on-join", true);
-        this.repository = config.getString("update-checker.repository", "orenaidaucac/RoyItems");
+
+        // 2. Strict enforcement: only 'enabled' and 'notify-admins-on-join' are editable.
+        // If an administrator attempts to modify any other property, it is immediately reverted.
+        boolean needsRevert = enforceConfigIntegrity(config);
+        if (needsRevert) {
+            plugin.saveConfig();
+            plugin.getLogger().warning("[UpdateChecker] Detected unauthorized modifications in 'update-checker' config. Reverted to default settings. Only 'enabled' and 'notify-admins-on-join' can be configured.");
+        }
+    }
+
+    /**
+     * Enforces that only 'enabled' and 'notify-admins-on-join' exist in the update-checker section.
+     * All unauthorized or obsolete keys (such as repository, platform, url) are immediately removed.
+     *
+     * @param config The FileConfiguration to validate
+     * @return true if the configuration was modified and needs to be saved to disk
+     */
+    public static boolean enforceConfigIntegrity(FileConfiguration config) {
+        if (config == null) return false;
+
+        boolean modified = false;
+
+        if (!config.isConfigurationSection("update-checker")) {
+            config.set("update-checker.enabled", true);
+            config.set("update-checker.notify-admins-on-join", true);
+            return true;
+        }
+
+        ConfigurationSection section = config.getConfigurationSection("update-checker");
+        if (section == null) return false;
+
+        // Remove any unauthorized / obsolete keys (e.g. repository, platform, url, etc.)
+        for (String key : section.getKeys(false)) {
+            if (!key.equalsIgnoreCase("enabled") && !key.equalsIgnoreCase("notify-admins-on-join")) {
+                config.set("update-checker." + key, null);
+                modified = true;
+            }
+        }
+
+        // Ensure both allowed keys exist with valid booleans
+        if (!config.contains("update-checker.enabled")) {
+            config.set("update-checker.enabled", true);
+            modified = true;
+        }
+        if (!config.contains("update-checker.notify-admins-on-join")) {
+            config.set("update-checker.notify-admins-on-join", true);
+            modified = true;
+        }
+
+        return modified;
     }
 
     public boolean isEnabled() {
@@ -91,11 +150,11 @@ public class UpdateChecker {
     }
 
     public String getDownloadUrl() {
-        return downloadUrl != null ? downloadUrl : "https://github.com/" + repository + "/releases/latest";
+        return downloadUrl != null ? downloadUrl : MODRINTH_PROJECT_URL;
     }
 
     /**
-     * Executes the asynchronous update check.
+     * Executes the asynchronous update check against the official Modrinth API.
      */
     public void checkForUpdates(Consumer<UpdateCheckResult> callback) {
         if (!enabled) {
@@ -107,14 +166,13 @@ public class UpdateChecker {
         scheduler.runAsync(() -> {
             UpdateCheckResult result = null;
             try {
-                // Query release list to accurately compute how many versions ahead
-                URL apiUrl = URI.create("https://api.github.com/repos/" + repository + "/releases?per_page=30").toURL();
+                URL apiUrl = URI.create(MODRINTH_API_URL).toURL();
                 HttpURLConnection connection = (HttpURLConnection) apiUrl.openConnection();
                 connection.setRequestMethod("GET");
-                connection.setRequestProperty("User-Agent", "RoyItems-UpdateChecker");
-                connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(4000);
+                connection.setRequestProperty("User-Agent", "RoyMC/RoyItems/" + currentVersion + " (" + MODRINTH_PROJECT_URL + ")");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
 
                 int responseCode = connection.getResponseCode();
                 if (responseCode == 200) {
@@ -128,47 +186,33 @@ public class UpdateChecker {
 
                     JsonElement parsed = JsonParser.parseString(response.toString());
                     int behindCount = 0;
-                    String newestTag = null;
-                    String newestUrl = null;
+                    String newestVer = null;
 
                     if (parsed.isJsonArray()) {
-                        JsonArray releases = parsed.getAsJsonArray();
-                        for (JsonElement el : releases) {
+                        JsonArray versions = parsed.getAsJsonArray();
+                        for (JsonElement el : versions) {
                             if (!el.isJsonObject()) continue;
-                            JsonObject rel = el.getAsJsonObject();
-                            if (rel.has("tag_name")) {
-                                String tag = rel.get("tag_name").getAsString().trim();
-                                if (isNewerVersion(currentVersion, tag)) {
+                            JsonObject ver = el.getAsJsonObject();
+                            if (ver.has("version_number")) {
+                                String verNum = ver.get("version_number").getAsString().trim();
+                                if (isNewerVersion(currentVersion, verNum)) {
                                     behindCount++;
-                                    if (newestTag == null) {
-                                        newestTag = tag;
-                                        newestUrl = rel.has("html_url")
-                                                ? rel.get("html_url").getAsString()
-                                                : "https://github.com/" + repository + "/releases/tag/" + tag;
+                                    if (newestVer == null) {
+                                        newestVer = verNum;
                                     }
                                 }
-                            }
-                        }
-                    } else if (parsed.isJsonObject()) {
-                        JsonObject obj = parsed.getAsJsonObject();
-                        if (obj.has("tag_name")) {
-                            String tag = obj.get("tag_name").getAsString().trim();
-                            if (isNewerVersion(currentVersion, tag)) {
-                                behindCount = 1;
-                                newestTag = tag;
-                                newestUrl = obj.has("html_url") ? obj.get("html_url").getAsString() : null;
                             }
                         }
                     }
 
                     this.versionsBehind = behindCount;
                     this.updateAvailable = behindCount > 0;
-                    if (newestTag != null) {
-                        this.latestVersion = newestTag;
-                        this.downloadUrl = newestUrl != null ? newestUrl : "https://github.com/" + repository + "/releases/latest";
+                    if (newestVer != null) {
+                        this.latestVersion = newestVer;
                     } else {
                         this.latestVersion = currentVersion;
                     }
+                    this.downloadUrl = MODRINTH_PROJECT_URL;
 
                     result = new UpdateCheckResult(
                             true,
@@ -181,7 +225,7 @@ public class UpdateChecker {
                     );
 
                     if (this.updateAvailable) {
-                        plugin.getLogger().info("[Update] A newer version of RoyItems is available: " + this.latestVersion + " (" + behindCount + " release(s) ahead, Current: v" + currentVersion + ")");
+                        plugin.getLogger().info("[Update] A newer version of RoyItems is available on Modrinth: v" + this.latestVersion + " (" + behindCount + " release(s) ahead, Current: v" + currentVersion + ")");
                         plugin.getLogger().info("[Update] Download at: " + getDownloadUrl());
                     }
                 } else {

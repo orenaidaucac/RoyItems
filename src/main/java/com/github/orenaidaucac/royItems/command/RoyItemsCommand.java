@@ -79,7 +79,7 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 plugin.getMessageManager().send(sender, "checkupdate-checking",
-                        "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Checking for available updates from remote repository...</gray>", null);
+                        "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> <gray>Checking for available updates on Modrinth...</gray>", null);
 
                 plugin.getUpdateChecker().checkForUpdates(result -> {
                     plugin.getMessageManager().sendCheckUpdateResult(sender, result);
@@ -306,7 +306,7 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(TextUtility.formatMessage("&6&lRoyItems &7— &eAdvanced MMORPG Items Engine v2026.1.1"));
+        sender.sendMessage(TextUtility.formatMessage("&6&lRoyItems &7— &eAdvanced MMORPG Items Engine v" + plugin.getPluginMeta().getVersion()));
         sender.sendMessage(TextUtility.formatMessage("&e/ri help &7- Display help message"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri reload &7- Reload all configs, items, and lore formats"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri editor &7- Open Ingame GUI Editor"));

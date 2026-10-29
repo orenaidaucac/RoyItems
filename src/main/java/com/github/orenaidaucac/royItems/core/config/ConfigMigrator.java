@@ -37,6 +37,7 @@ public class ConfigMigrator {
      * - config.yml
      * - lang/<language>.yml (all supported languages)
      * - gui/editor-gui.yml
+     * - item-tier.yml
      */
     public void migrateAll() {
         migrateFile("config.yml", new File(plugin.getDataFolder(), "config.yml"));
@@ -47,6 +48,7 @@ public class ConfigMigrator {
         }
 
         migrateFile("gui/editor-gui.yml", new File(plugin.getDataFolder(), "gui/editor-gui.yml"));
+        migrateFile("item-tier.yml", new File(plugin.getDataFolder(), "item-tier.yml"));
     }
 
     /**

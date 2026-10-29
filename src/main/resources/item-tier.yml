@@ -1,29 +1,40 @@
+# ==============================================================================
+#                      ROYITEMS — ITEM TIER CONFIGURATION
+# ==============================================================================
+config-version: 2
+
 common:
   display-name: "&fCommon"
   color: "&f"
   weight: 1
+  drop-color: WHITE
 
 uncommon:
   display-name: "&aUncommon"
   color: "&a"
   weight: 2
+  drop-color: GREEN
 
 rare:
   display-name: "&9Rare"
   color: "&9"
   weight: 3
+  drop-color: BLUE
 
 epic:
   display-name: "&5Epic"
   color: "&5"
   weight: 4
+  drop-color: DARK_PURPLE
 
 legendary:
   display-name: "&6Legendary"
   color: "&6"
   weight: 5
+  drop-color: GOLD
 
 mythic:
   display-name: "&dMythic"
   color: "&d"
   weight: 6
+  drop-color: LIGHT_PURPLE

@@ -4,7 +4,7 @@
   <groupId>com.github.orenaidaucac</groupId>
   <artifactId>royitems</artifactId>
   <name>RoyItems</name>
-  <version>2026.1.1</version>
+  <version>2026.1.2</version>
   <description>Advanced MMORPG Custom Items Engine for Minecraft Paper/Spigot/Folia</description>
   <build>
     <defaultGoal>clean package</defaultGoal>
@@ -83,12 +83,32 @@
       <id>sonatype</id>
       <url>https://oss.sonatype.org/content/groups/public/</url>
     </repository>
+    <repository>
+      <id>codemc-releases</id>
+      <url>https://repo.codemc.io/repository/maven-releases/</url>
+    </repository>
+    <repository>
+      <id>dmulloy2-repo</id>
+      <url>https://repo.dmulloy2.net/repository/public/</url>
+    </repository>
   </repositories>
   <dependencies>
     <dependency>
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
       <version>1.21.4-R0.1-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.github.retrooper</groupId>
+      <artifactId>packetevents-spigot</artifactId>
+      <version>2.7.0</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.dmulloy2</groupId>
+      <artifactId>ProtocolLib</artifactId>
+      <version>5.3.0</version>
       <scope>provided</scope>
     </dependency>
     <dependency>

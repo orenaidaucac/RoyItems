@@ -137,6 +137,56 @@ class RoyItemsUnitTest {
     }
 
     @Test
+    @DisplayName("Text Formatting: Hex formats (<#...>, {#...}, &#...), Legacy and MiniMessage Gradients")
+    void testTextFormattingHexAndGradients() {
+        // 1. MiniMessage Gradient preservation
+        String gradient = "<gradient:#FFD166:#06D6A0>RoyItems</gradient>";
+        assertEquals(gradient, TextUtility.normalizeHexAndLegacy(gradient));
+        Component compGradient = TextUtility.format(gradient);
+        assertEquals("RoyItems", TextUtility.toPlain(compGradient));
+
+        // 2. Hex formats
+        // Format <#RRGGBB>
+        String hex1 = "<#FFD166>RoyItems";
+        assertEquals(hex1, TextUtility.normalizeHexAndLegacy(hex1));
+        assertEquals("RoyItems", TextUtility.toPlain(TextUtility.format(hex1)));
+
+        // Format {#RRGGBB}
+        String hex2 = "{#FFD166}RoyItems";
+        assertEquals("<#FFD166>RoyItems", TextUtility.normalizeHexAndLegacy(hex2));
+        assertEquals("RoyItems", TextUtility.toPlain(TextUtility.format(hex2)));
+
+        // Format &#RRGGBB
+        String hex3 = "&#FFD166RoyItems";
+        assertEquals("<#FFD166>RoyItems", TextUtility.normalizeHexAndLegacy(hex3));
+        assertEquals("RoyItems", TextUtility.toPlain(TextUtility.format(hex3)));
+
+        // Format §#RRGGBB
+        String hex4 = "§#FFD166RoyItems";
+        assertEquals("<#FFD166>RoyItems", TextUtility.normalizeHexAndLegacy(hex4));
+        assertEquals("RoyItems", TextUtility.toPlain(TextUtility.format(hex4)));
+
+        // 3. Seamless combination of Legacy, Hex, and MiniMessage Gradient
+        String mixed = "&6RoyItems &8» <gradient:#FFD166:#06D6A0>Test</gradient> &7(v2026.1.1) {#06D6A0}[OK] &#EF476F!";
+        String normalized = TextUtility.normalizeHexAndLegacy(mixed);
+        assertTrue(normalized.contains("<gradient:#FFD166:#06D6A0>Test</gradient>"));
+        assertTrue(normalized.contains("<#06D6A0>[OK]"));
+        assertTrue(normalized.contains("<#EF476F>!"));
+        Component compMixed = TextUtility.format(mixed);
+        assertEquals("RoyItems » Test (v2026.1.1) [OK] !", TextUtility.toPlain(compMixed));
+
+        // 4. Legacy uppercase and lowercase
+        String legacyUpper = "&A&LGreen Bold &r&CRed";
+        Component compLegacy = TextUtility.format(legacyUpper);
+        assertEquals("Green Bold Red", TextUtility.toPlain(compLegacy));
+
+        // 5. Standalone # and & are preserved as plain characters
+        String plain = "Rank #1 & #2";
+        assertEquals(plain, TextUtility.normalizeHexAndLegacy(plain));
+        assertEquals("Rank #1 & #2", TextUtility.toPlain(TextUtility.format(plain)));
+    }
+
+    @Test
     @DisplayName("Defense System: Mode 1 (SIMPLE) - Subtraction and Safe Non-Negative Floor")
     void testDefenseSimpleMode() {
         DefenseManager manager = new DefenseManager(null, null);
@@ -369,6 +419,7 @@ class RoyItemsUnitTest {
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.2"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("v2026.1", "v2026.2"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.1.1"));
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1.1", "2026.1.2"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("1.0.0", "1.0.1"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("1.0.0", "2.0.0"));
 
@@ -376,7 +427,46 @@ class RoyItemsUnitTest {
         assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.1"));
         assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("v2026.1", "2026.1"));
         assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.2", "2026.1"));
+        assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1.2", "2026.1.1"));
         assertFalse(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2.0.0", "1.9.9"));
+    }
+
+    @Test
+    @DisplayName("Update Checker: Modrinth configuration integrity & auto-revert unauthorized fields")
+    void testUpdateCheckerConfigIntegrity() {
+        assertEquals("https://modrinth.com/plugin/royitems", com.github.orenaidaucac.royItems.core.update.UpdateChecker.MODRINTH_PROJECT_URL);
+        assertEquals("https://api.modrinth.com/v2/project/royitems/version", com.github.orenaidaucac.royItems.core.update.UpdateChecker.MODRINTH_API_URL);
+
+        // Case 1: Config with unauthorized / legacy keys (repository, platform, custom-url)
+        org.bukkit.configuration.file.YamlConfiguration dirtyConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        dirtyConfig.set("update-checker.enabled", false);
+        dirtyConfig.set("update-checker.notify-admins-on-join", true);
+        dirtyConfig.set("update-checker.repository", "orenaidaucac/RoyItems");
+        dirtyConfig.set("update-checker.platform", "github");
+        dirtyConfig.set("update-checker.custom-url", "https://malicious.example.com");
+
+        boolean modified = com.github.orenaidaucac.royItems.core.update.UpdateChecker.enforceConfigIntegrity(dirtyConfig);
+        assertTrue(modified, "Enforce integrity must report modifications when unauthorized keys are present");
+
+        // Allowed keys must be preserved exactly
+        assertFalse(dirtyConfig.getBoolean("update-checker.enabled"));
+        assertTrue(dirtyConfig.getBoolean("update-checker.notify-admins-on-join"));
+
+        // Unauthorized keys must be completely removed
+        assertNull(dirtyConfig.get("update-checker.repository"));
+        assertNull(dirtyConfig.get("update-checker.platform"));
+        assertNull(dirtyConfig.get("update-checker.custom-url"));
+
+        // Case 2: Config is already clean, must not trigger modification
+        boolean cleanCheck = com.github.orenaidaucac.royItems.core.update.UpdateChecker.enforceConfigIntegrity(dirtyConfig);
+        assertFalse(cleanCheck, "Clean configuration must not trigger further modifications");
+
+        // Case 3: Missing update-checker section
+        org.bukkit.configuration.file.YamlConfiguration emptyConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        boolean recreated = com.github.orenaidaucac.royItems.core.update.UpdateChecker.enforceConfigIntegrity(emptyConfig);
+        assertTrue(recreated);
+        assertTrue(emptyConfig.getBoolean("update-checker.enabled"));
+        assertTrue(emptyConfig.getBoolean("update-checker.notify-admins-on-join"));
     }
 
     @Test
@@ -446,7 +536,7 @@ class RoyItemsUnitTest {
             org.bukkit.configuration.file.YamlConfiguration config =
                     org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
 
-            assertEquals(1, config.getInt("config-version"));
+            assertEquals(2, config.getInt("config-version"));
             assertNotNull(config.getString("prefix"));
             assertNotNull(config.getString("messages.no-permission"));
             assertNotNull(config.getString("messages.reload-success"));
@@ -454,5 +544,78 @@ class RoyItemsUnitTest {
             assertTrue(config.isList("messages.checkupdate-up-to-date"));
             assertTrue(config.isList("messages.checkupdate-update-found"));
         }
+    }
+
+    @Test
+    @DisplayName("Item Tier: Drop color resolution for glowing outlines")
+    void testItemTierDropColor() {
+        // Direct Bukkit Color names
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.WHITE,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("WHITE"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.GREEN,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("GREEN"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.BLUE,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("BLUE"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("DARK_PURPLE"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.GOLD,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("GOLD"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("LIGHT_PURPLE"));
+
+        // Legacy color code fallback
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.GOLD,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("&6"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.RED,
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor("&c"));
+
+        // Tier instances
+        com.github.orenaidaucac.royItems.tier_set.ItemTier t1 =
+                new com.github.orenaidaucac.royItems.tier_set.ItemTier("common", "Common", "&f", 1, "WHITE");
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.WHITE, t1.getDropNamedTextColor());
+
+        com.github.orenaidaucac.royItems.tier_set.ItemTier t2 =
+                new com.github.orenaidaucac.royItems.tier_set.ItemTier("legendary", "Legendary", "&6", 5, "GOLD");
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.GOLD, t2.getDropNamedTextColor());
+
+        // Without explicit dropColor -> fallbacks to tier display color
+        com.github.orenaidaucac.royItems.tier_set.ItemTier t3 =
+                new com.github.orenaidaucac.royItems.tier_set.ItemTier("rare", "Rare", "&9", 3, null);
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.BLUE, t3.getDropNamedTextColor());
+    }
+
+    @Test
+    @DisplayName("Damage Particle Filter: Config toggle verification")
+    void testDamageParticleFilterConfig() {
+        org.bukkit.configuration.file.YamlConfiguration config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.set("combat.disable-damage-heart-particles", true);
+        assertTrue(config.getBoolean("combat.disable-damage-heart-particles"));
+
+        config.set("combat.disable-damage-heart-particles", false);
+        assertFalse(config.getBoolean("combat.disable-damage-heart-particles"));
+    }
+
+    @Test
+    @DisplayName("Config Migration: Verify all default template files have config-version 2")
+    void testDefaultConfigFilesVersion2() {
+        java.io.File configFile = new java.io.File("src/main/resources/config.yml");
+        assertTrue(configFile.exists());
+        org.bukkit.configuration.file.YamlConfiguration config =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(configFile);
+        assertEquals(2, config.getInt("config-version"));
+        assertTrue(config.contains("combat.disable-damage-heart-particles"));
+
+        java.io.File guiFile = new java.io.File("src/main/resources/gui/editor-gui.yml");
+        assertTrue(guiFile.exists());
+        org.bukkit.configuration.file.YamlConfiguration gui =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(guiFile);
+        assertEquals(2, gui.getInt("config-version"));
+
+        java.io.File tierFile = new java.io.File("src/main/resources/item-tier.yml");
+        assertTrue(tierFile.exists());
+        org.bukkit.configuration.file.YamlConfiguration tier =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(tierFile);
+        assertEquals(2, tier.getInt("config-version"));
+        assertEquals("WHITE", tier.getString("common.drop-color"));
     }
 }

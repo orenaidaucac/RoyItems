@@ -38,7 +38,8 @@ public class ItemTierManager {
                         key.toLowerCase(),
                         sec.getString("display-name", key),
                         sec.getString("color", "&f"),
-                        sec.getInt("weight", 0)
+                        sec.getInt("weight", 0),
+                        sec.getString("drop-color", null)
                 );
                 tiers.put(key.toLowerCase(), tier);
             }

@@ -24,10 +24,11 @@ public class TextUtility {
             .hexColors()
             .build();
 
-    // Regex for hex formats: &#RRGGBB, <#RRGGBB>, #RRGGBB, &x&r&r&g&g&b&b
-    private static final Pattern HEX_AMPERSAND_PATTERN = Pattern.compile("[&§]#([A-Fa-f0-9]{6})");
-    private static final Pattern HEX_HASH_PATTERN = Pattern.compile("(?<!<)#([A-Fa-f0-9]{6})(?!>)");
-    private static final Pattern BUNGEE_HEX_PATTERN = Pattern.compile("[&§]x([&§][A-Fa-f0-9]){6}");
+    // Regex for hex formats: &#RRGGBB, {#RRGGBB}, <#RRGGBB>, &x&r&r&g&g&b&b
+    private static final Pattern BUNGEE_HEX_PATTERN = Pattern.compile("(?i)[&§]x([&§][0-9a-fA-F]){6}");
+    private static final Pattern HEX_AMPERSAND_PATTERN = Pattern.compile("(?i)[&§]#([0-9a-fA-F]{6})");
+    private static final Pattern HEX_CURLY_PATTERN = Pattern.compile("(?i)\\{#?([0-9a-fA-F]{6})\\}");
+    private static final Pattern LEGACY_CODE_PATTERN = Pattern.compile("(?i)[&§]([0-9a-fk-or])");
 
     /**
      * Translates a raw string into an Adventure Component with anti-italic by default.
@@ -65,7 +66,7 @@ public class TextUtility {
         } catch (Exception e) {
             // Fallback to legacy serializer if MiniMessage fails
             try {
-                component = LEGACY_SERIALIZER.deserialize(input);
+                component = LEGACY_SERIALIZER.deserialize(input.replace('§', '&'));
             } catch (Exception ignored) {
                 component = Component.text(input);
             }
@@ -133,21 +134,16 @@ public class TextUtility {
      * Converts legacy hex and '&'/'§' codes into MiniMessage compatible tags.
      */
     public static String normalizeHexAndLegacy(String input) {
-        if (input == null) return "";
+        if (input == null || input.isEmpty()) return "";
 
         String s = input;
 
-        // 1. Convert BungeeCord hex format &x&r&r&g&g&b&b to <#RRGGBB>
+        // 1. Convert BungeeCord hex format &x&r&r&g&g&b&b / §x§r§r§g§g§b§b to <#RRGGBB>
         Matcher bungeeMatcher = BUNGEE_HEX_PATTERN.matcher(s);
         StringBuffer bungeeBuffer = new StringBuffer();
         while (bungeeMatcher.find()) {
-            String match = bungeeMatcher.group();
-            StringBuilder hex = new StringBuilder("<#");
-            for (int i = 2; i < match.length(); i += 2) {
-                hex.append(match.charAt(i));
-            }
-            hex.append(">");
-            bungeeMatcher.appendReplacement(bungeeBuffer, hex.toString());
+            String hexOnly = bungeeMatcher.group().replaceAll("[&§xX]", "");
+            bungeeMatcher.appendReplacement(bungeeBuffer, "<#" + hexOnly + ">");
         }
         bungeeMatcher.appendTail(bungeeBuffer);
         s = bungeeBuffer.toString();
@@ -161,8 +157,8 @@ public class TextUtility {
         m1.appendTail(sb1);
         s = sb1.toString();
 
-        // 3. Replace standalone #RRGGBB with <#RRGGBB> (excluding already bracketed tags)
-        Matcher m2 = HEX_HASH_PATTERN.matcher(s);
+        // 3. Replace {#RRGGBB} or {RRGGBB} with <#RRGGBB>
+        Matcher m2 = HEX_CURLY_PATTERN.matcher(s);
         StringBuffer sb2 = new StringBuffer();
         while (m2.find()) {
             m2.appendReplacement(sb2, "<#" + m2.group(1) + ">");
@@ -170,32 +166,43 @@ public class TextUtility {
         m2.appendTail(sb2);
         s = sb2.toString();
 
-        // 4. Normalize section symbol § to &
-        s = s.replace('§', '&');
+        // Note: <#RRGGBB> is native MiniMessage syntax.
+        // Bare #RRGGBB is deliberately NOT converted to avoid corrupting MiniMessage tags (such as <gradient:#FFD166:#06D6A0>).
 
-        // 5. Convert standard legacy colors &0-&f, &k-&o, &r to MiniMessage tags
-        s = s.replace("&0", "<black>")
-             .replace("&1", "<dark_blue>")
-             .replace("&2", "<dark_green>")
-             .replace("&3", "<dark_aqua>")
-             .replace("&4", "<dark_red>")
-             .replace("&5", "<dark_purple>")
-             .replace("&6", "<gold>")
-             .replace("&7", "<gray>")
-             .replace("&8", "<dark_gray>")
-             .replace("&9", "<blue>")
-             .replace("&a", "<green>")
-             .replace("&b", "<aqua>")
-             .replace("&c", "<red>")
-             .replace("&d", "<light_purple>")
-             .replace("&e", "<yellow>")
-             .replace("&f", "<white>")
-             .replace("&l", "<bold>")
-             .replace("&m", "<strikethrough>")
-             .replace("&n", "<underlined>")
-             .replace("&o", "<italic>")
-             .replace("&k", "<obfuscated>")
-             .replace("&r", "<reset>");
+        // 4. Convert standard legacy color & formatting codes &0-&f, &k-&o, &r (and §) to MiniMessage tags
+        Matcher legacyMatcher = LEGACY_CODE_PATTERN.matcher(s);
+        StringBuffer sbLegacy = new StringBuffer();
+        while (legacyMatcher.find()) {
+            char code = Character.toLowerCase(legacyMatcher.group(1).charAt(0));
+            String tag = switch (code) {
+                case '0' -> "<black>";
+                case '1' -> "<dark_blue>";
+                case '2' -> "<dark_green>";
+                case '3' -> "<dark_aqua>";
+                case '4' -> "<dark_red>";
+                case '5' -> "<dark_purple>";
+                case '6' -> "<gold>";
+                case '7' -> "<gray>";
+                case '8' -> "<dark_gray>";
+                case '9' -> "<blue>";
+                case 'a' -> "<green>";
+                case 'b' -> "<aqua>";
+                case 'c' -> "<red>";
+                case 'd' -> "<light_purple>";
+                case 'e' -> "<yellow>";
+                case 'f' -> "<white>";
+                case 'k' -> "<obfuscated>";
+                case 'l' -> "<bold>";
+                case 'm' -> "<strikethrough>";
+                case 'n' -> "<underlined>";
+                case 'o' -> "<italic>";
+                case 'r' -> "<reset>";
+                default -> legacyMatcher.group();
+            };
+            legacyMatcher.appendReplacement(sbLegacy, Matcher.quoteReplacement(tag));
+        }
+        legacyMatcher.appendTail(sbLegacy);
+        s = sbLegacy.toString();
 
         return s;
     }

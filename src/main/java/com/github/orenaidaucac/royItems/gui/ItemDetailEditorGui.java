@@ -51,8 +51,47 @@ public class ItemDetailEditorGui {
         Gui gui = Gui.gui()
                 .title(config.getDetailEditorTitle(def.getId(), currentPage, maxPages))
                 .rows(config.getDetailEditorRows())
-                .disableAllInteractions()
+                .disableItemPlace()
+                .disableItemTake()
+                .disableItemSwap()
+                .disableItemDrop()
                 .create();
+
+        // Allow dragging item onto Material slot to quickly set material
+        gui.setDragAction(dragEvent -> {
+            int materialSlot = config.getPropertyConfig("material",
+                    new EditorGuiConfig.PropertyConfig(1, 10, Material.ANVIL, "", List.of(), 0, true)).slot();
+            if (currentPage == 1 && dragEvent.getRawSlots().contains(materialSlot)) {
+                ItemStack oldCursor = dragEvent.getOldCursor();
+                if (oldCursor != null && !oldCursor.getType().isAir()) {
+                    Material newMat = oldCursor.getType();
+                    def.setMaterial(newMat.name());
+                    player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã đổi Material thành &e" + newMat.name() + " &atừ vật phẩm kéo thả!"));
+                    try {
+                        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
+                    } catch (Throwable ignored) {}
+                    manager.getScheduler().runEntityDelayed(player, this::open, 1L);
+                }
+            }
+            dragEvent.setCancelled(true);
+        });
+
+        // Allow shift-clicking item in player inventory on Page 1 to set material
+        gui.setPlayerInventoryAction(clickEvent -> {
+            if (currentPage == 1 && clickEvent.isShiftClick()) {
+                ItemStack current = clickEvent.getCurrentItem();
+                if (current != null && !current.getType().isAir()) {
+                    Material newMat = current.getType();
+                    def.setMaterial(newMat.name());
+                    player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã đổi Material thành &e" + newMat.name() + " &atừ vật phẩm túi đồ!"));
+                    try {
+                        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
+                    } catch (Throwable ignored) {}
+                    clickEvent.setCancelled(true);
+                    manager.getScheduler().runEntityDelayed(player, this::open, 1L);
+                }
+            }
+        });
 
         // 1. Fill background and border
         gui.getFiller().fill(GuiHelper.createFiller(config.getDetailEditorFiller()));
@@ -206,17 +245,29 @@ public class ItemDetailEditorGui {
     // =========================================================================
 
     private void renderPage1General(Gui gui) {
-        // Material
+        // Material (Supports drag & drop from inventory cursor or chat input)
         renderProperty(gui, "material", 1, 10, Material.ANVIL,
                 Map.of("%value%", def.getMaterial()),
                 event -> {
+                    ItemStack cursor = event.getCursor();
+                    if (cursor != null && !cursor.getType().isAir()) {
+                        Material newMat = cursor.getType();
+                        def.setMaterial(newMat.name());
+                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã đổi Material thành &e" + newMat.name() + " &atừ vật phẩm kéo thả!"));
+                        try {
+                            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
+                        } catch (Throwable ignored) {}
+                        open();
+                        return;
+                    }
+
                     if (event.isRightClick()) {
                         cycleMaterial();
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
                                 "Chất Liệu (Material)", def.getMaterial(),
-                                "Nhập tên Material Minecraft (vd: DIAMOND_SWORD, NETHERITE_CHESTPLATE...):",
+                                "Nhập tên Material Minecraft (vd: DIAMOND_SWORD, NETHERITE_CHESTPLATE...) hoặc kéo thả vật phẩm vào ô Material:",
                                 input -> Material.matchMaterial(input.trim()) != null,
                                 input -> def.setMaterial(Material.matchMaterial(input.trim()).name()));
                     }

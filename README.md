@@ -1,6 +1,6 @@
 # ⚔️ RoyItems — Advanced MMORPG Custom Items Engine
 
-![Version](https://img.shields.io/badge/version-2026.1.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2026.1.2-blue.svg)
 ![Minecraft](https://img.shields.io/badge/minecraft-1.21.x%20%7C%2026.2%2B-brightgreen.svg)
 ![Platforms](https://img.shields.io/badge/platforms-Paper%20%7C%20Spigot%20%7C%20Folia-orange.svg)
 ![Java](https://img.shields.io/badge/java-21%2B-red.svg)
@@ -65,7 +65,7 @@ RoyItems is built from the ground up to solve the most demanding challenges of m
 ---
 
 ## 4. Installation & Setup
-1. Download the latest release `RoyItems-2026.1.1.jar`.
+1. Download the latest release `RoyItems-2026.1.2.jar`.
 2. Place the jar file into your server's `plugins/` directory.
 3. Start or restart your server.
 4. Default configuration files, language templates, and item examples will generate automatically.
@@ -300,7 +300,7 @@ git clone https://github.com/orenaidaucac/RoyItems.git
 cd RoyItems
 mvn clean package
 ```
-The compiled jar will be located at `target/RoyItems-2026.1.1.jar`.
+The compiled jar will be located at `target/RoyItems-2026.1.2.jar`.
 
 ---
 

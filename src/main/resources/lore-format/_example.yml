@@ -80,16 +80,22 @@
 # ==============================================================================
 # 3. COLOR & TEXT FORMATTING RULES
 # ==============================================================================
-# - MiniMessage Tags:
-#     <red>, <green>, <gold>, <yellow>, <aqua>, <white>, <gray>, <dark_gray>...
-#     <bold>, <italic>, <underlined>, <strikethrough>
+# - Supported Hex Color Formats:
+#     <#RRGGBB>  -> e.g. <#FFD166>, <#06D6A0>, <#EF476F>
+#     {#RRGGBB}  -> e.g. {#FFD166}, {#06D6A0}, {#EF476F}
+#     &#RRGGBB   -> e.g. &#FFD166, &#06D6A0, &#EF476F
+# - MiniMessage Tags & Gradients:
+#     Colors:    <red>, <green>, <gold>, <yellow>, <aqua>, <white>, <gray>, <dark_gray>...
+#     Styles:    <bold>, <italic>, <underlined>, <strikethrough>, <obfuscated>, <reset>
 #     Gradients: <gradient:#FFD166:#06D6A0>Custom Styled Text</gradient>
-#     Hex Codes: <#FFD166>, <#06D6A0>, <#EF476F>
+#     Rainbow:   <rainbow>Colorful Title</rainbow>
 # - Legacy Color Codes:
-#     &0 through &9, &a through &f, &l (bold), &o (italic), &n (underline), &m (strike).
+#     &0 through &9, &a through &f (case-insensitive &A-&F), &l (bold), &o (italic), &r (reset).
+# - Full Compatibility:
+#     Legacy codes, Hex formats, and MiniMessage can be freely mixed seamlessly in any line.
 # - Anti-Italic Rule:
 #     RoyItems turns off default Minecraft italics by default.
-#     Italic formatting will ONLY appear if you explicitly specify &o or <i>.
+#     Italic formatting will ONLY appear if you explicitly specify &o, <i>, or <italic>.
 # ==============================================================================
 
 # Reference template layout (equivalent to default.yml):

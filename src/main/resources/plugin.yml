@@ -1,5 +1,5 @@
 name: RoyItems
-version: '2026.1.1'
+version: '2026.1.2'
 main: com.github.orenaidaucac.royItems.RoyItems
 api-version: '1.21'
 folia-supported: true
@@ -9,6 +9,8 @@ author: orenaidaucac
 softdepend:
   - Vault
   - PlaceholderAPI
+  - PacketEvents
+  - ProtocolLib
   - MythicMobs
   - MMOCore
   - AuraSkills

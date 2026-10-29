@@ -1,7 +1,7 @@
 # ==============================================================================
 #                      ROYITEMS — CONFIGURATION ENGINE
 # ==============================================================================
-config-version: 1
+config-version: 2
 
 # General settings
 debug: false
@@ -22,12 +22,15 @@ performance:
 
 # ==============================================================================
 # UPDATE CHECKER
-# Automatically checks for new releases and notifies server administrators
+# Automatically checks for new releases on Modrinth (https://modrinth.com/plugin/royitems)
+# and notifies server administrators.
+#
+# NOTE: Only 'enabled' and 'notify-admins-on-join' are editable by server administrators.
+# Any unauthorized modifications will be automatically reverted upon reload or restart.
 # ==============================================================================
 update-checker:
   enabled: true
   notify-admins-on-join: true
-  repository: "orenaidaucac/RoyItems"
 
 # ==============================================================================
 # COMBAT & CUSTOM DEFENSE SYSTEM
@@ -37,6 +40,10 @@ update-checker:
 combat:
   # Particle and sound effects when an attack triggers a critical strike
   critical-hit-particles: true
+
+  # Completely removes damage indicator heart particles (DAMAGE_INDICATOR) from reaching player clients
+  # via PacketEvents or ProtocolLib to eliminate screen freeze/stutter during high MMORPG damage hits
+  disable-damage-heart-particles: true
 
   # Hard ceiling for final damage reduction percentage (Damage Reduction stat)
   # Example: 0.85 = maximum 85% of incoming damage can be absorbed
