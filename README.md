@@ -278,8 +278,8 @@ RoyItems is tested and natively integrated with:
 * 💰 **Economy, Placeholders & Skills:**
   * [Vault](https://www.spigotmc.org/resources/vault.34315/)
   * [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/)
-  * [MMOCore](https://www.spigotmc.org/resources/mmocore.70506/)
-  * [AuraSkills](https://www.spigotmc.org/resources/auraskills.115867/)
+  * [MMOCore](https://www.spigotmc.org/resources/%E2%AD%90-mmocore-%E2%AD%90-classes-skills-levels-skill-trees-professions-mana-waypoints.70575/)
+  * [AuraSkills](https://modrinth.com/plugin/auraskills)
 * 🛡️ **Combat & Protection:**
   * [MythicMobs](https://mythiccraft.io/index.php?resources/mythicmobs.1/)
   * [WorldGuard](https://enginehub.org/worldguard)
@@ -287,7 +287,7 @@ RoyItems is tested and natively integrated with:
   * [ItemsAdder](https://www.spigotmc.org/resources/itemsadder.73355/)
   * [Oraxen](https://www.spigotmc.org/resources/oraxen.72448/)
   * [Nexo](https://modrinth.com/plugin/nexo)
-  * [HeadDatabase](https://www.spigotmc.org/resources/head-database.14280/)
+  * [HeadDatabase](https://nexomc.com/)
 
 ---
 
