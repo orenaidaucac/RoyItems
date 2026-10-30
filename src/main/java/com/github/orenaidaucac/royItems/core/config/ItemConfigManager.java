@@ -167,7 +167,10 @@ public class ItemConfigManager {
         def.setBiomeRequired(sec.getStringList("biome-required"));
 
         // Tier & Set
-        def.setItemTier(sec.getString("item-tier", null));
+        String itemTier = sec.getString("item-tier");
+        if (itemTier == null) itemTier = sec.getString("tier");
+        if (itemTier == null) itemTier = sec.getString("item_tier");
+        def.setItemTier(itemTier);
         def.setItemSet(sec.getString("item-set", null));
 
         // Mechanics
@@ -216,6 +219,12 @@ public class ItemConfigManager {
             }
         }
 
+        // Restrictions & Protections
+        def.setDisableOnUse(sec.getBoolean("disable-on-use", false));
+        def.setDisableOnEnchantment(sec.getBoolean("disable-on-enchantment", false));
+        def.setDisableOnCrafting(sec.getBoolean("disable-on-crafting", false));
+        def.setDisableOnDrop(sec.getBoolean("disable-on-drop", false));
+
         def.setVersion(sec.getInt("version", 1));
 
         return def;
@@ -236,11 +245,11 @@ public class ItemConfigManager {
         String path = def.getId();
         config.set(path + ".material", def.getMaterial());
         config.set(path + ".name", def.getName());
-        config.set(path + ".lore", def.getLore());
+        config.set(path + ".lore", (def.getLore() == null || def.getLore().isEmpty()) ? new ArrayList<>() : def.getLore());
         config.set(path + ".lore-format", def.getLoreFormat());
         config.set(path + ".unbreakable", def.isUnbreakable());
         config.set(path + ".glow", def.isGlow());
-        config.set(path + ".item-model", def.getItemModel());
+        config.set(path + ".item-model", (def.getItemModel() != null && !def.getItemModel().trim().isEmpty()) ? def.getItemModel().trim() : null);
 
         // Stats
         config.set(path + ".stats", null);
@@ -285,12 +294,109 @@ public class ItemConfigManager {
             }
         }
 
-        if (def.getItemTier() != null) config.set(path + ".item-tier", def.getItemTier());
-        if (def.getItemSet() != null) config.set(path + ".item-set", def.getItemSet());
-        if (def.getLevelRequired() > 0) config.set(path + ".level-required", def.getLevelRequired());
-        if (def.getCooldown() > 0) config.set(path + ".cooldown", def.getCooldown());
-        if (def.getExpired() != null) config.set(path + ".expired", def.getExpired());
-        if (!def.getGemSockets().isEmpty()) config.set(path + ".gem-socket", def.getGemSockets());
+        if (def.getItemTier() != null && !def.getItemTier().trim().isEmpty()) {
+            config.set(path + ".item-tier", def.getItemTier().trim());
+        } else {
+            config.set(path + ".item-tier", null);
+        }
+        config.set(path + ".tier", null);
+        config.set(path + ".item_tier", null);
+
+        config.set(path + ".item-set", (def.getItemSet() != null && !def.getItemSet().trim().isEmpty()) ? def.getItemSet().trim() : null);
+
+        // Enchantments
+        config.set(path + ".enchantments", null);
+        if (def.getEnchantments() != null && !def.getEnchantments().isEmpty()) {
+            for (Map.Entry<Enchantment, Integer> e : def.getEnchantments().entrySet()) {
+                if (e.getKey() != null && e.getValue() != null && e.getValue() > 0) {
+                    NamespacedKey nk = e.getKey().getKey();
+                    String enchKey = "minecraft".equalsIgnoreCase(nk.getNamespace()) ? nk.getKey() : nk.toString();
+                    config.set(path + ".enchantments." + enchKey, e.getValue());
+                }
+            }
+        }
+        config.set(path + ".hide-enchantments", def.isHideEnchantments() ? true : null);
+        config.set(path + ".hide-attributes", def.isHideAttributes() ? true : null);
+
+        // Requirements & Permissions
+        config.set(path + ".permission", (def.getPermission() != null && !def.getPermission().trim().isEmpty()) ? def.getPermission().trim() : null);
+        config.set(path + ".drop", def.isDrop() ? null : false);
+        config.set(path + ".level-required", def.getLevelRequired() > 0 ? def.getLevelRequired() : null);
+
+        boolean hasMmoClass = def.getMmocoreClass() != null && !def.getMmocoreClass().trim().isEmpty();
+        boolean hasMmoLevel = def.getMmocoreLevel() > 0;
+        if (hasMmoClass || hasMmoLevel) {
+            config.set(path + ".mmocore-required.class", hasMmoClass ? def.getMmocoreClass().trim() : null);
+            config.set(path + ".mmocore-required.level", hasMmoLevel ? def.getMmocoreLevel() : null);
+        } else {
+            config.set(path + ".mmocore-required", null);
+        }
+
+        boolean hasAuraSkill = def.getAuraSkill() != null && !def.getAuraSkill().trim().isEmpty();
+        boolean hasAuraLevel = def.getAuraSkillLevel() > 0;
+        if (hasAuraSkill || hasAuraLevel) {
+            config.set(path + ".auraskill-required.skill", hasAuraSkill ? def.getAuraSkill().trim() : null);
+            config.set(path + ".auraskill-required.level", hasAuraLevel ? def.getAuraSkillLevel() : null);
+        } else {
+            config.set(path + ".auraskill-required", null);
+        }
+
+        config.set(path + ".world-required", (def.getWorldRequired() != null && !def.getWorldRequired().isEmpty()) ? def.getWorldRequired() : null);
+        config.set(path + ".biome-required", (def.getBiomeRequired() != null && !def.getBiomeRequired().isEmpty()) ? def.getBiomeRequired() : null);
+
+        // Mechanics & Effects
+        config.set(path + ".cooldown", def.getCooldown() > 0 ? def.getCooldown() : null);
+        config.set(path + ".expired", (def.getExpired() != null && !def.getExpired().trim().isEmpty()) ? def.getExpired().trim() : null);
+        config.set(path + ".gem-socket", (def.getGemSockets() != null && !def.getGemSockets().isEmpty()) ? def.getGemSockets() : null);
+
+        config.set(path + ".effects", null);
+        if (def.getEffects() != null && !def.getEffects().isEmpty()) {
+            for (PotionEffectData eff : def.getEffects()) {
+                if (eff != null && eff.getType() != null) {
+                    NamespacedKey nk = eff.getType().getKey();
+                    String effKey = "minecraft".equalsIgnoreCase(nk.getNamespace()) ? nk.getKey() : nk.toString();
+                    config.set(path + ".effects." + effKey + ".level", eff.getAmplifier() + 1);
+                    config.set(path + ".effects." + effKey + ".slot", (eff.getSlot() != null && !eff.getSlot().isEmpty()) ? eff.getSlot() : "MAIN_HAND");
+                }
+            }
+        }
+
+        // Armor Trims & Leather Dye
+        config.set(path + ".trim-material", (def.getTrimMaterial() != null && !def.getTrimMaterial().trim().isEmpty()) ? def.getTrimMaterial().trim() : null);
+        config.set(path + ".trim-pattern", (def.getTrimPattern() != null && !def.getTrimPattern().trim().isEmpty()) ? def.getTrimPattern().trim() : null);
+        config.set(path + ".hide-armor-trim", def.isHideArmorTrim() ? true : null);
+        config.set(path + ".dye-color", (def.getDyeColor() != null && !def.getDyeColor().trim().isEmpty()) ? def.getDyeColor().trim() : null);
+        config.set(path + ".hide-dye", def.isHideDye() ? true : null);
+
+        // Gem Stone properties
+        if (def.getType() == ItemType.GEM_STONE) {
+            config.set(path + ".gem-id", (def.getGemId() != null && !def.getGemId().trim().isEmpty()) ? def.getGemId().trim() : null);
+            config.set(path + ".gem-stats", null);
+            if (def.getGemStats() != null && !def.getGemStats().isEmpty()) {
+                for (Map.Entry<StatType, StatModifier> e : def.getGemStats().entrySet()) {
+                    StatModifier mod = e.getValue();
+                    if (mod == null || mod.isEmpty()) continue;
+                    boolean hasFlat = Math.abs(mod.getFlat()) > 0.00001;
+                    boolean hasPct = Math.abs(mod.getPercent()) > 0.00001;
+                    if (hasFlat && hasPct) {
+                        Map<String, Object> map = new LinkedHashMap<>();
+                        map.put("flat", mod.getFlat());
+                        map.put("percent", formatPercent(mod.getPercentValue()) + "%");
+                        config.set(path + ".gem-stats." + e.getKey().getKey(), map);
+                    } else if (hasPct) {
+                        config.set(path + ".gem-stats." + e.getKey().getKey(), formatPercent(mod.getPercentValue()) + "%");
+                    } else {
+                        config.set(path + ".gem-stats." + e.getKey().getKey(), mod.getFlat());
+                    }
+                }
+            }
+        }
+
+        // Restrictions & Protections
+        config.set(path + ".disable-on-use", def.isDisableOnUse() ? true : null);
+        config.set(path + ".disable-on-enchantment", def.isDisableOnEnchantment() ? true : null);
+        config.set(path + ".disable-on-crafting", def.isDisableOnCrafting() ? true : null);
+        config.set(path + ".disable-on-drop", def.isDisableOnDrop() ? true : null);
 
         // Bump version for LiveUpdate
         int newVersion = def.getVersion() + 1;

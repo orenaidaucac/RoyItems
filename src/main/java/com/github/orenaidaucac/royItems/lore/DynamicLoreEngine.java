@@ -1,8 +1,13 @@
 package com.github.orenaidaucac.royItems.lore;
 
+import com.github.orenaidaucac.royItems.RoyItems;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
+import com.github.orenaidaucac.royItems.tier_set.ItemSet;
+import com.github.orenaidaucac.royItems.tier_set.ItemSetManager;
+import com.github.orenaidaucac.royItems.tier_set.ItemTier;
+import com.github.orenaidaucac.royItems.tier_set.ItemTierManager;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
@@ -29,11 +34,27 @@ public class DynamicLoreEngine {
     private static final Pattern STAT_PLACEHOLDER_PATTERN = Pattern.compile("#([a-zA-Z0-9_.-]+)#");
 
     private final Plugin plugin;
+    private ItemTierManager itemTierManager;
+    private ItemSetManager itemSetManager;
     private final Map<String, LoreFormat> formats = new ConcurrentHashMap<>();
     private final DecimalFormat df = new DecimalFormat("#,##0.##");
 
     public DynamicLoreEngine(Plugin plugin) {
+        this(plugin, null, null);
+    }
+
+    public DynamicLoreEngine(Plugin plugin, ItemTierManager itemTierManager, ItemSetManager itemSetManager) {
         this.plugin = plugin;
+        this.itemTierManager = itemTierManager;
+        this.itemSetManager = itemSetManager;
+    }
+
+    public void setItemTierManager(ItemTierManager itemTierManager) {
+        this.itemTierManager = itemTierManager;
+    }
+
+    public void setItemSetManager(ItemSetManager itemSetManager) {
+        this.itemSetManager = itemSetManager;
     }
 
     public void loadFormats() {
@@ -186,10 +207,23 @@ public class DynamicLoreEngine {
 
     private String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp) {
         if (input == null) return "";
+
+        String tierDisplay = resolveTierDisplayName(def);
+        String tierColor = resolveTierColor(def);
+        String setDisplay = resolveSetDisplayName(def);
+
         String s = input
                 .replace("#type#", def.getType() != null ? def.getType().getDescription() : "")
-                .replace("#tier#", def.getItemTier() != null ? def.getItemTier() : "")
-                .replace("#set#", def.getItemSet() != null ? def.getItemSet() : "");
+                .replace("#tier#", tierDisplay)
+                .replace("#tier-name#", tierDisplay)
+                .replace("#tier-display#", tierDisplay)
+                .replace("#tier-id#", def.getItemTier() != null ? def.getItemTier() : "")
+                .replace("#tier-color#", tierColor)
+                .replace("#tier_color#", tierColor)
+                .replace("#set#", setDisplay)
+                .replace("#set-name#", setDisplay)
+                .replace("#set-display#", setDisplay)
+                .replace("#set-id#", def.getItemSet() != null ? def.getItemSet() : "");
 
         if (expireTimestamp > 0) {
             long remainingSec = Math.max(0, (expireTimestamp - System.currentTimeMillis()) / 1000);
@@ -205,6 +239,60 @@ public class DynamicLoreEngine {
         }
 
         return s;
+    }
+
+    public String resolveTierDisplayName(ItemDefinition def) {
+        if (def == null || def.getItemTier() == null || def.getItemTier().isEmpty()) {
+            return "";
+        }
+        String tierId = def.getItemTier();
+        ItemTierManager manager = this.itemTierManager;
+        if (manager == null && plugin instanceof RoyItems royItems) {
+            manager = royItems.getItemTierManager();
+        }
+        if (manager != null) {
+            ItemTier tier = manager.get(tierId);
+            if (tier != null && tier.getDisplayName() != null && !tier.getDisplayName().isEmpty()) {
+                return tier.getDisplayName();
+            }
+        }
+        return tierId;
+    }
+
+    public String resolveTierColor(ItemDefinition def) {
+        if (def == null || def.getItemTier() == null || def.getItemTier().isEmpty()) {
+            return "";
+        }
+        String tierId = def.getItemTier();
+        ItemTierManager manager = this.itemTierManager;
+        if (manager == null && plugin instanceof RoyItems royItems) {
+            manager = royItems.getItemTierManager();
+        }
+        if (manager != null) {
+            ItemTier tier = manager.get(tierId);
+            if (tier != null && tier.getColor() != null && !tier.getColor().isEmpty()) {
+                return tier.getColor();
+            }
+        }
+        return "";
+    }
+
+    public String resolveSetDisplayName(ItemDefinition def) {
+        if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) {
+            return "";
+        }
+        String setId = def.getItemSet();
+        ItemSetManager manager = this.itemSetManager;
+        if (manager == null && plugin instanceof RoyItems royItems) {
+            manager = royItems.getItemSetManager();
+        }
+        if (manager != null) {
+            ItemSet set = manager.get(setId);
+            if (set != null && set.getDisplayName() != null && !set.getDisplayName().isEmpty()) {
+                return set.getDisplayName();
+            }
+        }
+        return setId;
     }
 
     private List<String> extractStatPlaceholdersInLine(String line) {

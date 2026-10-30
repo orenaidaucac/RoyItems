@@ -133,6 +133,9 @@ public class ItemBuilder {
 
         String socketsSerialized = serializeSockets(slottedSockets);
         pdcManager.tagItem(meta, def.getType(), def.getId(), def.getVersion(), finalExpire, socketsSerialized);
+        if (def.getItemTier() != null && !def.getItemTier().isEmpty()) {
+            pdcManager.tagTier(meta, def.getItemTier());
+        }
 
         item.setItemMeta(meta);
         return item;

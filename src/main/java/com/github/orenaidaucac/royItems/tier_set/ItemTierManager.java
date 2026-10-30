@@ -51,6 +51,11 @@ public class ItemTierManager {
         return tiers.get(id.toLowerCase());
     }
 
+    public void registerTier(ItemTier tier) {
+        if (tier == null || tier.getId() == null) return;
+        tiers.put(tier.getId().toLowerCase(), tier);
+    }
+
     public Collection<ItemTier> getAll() {
         return Collections.unmodifiableCollection(tiers.values());
     }

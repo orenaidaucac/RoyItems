@@ -188,7 +188,6 @@ public class ItemDetailEditorGui {
                 TextUtility.formatGui(saveCfg.name()),
                 TextUtility.formatGuiLore(saveCfg.lore()),
                 event -> {
-                    def.setVersion(def.getVersion() + 1);
                     boolean success = manager.getConfigManager().saveItem(def);
                     if (success) {
                         manager.getLiveUpdateService().updateAllOnlinePlayers();
@@ -399,6 +398,42 @@ public class ItemDetailEditorGui {
                 Map.of("%status%", def.isHideAttributes() ? "<#06D6A0>Đang ẩn</#06D6A0>" : "<#EF476F>Đang hiện</#EF476F>"),
                 event -> {
                     def.setHideAttributes(!def.isHideAttributes());
+                    open();
+                });
+
+        // =====================================================================
+        // ROW 4: ITEM RESTRICTIONS & PROTECTIONS
+        // =====================================================================
+
+        // Disable on Use (Slot 29)
+        renderProperty(gui, "disable-on-use", 1, 29, Material.BARRIER,
+                Map.of("%status%", def.isDisableOnUse() ? "<#EF476F>Blocked</#EF476F>" : "<#06D6A0>Allowed</#06D6A0>"),
+                event -> {
+                    def.setDisableOnUse(!def.isDisableOnUse());
+                    open();
+                });
+
+        // Disable on Drop (Slot 30)
+        renderProperty(gui, "disable-on-drop", 1, 30, Material.CHAIN,
+                Map.of("%status%", def.isDisableOnDrop() ? "<#EF476F>Blocked</#EF476F>" : "<#06D6A0>Allowed</#06D6A0>"),
+                event -> {
+                    def.setDisableOnDrop(!def.isDisableOnDrop());
+                    open();
+                });
+
+        // Disable on Crafting (Slot 32)
+        renderProperty(gui, "disable-on-crafting", 1, 32, Material.CRAFTING_TABLE,
+                Map.of("%status%", def.isDisableOnCrafting() ? "<#EF476F>Blocked</#EF476F>" : "<#06D6A0>Allowed</#06D6A0>"),
+                event -> {
+                    def.setDisableOnCrafting(!def.isDisableOnCrafting());
+                    open();
+                });
+
+        // Disable on Enchantment (Slot 33)
+        renderProperty(gui, "disable-on-enchantment", 1, 33, Material.ENCHANTING_TABLE,
+                Map.of("%status%", def.isDisableOnEnchantment() ? "<#EF476F>Blocked</#EF476F>" : "<#06D6A0>Allowed</#06D6A0>"),
+                event -> {
+                    def.setDisableOnEnchantment(!def.isDisableOnEnchantment());
                     open();
                 });
     }
@@ -662,16 +697,36 @@ public class ItemDetailEditorGui {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
                                 "Thêm Phù Phép (Enchantment)", "",
                                 "Nhập: '<Tên enchant> <Cấp>' (vd: sharpness 5, unbreaking 3):",
+                                input -> input != null && !input.trim().isEmpty(),
                                 input -> {
-                                    String[] parts = input.trim().split("\\s+");
-                                    return parts.length >= 2;
-                                },
-                                input -> {
-                                    String[] parts = input.trim().split("\\s+");
-                                    Enchantment ench = Registry.ENCHANTMENT.get(NamespacedKey.minecraft(parts[0].toLowerCase()));
-                                    if (ench != null) {
-                                        int lvl = Integer.parseInt(parts[1]);
+                                    String trimmed = input.trim();
+                                    int lvl = 1;
+                                    String enchPart = trimmed;
+                                    int lastSpace = trimmed.lastIndexOf(' ');
+                                    if (lastSpace > 0) {
+                                        try {
+                                            lvl = Integer.parseInt(trimmed.substring(lastSpace + 1).trim());
+                                            enchPart = trimmed.substring(0, lastSpace).trim();
+                                        } catch (NumberFormatException ignored) {}
+                                    } else {
+                                        int lastColon = trimmed.lastIndexOf(':');
+                                        if (lastColon > 0) {
+                                            try {
+                                                lvl = Integer.parseInt(trimmed.substring(lastColon + 1).trim());
+                                                enchPart = trimmed.substring(0, lastColon).trim();
+                                            } catch (NumberFormatException ignored) {}
+                                        }
+                                    }
+
+                                    String enchRaw = enchPart.toLowerCase().trim().replace('-', '_');
+                                    NamespacedKey key = enchRaw.contains(":") ? NamespacedKey.fromString(enchRaw) : NamespacedKey.minecraft(enchRaw);
+                                    Enchantment ench = (key != null) ? Registry.ENCHANTMENT.get(key) : null;
+                                    if (ench != null && lvl > 0) {
                                         def.getEnchantments().put(ench, lvl);
+                                        String displayKey = "minecraft".equalsIgnoreCase(key.getNamespace()) ? key.getKey() : key.toString();
+                                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã thêm phù phép &e" + displayKey + " &a(Cấp " + lvl + ")!"));
+                                    } else {
+                                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Không tìm thấy phù phép: " + enchPart));
                                     }
                                 });
                     }
@@ -687,17 +742,42 @@ public class ItemDetailEditorGui {
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
                                 "Thêm Hiệu Ứng Bùa Chú", "",
-                                "Nhập: '<Tên effect> <Cấp>' (vd: SPEED 2, STRENGTH 1):",
+                                "Nhập: '<Tên effect> <Cấp> [Slot]' (vd: speed 2, strength 1 HAND):",
+                                input -> input != null && !input.trim().isEmpty(),
                                 input -> {
-                                    String[] parts = input.trim().split("\\s+");
-                                    return parts.length >= 2;
-                                },
-                                input -> {
-                                    String[] parts = input.trim().split("\\s+");
-                                    PotionEffectType type = Registry.POTION_EFFECT_TYPE.get(NamespacedKey.minecraft(parts[0].toLowerCase()));
-                                    if (type != null) {
-                                        int amp = Integer.parseInt(parts[1]) - 1;
-                                        def.getEffects().add(new PotionEffectData(type, Math.max(0, amp), "MAIN_HAND"));
+                                    String trimmed = input.trim();
+                                    String[] tokens = trimmed.split("\\s+");
+                                    String effPart = tokens[0];
+                                    int lvl = 1;
+                                    String slot = "MAIN_HAND";
+
+                                    if (tokens.length >= 2) {
+                                        try {
+                                            lvl = Integer.parseInt(tokens[1]);
+                                            if (tokens.length >= 3) {
+                                                slot = tokens[2].toUpperCase();
+                                            }
+                                        } catch (NumberFormatException e) {
+                                            slot = tokens[1].toUpperCase();
+                                        }
+                                    }
+                                    if (effPart.contains(":") && !effPart.startsWith("minecraft:")) {
+                                        String[] sub = effPart.split(":", 2);
+                                        effPart = sub[0];
+                                        try {
+                                            lvl = Integer.parseInt(sub[1]);
+                                        } catch (NumberFormatException ignored) {}
+                                    }
+
+                                    String effRaw = effPart.toLowerCase().trim().replace('-', '_');
+                                    NamespacedKey key = effRaw.contains(":") ? NamespacedKey.fromString(effRaw) : NamespacedKey.minecraft(effRaw);
+                                    PotionEffectType type = (key != null) ? Registry.POTION_EFFECT_TYPE.get(key) : null;
+                                    if (type != null && lvl > 0) {
+                                        def.getEffects().add(new PotionEffectData(type, Math.max(0, lvl - 1), slot));
+                                        String displayKey = "minecraft".equalsIgnoreCase(key.getNamespace()) ? key.getKey() : key.toString();
+                                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã thêm hiệu ứng &e" + displayKey + " &a(Cấp " + lvl + ", Slot: " + slot + ")!"));
+                                    } else {
+                                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Không tìm thấy hiệu ứng: " + effPart));
                                     }
                                 });
                     }

@@ -54,6 +54,12 @@ public class SpecialItemListener implements Listener {
         ItemDefinition def = registry.get(type, id);
         if (def == null) return;
 
+        // Check if disabled on use or already cancelled
+        if (event.isCancelled() || def.isDisableOnUse()) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Check requirements
         if (!requirementChecker.canUse(player, def)) {
             requirementChecker.sendRequirementFailureMessage(player, def);

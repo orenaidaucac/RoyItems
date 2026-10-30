@@ -23,6 +23,7 @@ import com.github.orenaidaucac.royItems.tier_set.ItemSetManager;
 import com.github.orenaidaucac.royItems.tier_set.ItemTierManager;
 import com.github.orenaidaucac.royItems.tier_set.TierDropGlowListener;
 import com.github.orenaidaucac.royItems.mechanics.DamageParticleFilterManager;
+import com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -126,6 +127,9 @@ public final class RoyItems extends JavaPlugin {
         this.itemSetManager = new ItemSetManager(this);
         this.itemSetManager.loadSets();
 
+        this.dynamicLoreEngine.setItemTierManager(this.itemTierManager);
+        this.dynamicLoreEngine.setItemSetManager(this.itemSetManager);
+
         // 5. Item Factory & Config Manager
         this.itemBuilder = new ItemBuilder(itemPDCManager, dynamicLoreEngine);
         this.itemConfigManager = new ItemConfigManager(this, itemRegistry);
@@ -158,7 +162,7 @@ public final class RoyItems extends JavaPlugin {
         this.updateChecker.checkForUpdates(null);
 
         // 11. Tier Drop Glow System
-        this.tierDropGlowListener = new TierDropGlowListener(itemPDCManager, itemRegistry, itemTierManager);
+        this.tierDropGlowListener = new TierDropGlowListener(this, platformScheduler, itemPDCManager, itemRegistry, itemTierManager);
 
         // 12. Damage Heart Particle Filter (PacketEvents / ProtocolLib)
         this.particleFilterManager = new DamageParticleFilterManager(this);
@@ -289,6 +293,7 @@ public final class RoyItems extends JavaPlugin {
         pm.registerEvents(new PlayerEquipmentListener(statManager, platformScheduler, liveUpdateService, requirementChecker, itemPDCManager, itemRegistry), this);
         pm.registerEvents(new GemSocketListener(gemSocketManager, itemPDCManager, statManager), this);
         pm.registerEvents(new SpecialItemListener(itemPDCManager, itemRegistry, cooldownManager, requirementChecker, integrationManager), this);
+        pm.registerEvents(new ItemProtectionListener(itemPDCManager, itemRegistry), this);
         pm.registerEvents(expirationManager, this);
         pm.registerEvents(editorGUIManager, this);
         pm.registerEvents(editorGUIManager.getChatInputManager(), this);

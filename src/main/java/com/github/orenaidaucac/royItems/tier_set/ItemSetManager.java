@@ -71,6 +71,11 @@ public class ItemSetManager {
         return sets.get(id.toLowerCase());
     }
 
+    public void registerSet(ItemSet set) {
+        if (set == null || set.getId() == null) return;
+        sets.put(set.getId().toLowerCase(), set);
+    }
+
     public Collection<ItemSet> getAll() {
         return Collections.unmodifiableCollection(sets.values());
     }

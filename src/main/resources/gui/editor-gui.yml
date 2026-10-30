@@ -257,6 +257,53 @@ detail-editor:
         - "<#FFD166>Click: <white>Toggle Hide Attributes</white>"
 
     # --------------------------------------------------------------------------
+    # ITEM RESTRICTIONS & PROTECTIONS (PAGE 1 - ROW 4)
+    # --------------------------------------------------------------------------
+    disable-on-use:
+      page: 1
+      slot: 29
+      material: BARRIER
+      name: "<#FFD166>Disable On Use"
+      lore:
+        - "<gray>Prevents right-click usage, consuming, block placing, etc."
+        - "<dark_gray>▪ <gray>Status: %status%"
+        - ""
+        - "<#FFD166>Click: <white>Toggle Disable On Use</white>"
+
+    disable-on-drop:
+      page: 1
+      slot: 30
+      material: CHAIN
+      name: "<#FFD166>Disable On Drop"
+      lore:
+        - "<gray>Prevents dropping or tossing item from inventory or containers."
+        - "<dark_gray>▪ <gray>Status: %status%"
+        - ""
+        - "<#FFD166>Click: <white>Toggle Disable On Drop</white>"
+
+    disable-on-crafting:
+      page: 1
+      slot: 32
+      material: CRAFTING_TABLE
+      name: "<#FFD166>Disable On Crafting"
+      lore:
+        - "<gray>Prevents using as ingredient in crafting tables, furnaces, etc."
+        - "<dark_gray>▪ <gray>Status: %status%"
+        - ""
+        - "<#FFD166>Click: <white>Toggle Disable On Crafting</white>"
+
+    disable-on-enchantment:
+      page: 1
+      slot: 33
+      material: ENCHANTING_TABLE
+      name: "<#FFD166>Disable On Enchantment"
+      lore:
+        - "<gray>Prevents vanilla enchanting, anvil repairs, and grindstones."
+        - "<dark_gray>▪ <gray>Status: %status%"
+        - ""
+        - "<#FFD166>Click: <white>Toggle Disable On Enchantment</white>"
+
+    # --------------------------------------------------------------------------
     # PAGE 2: COMBAT & RPG STATS
     # --------------------------------------------------------------------------
     attack-damage:

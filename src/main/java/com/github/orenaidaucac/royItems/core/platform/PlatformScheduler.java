@@ -109,9 +109,13 @@ public class PlatformScheduler {
      * Run on the specific entity's scheduler (Entity region on Folia, main thread on Paper/Spigot).
      */
     public void runEntity(Entity entity, Runnable runnable) {
-        if (entity == null || !entity.isValid()) return;
+        if (entity == null) return;
         if (isFolia) {
-            entity.getScheduler().run(plugin, task -> runnable.run(), null);
+            if (entity.isValid()) {
+                entity.getScheduler().run(plugin, task -> runnable.run(), null);
+            } else if (entity.getLocation().getWorld() != null) {
+                Bukkit.getRegionScheduler().run(plugin, entity.getLocation(), task -> runnable.run());
+            }
         } else {
             Bukkit.getScheduler().runTask(plugin, runnable);
         }
@@ -121,9 +125,13 @@ public class PlatformScheduler {
      * Run on entity's scheduler with delay.
      */
     public void runEntityDelayed(Entity entity, Runnable runnable, long delayTicks) {
-        if (entity == null || !entity.isValid()) return;
+        if (entity == null) return;
         if (isFolia) {
-            entity.getScheduler().runDelayed(plugin, task -> runnable.run(), null, delayTicks);
+            if (entity.isValid()) {
+                entity.getScheduler().runDelayed(plugin, task -> runnable.run(), null, delayTicks);
+            } else if (entity.getLocation().getWorld() != null) {
+                Bukkit.getRegionScheduler().runDelayed(plugin, entity.getLocation(), task -> runnable.run(), delayTicks);
+            }
         } else {
             Bukkit.getScheduler().runTaskLater(plugin, runnable, delayTicks);
         }
@@ -138,6 +146,18 @@ public class PlatformScheduler {
             Bukkit.getRegionScheduler().run(plugin, location, task -> runnable.run());
         } else {
             Bukkit.getScheduler().runTask(plugin, runnable);
+        }
+    }
+
+    /**
+     * Run on the region containing the specified location with delay.
+     */
+    public void runLocationDelayed(Location location, Runnable runnable, long delayTicks) {
+        if (location == null || location.getWorld() == null) return;
+        if (isFolia) {
+            Bukkit.getRegionScheduler().runDelayed(plugin, location, task -> runnable.run(), delayTicks);
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, runnable, delayTicks);
         }
     }
 

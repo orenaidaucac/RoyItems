@@ -72,6 +72,12 @@ public class ItemDefinition {
     // LiveUpdate version tracking
     private int version = 1;
 
+    // Item Restrictions & Protections
+    private boolean disableOnUse = false;
+    private boolean disableOnEnchantment = false;
+    private boolean disableOnCrafting = false;
+    private boolean disableOnDrop = false;
+
     public ItemDefinition(ItemType type, String id) {
         this.type = type;
         this.id = id;
@@ -205,4 +211,16 @@ public class ItemDefinition {
             stats.put(type, modifier);
         }
     }
+
+    public boolean isDisableOnUse() { return disableOnUse; }
+    public void setDisableOnUse(boolean disableOnUse) { this.disableOnUse = disableOnUse; }
+
+    public boolean isDisableOnEnchantment() { return disableOnEnchantment; }
+    public void setDisableOnEnchantment(boolean disableOnEnchantment) { this.disableOnEnchantment = disableOnEnchantment; }
+
+    public boolean isDisableOnCrafting() { return disableOnCrafting; }
+    public void setDisableOnCrafting(boolean disableOnCrafting) { this.disableOnCrafting = disableOnCrafting; }
+
+    public boolean isDisableOnDrop() { return disableOnDrop; }
+    public void setDisableOnDrop(boolean disableOnDrop) { this.disableOnDrop = disableOnDrop; }
 }

@@ -20,6 +20,7 @@ public class ItemPDCManager {
     private final NamespacedKey KEY_VERSION;
     private final NamespacedKey KEY_EXPIRE;
     private final NamespacedKey KEY_SOCKETS;
+    private final NamespacedKey KEY_TIER;
 
     public ItemPDCManager(Plugin plugin) {
         this.KEY_TYPE = new NamespacedKey(plugin, "item_type");
@@ -28,6 +29,7 @@ public class ItemPDCManager {
         this.KEY_VERSION = new NamespacedKey(plugin, "item_version");
         this.KEY_EXPIRE = new NamespacedKey(plugin, "item_expire");
         this.KEY_SOCKETS = new NamespacedKey(plugin, "item_sockets");
+        this.KEY_TIER = new NamespacedKey(plugin, "item_tier");
     }
 
     public boolean isRoyItem(ItemStack item) {
@@ -74,6 +76,20 @@ public class ItemPDCManager {
     public String getSocketsData(ItemStack item) {
         if (!isRoyItem(item)) return null;
         return item.getItemMeta().getPersistentDataContainer().get(KEY_SOCKETS, PersistentDataType.STRING);
+    }
+
+    public String getTier(ItemStack item) {
+        if (!isRoyItem(item)) return null;
+        return item.getItemMeta().getPersistentDataContainer().get(KEY_TIER, PersistentDataType.STRING);
+    }
+
+    public void tagTier(ItemMeta meta, String tier) {
+        if (meta == null) return;
+        if (tier != null && !tier.isEmpty()) {
+            meta.getPersistentDataContainer().set(KEY_TIER, PersistentDataType.STRING, tier.toLowerCase());
+        } else {
+            meta.getPersistentDataContainer().remove(KEY_TIER);
+        }
     }
 
     public void tagItem(ItemMeta meta, ItemType type, String id, int version, long expireTimestamp, String socketsData) {

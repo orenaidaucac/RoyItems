@@ -420,6 +420,7 @@ class RoyItemsUnitTest {
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("v2026.1", "v2026.2"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1", "2026.1.1"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1.1", "2026.1.2"));
+        assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("2026.1.2", "2026.1.3"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("1.0.0", "1.0.1"));
         assertTrue(com.github.orenaidaucac.royItems.core.update.UpdateChecker.isNewerVersion("1.0.0", "2.0.0"));
 
@@ -493,6 +494,59 @@ class RoyItemsUnitTest {
         def.setLoreFormat("default");
         java.util.List<String> standardLore = engine.buildLore(def, java.util.List.of(), 0);
         assertFalse(standardLore.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Lore Format: #tier# displays tier display-name instead of raw ID")
+    void testTierPlaceholderDisplayName() {
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine =
+                new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null);
+
+        com.github.orenaidaucac.royItems.tier_set.ItemTierManager tierManager =
+                new com.github.orenaidaucac.royItems.tier_set.ItemTierManager(null);
+        tierManager.registerTier(new com.github.orenaidaucac.royItems.tier_set.ItemTier("epic", "&5Epic", "&5", 4, "DARK_PURPLE"));
+        tierManager.registerTier(new com.github.orenaidaucac.royItems.tier_set.ItemTier("legendary", "&6Legendary", "&6", 5, "GOLD"));
+
+        com.github.orenaidaucac.royItems.tier_set.ItemSetManager setManager =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSetManager(null);
+        com.github.orenaidaucac.royItems.tier_set.ItemSet set = new com.github.orenaidaucac.royItems.tier_set.ItemSet();
+        set.setId("dragon_slayer");
+        set.setDisplayName("&6Dragon Slayer Set");
+        setManager.registerSet(set);
+
+        engine.setItemTierManager(tierManager);
+        engine.setItemSetManager(setManager);
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "dragon_chestplate");
+        def.setItemTier("epic");
+        def.setItemSet("dragon_slayer");
+
+        // Verify resolver directly
+        assertEquals("&5Epic", engine.resolveTierDisplayName(def));
+        assertEquals("&5", engine.resolveTierColor(def));
+        assertEquals("&6Dragon Slayer Set", engine.resolveSetDisplayName(def));
+
+        // Verify #tier#, #tier-id#, #set#, #set-id# in format
+        String templateLine = "&7Rarity: #tier# &8(#tier-id#) | Set: #set# &8(#set-id#)";
+        java.lang.reflect.Method method;
+        try {
+            method = com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.class.getDeclaredMethod(
+                    "replaceGeneralPlaceholders", String.class, com.github.orenaidaucac.royItems.item.ItemDefinition.class, long.class);
+            method.setAccessible(true);
+            String rendered = (String) method.invoke(engine, templateLine, def, 0L);
+            assertEquals("&7Rarity: &5Epic &8(epic) | Set: &6Dragon Slayer Set &8(dragon_slayer)", rendered);
+        } catch (Exception e) {
+            fail("Failed to invoke replaceGeneralPlaceholders: " + e.getMessage());
+        }
+
+        // Test fallback when tier is not in tierManager
+        def.setItemTier("unknown_tier");
+        assertEquals("unknown_tier", engine.resolveTierDisplayName(def));
+
+        // Test null tier
+        def.setItemTier(null);
+        assertEquals("", engine.resolveTierDisplayName(def));
     }
 
     @Test
@@ -617,5 +671,226 @@ class RoyItemsUnitTest {
                 org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(tierFile);
         assertEquals(2, tier.getInt("config-version"));
         assertEquals("WHITE", tier.getString("common.drop-color"));
+    }
+
+    @Test
+    @DisplayName("Item Tier Drop Glow: Verify dragon_chestplate config has item-tier epic and valid drop-color")
+    void testDragonChestplateTierGlowConfig() {
+        java.io.File armorFile = new java.io.File("src/main/resources/item/ARMOR.yml");
+        assertTrue(armorFile.exists());
+        org.bukkit.configuration.file.YamlConfiguration armor =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(armorFile);
+
+        assertTrue(armor.contains("dragon_chestplate.item-tier"));
+        String tierId = armor.getString("dragon_chestplate.item-tier");
+        assertEquals("epic", tierId);
+
+        java.io.File tierFile = new java.io.File("src/main/resources/item-tier.yml");
+        org.bukkit.configuration.file.YamlConfiguration tiers =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(tierFile);
+        assertTrue(tiers.contains("epic.drop-color"));
+        assertEquals("DARK_PURPLE", tiers.getString("epic.drop-color"));
+
+        net.kyori.adventure.text.format.NamedTextColor color =
+                com.github.orenaidaucac.royItems.tier_set.ItemTier.resolveNamedTextColor(tiers.getString("epic.drop-color"));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE, color);
+    }
+
+    @Test
+    @DisplayName("ItemConfigManager: Test saveItem and serialization of requirements, effects and properties")
+    void testItemConfigManagerSaveItem() throws Exception {
+        java.io.File testDir = new java.io.File("target/test-data");
+        if (!testDir.exists()) testDir.mkdirs();
+
+        org.bukkit.plugin.Plugin mockPlugin = (org.bukkit.plugin.Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.plugin.Plugin.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.plugin.Plugin.class},
+                (proxy, method, args) -> {
+                    if ("getDataFolder".equals(method.getName())) return testDir;
+                    if ("getLogger".equals(method.getName())) return java.util.logging.Logger.getGlobal();
+                    return null;
+                }
+        );
+
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry = new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        com.github.orenaidaucac.royItems.core.config.ItemConfigManager manager =
+                new com.github.orenaidaucac.royItems.core.config.ItemConfigManager(mockPlugin, registry);
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "test_sword");
+
+        def.setMaterial("DIAMOND_SWORD");
+        def.setName("<red>Test Sword</red>");
+        def.setLore(java.util.List.of("&7First line", "&eSecond line"));
+        def.setLoreFormat("weapon");
+        def.setUnbreakable(true);
+        def.setGlow(true);
+        def.setItemTier("legendary");
+        def.setItemSet("dragon_slayer");
+        def.setPermission("royitems.admin");
+        def.setDrop(false);
+        def.setLevelRequired(25);
+        def.setMmocoreClass("WARRIOR");
+        def.setMmocoreLevel(10);
+        def.setAuraSkill("FIGHTING");
+        def.setAuraSkillLevel(15);
+        def.setWorldRequired(java.util.List.of("world", "dungeon"));
+        def.setBiomeRequired(java.util.List.of("plains"));
+        def.setCooldown(3.5);
+        def.setExpired("3 days");
+        def.setGemSockets(java.util.List.of("1", "A"));
+        def.setTrimMaterial("netherite");
+        def.setTrimPattern("vex");
+        def.setHideArmorTrim(true);
+        def.setDyeColor("#FF0000");
+        def.setHideDye(true);
+        def.setHideEnchantments(true);
+        def.setHideAttributes(true);
+
+        boolean saved = manager.saveItem(def);
+        assertTrue(saved);
+
+        java.io.File savedFile = new java.io.File(testDir, "item/SWORD.yml");
+        assertTrue(savedFile.exists());
+
+        org.bukkit.configuration.file.YamlConfiguration yaml =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(savedFile);
+
+        assertEquals("DIAMOND_SWORD", yaml.getString("test_sword.material"));
+        assertEquals("<red>Test Sword</red>", yaml.getString("test_sword.name"));
+        assertEquals(java.util.List.of("&7First line", "&eSecond line"), yaml.getStringList("test_sword.lore"));
+        assertTrue(yaml.getBoolean("test_sword.unbreakable"));
+        assertTrue(yaml.getBoolean("test_sword.glow"));
+        assertEquals("legendary", yaml.getString("test_sword.item-tier"));
+        assertEquals("dragon_slayer", yaml.getString("test_sword.item-set"));
+        assertEquals("royitems.admin", yaml.getString("test_sword.permission"));
+        assertFalse(yaml.getBoolean("test_sword.drop"));
+        assertEquals(25, yaml.getInt("test_sword.level-required"));
+        assertEquals("WARRIOR", yaml.getString("test_sword.mmocore-required.class"));
+        assertEquals(10, yaml.getInt("test_sword.mmocore-required.level"));
+        assertEquals("FIGHTING", yaml.getString("test_sword.auraskill-required.skill"));
+        assertEquals(15, yaml.getInt("test_sword.auraskill-required.level"));
+        assertEquals(java.util.List.of("world", "dungeon"), yaml.getStringList("test_sword.world-required"));
+        assertEquals(java.util.List.of("plains"), yaml.getStringList("test_sword.biome-required"));
+        assertEquals(3.5, yaml.getDouble("test_sword.cooldown"));
+        assertEquals("3 days", yaml.getString("test_sword.expired"));
+        assertEquals(java.util.List.of("1", "A"), yaml.getStringList("test_sword.gem-socket"));
+        assertEquals("netherite", yaml.getString("test_sword.trim-material"));
+        assertEquals("vex", yaml.getString("test_sword.trim-pattern"));
+        assertTrue(yaml.getBoolean("test_sword.hide-armor-trim"));
+        assertEquals("#FF0000", yaml.getString("test_sword.dye-color"));
+        assertTrue(yaml.getBoolean("test_sword.hide-dye"));
+        assertTrue(yaml.getBoolean("test_sword.hide-enchantments"));
+        assertTrue(yaml.getBoolean("test_sword.hide-attributes"));
+
+        // Restrictions & Protections
+        def.setDisableOnUse(true);
+        def.setDisableOnEnchantment(true);
+        def.setDisableOnCrafting(true);
+        def.setDisableOnDrop(true);
+
+        boolean savedProt = manager.saveItem(def);
+        assertTrue(savedProt);
+
+        org.bukkit.configuration.file.YamlConfiguration yamlProt =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(savedFile);
+        assertTrue(yamlProt.getBoolean("test_sword.disable-on-use"));
+        assertTrue(yamlProt.getBoolean("test_sword.disable-on-enchantment"));
+        assertTrue(yamlProt.getBoolean("test_sword.disable-on-crafting"));
+        assertTrue(yamlProt.getBoolean("test_sword.disable-on-drop"));
+
+        // Now test resetting properties (removing them)
+        def.setItemTier(null);
+        def.setItemSet(null);
+        def.setLevelRequired(0);
+        def.setMmocoreClass(null);
+        def.setMmocoreLevel(0);
+        def.setAuraSkill(null);
+        def.setAuraSkillLevel(0);
+        def.setWorldRequired(java.util.List.of());
+        def.setBiomeRequired(java.util.List.of());
+        def.setCooldown(0);
+        def.setExpired(null);
+        def.setGemSockets(java.util.List.of());
+        def.setTrimMaterial(null);
+        def.setTrimPattern(null);
+        def.setHideArmorTrim(false);
+        def.setDyeColor(null);
+        def.setHideDye(false);
+        def.setHideEnchantments(false);
+        def.setHideAttributes(false);
+        def.setDrop(true);
+        def.setDisableOnUse(false);
+        def.setDisableOnEnchantment(false);
+        def.setDisableOnCrafting(false);
+        def.setDisableOnDrop(false);
+
+        boolean savedAgain = manager.saveItem(def);
+        assertTrue(savedAgain);
+
+        org.bukkit.configuration.file.YamlConfiguration yamlCleared =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(savedFile);
+
+        assertNull(yamlCleared.getString("test_sword.item-tier"));
+        assertNull(yamlCleared.getString("test_sword.item-set"));
+        assertFalse(yamlCleared.contains("test_sword.level-required"));
+        assertFalse(yamlCleared.contains("test_sword.mmocore-required"));
+        assertFalse(yamlCleared.contains("test_sword.auraskill-required"));
+        assertFalse(yamlCleared.contains("test_sword.world-required"));
+        assertFalse(yamlCleared.contains("test_sword.biome-required"));
+        assertFalse(yamlCleared.contains("test_sword.cooldown"));
+        assertFalse(yamlCleared.contains("test_sword.expired"));
+        assertFalse(yamlCleared.contains("test_sword.gem-socket"));
+        assertFalse(yamlCleared.contains("test_sword.trim-material"));
+        assertFalse(yamlCleared.contains("test_sword.trim-pattern"));
+        assertFalse(yamlCleared.contains("test_sword.hide-armor-trim"));
+        assertFalse(yamlCleared.contains("test_sword.dye-color"));
+        assertFalse(yamlCleared.contains("test_sword.hide-dye"));
+        assertFalse(yamlCleared.contains("test_sword.hide-enchantments"));
+        assertFalse(yamlCleared.contains("test_sword.hide-attributes"));
+        assertFalse(yamlCleared.contains("test_sword.drop"));
+        assertFalse(yamlCleared.contains("test_sword.disable-on-use"));
+        assertFalse(yamlCleared.contains("test_sword.disable-on-enchantment"));
+        assertFalse(yamlCleared.contains("test_sword.disable-on-crafting"));
+        assertFalse(yamlCleared.contains("test_sword.disable-on-drop"));
+    }
+
+    @Test
+    @DisplayName("Item Protection Configuration & Default Values Verification")
+    void testItemProtectionDefaultsAndConfig() {
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "shield_blade");
+
+        // Defaults must be false
+        assertFalse(def.isDisableOnUse());
+        assertFalse(def.isDisableOnEnchantment());
+        assertFalse(def.isDisableOnCrafting());
+        assertFalse(def.isDisableOnDrop());
+
+        // Verify editor-gui.yml layout contains all 4 icons on Page 1
+        java.io.File guiFile = new java.io.File("src/main/resources/gui/editor-gui.yml");
+        assertTrue(guiFile.exists());
+        org.bukkit.configuration.file.YamlConfiguration gui =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(guiFile);
+
+        assertTrue(gui.contains("detail-editor.properties.disable-on-use"));
+        assertEquals(1, gui.getInt("detail-editor.properties.disable-on-use.page"));
+        assertEquals(29, gui.getInt("detail-editor.properties.disable-on-use.slot"));
+        assertEquals("BARRIER", gui.getString("detail-editor.properties.disable-on-use.material"));
+
+        assertTrue(gui.contains("detail-editor.properties.disable-on-drop"));
+        assertEquals(1, gui.getInt("detail-editor.properties.disable-on-drop.page"));
+        assertEquals(30, gui.getInt("detail-editor.properties.disable-on-drop.slot"));
+        assertEquals("CHAIN", gui.getString("detail-editor.properties.disable-on-drop.material"));
+
+        assertTrue(gui.contains("detail-editor.properties.disable-on-crafting"));
+        assertEquals(1, gui.getInt("detail-editor.properties.disable-on-crafting.page"));
+        assertEquals(32, gui.getInt("detail-editor.properties.disable-on-crafting.slot"));
+        assertEquals("CRAFTING_TABLE", gui.getString("detail-editor.properties.disable-on-crafting.material"));
+
+        assertTrue(gui.contains("detail-editor.properties.disable-on-enchantment"));
+        assertEquals(1, gui.getInt("detail-editor.properties.disable-on-enchantment.page"));
+        assertEquals(33, gui.getInt("detail-editor.properties.disable-on-enchantment.slot"));
+        assertEquals("ENCHANTING_TABLE", gui.getString("detail-editor.properties.disable-on-enchantment.material"));
     }
 }
