@@ -8,6 +8,7 @@ import com.github.orenaidaucac.royItems.item.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -244,6 +245,200 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
             }
+
+            case "station" -> {
+                // /ri station open <id> [player]
+                // /ri station list
+                // /ri station create <id>
+                // /ri station delete <id>
+                if (args.length < 2) {
+                    sender.sendMessage(TextUtility.formatMessage("&cUsage: /ri station <open|list|create|delete> ..."));
+                    return true;
+                }
+
+                String action = args[1].toLowerCase();
+                var sm = plugin.getCraftingStationManager();
+                if (sm == null) {
+                    sender.sendMessage(TextUtility.formatMessage("&cCrafting Station manager is not initialized!"));
+                    return true;
+                }
+
+                switch (action) {
+                    case "open" -> {
+                        if (!sender.hasPermission("royitems.command.station.open") && !sender.hasPermission("royitems.admin")) {
+                            sender.sendMessage(TextUtility.formatMessage("&cYou do not have permission to execute this command."));
+                            return true;
+                        }
+                        if (args.length < 3) {
+                            sender.sendMessage(TextUtility.formatMessage("&cUsage: /ri station open <id> [player]"));
+                            return true;
+                        }
+                        String stationId = args[2].toLowerCase();
+                        Player target;
+                        if (args.length >= 4) {
+                            target = Bukkit.getPlayer(args[3]);
+                            if (target == null || !target.isOnline()) {
+                                sender.sendMessage(TextUtility.formatMessage("&cPlayer not found: &f" + args[3]));
+                                return true;
+                            }
+                        } else if (sender instanceof Player p) {
+                            target = p;
+                        } else {
+                            sender.sendMessage(TextUtility.formatMessage("&cPlease specify a player: /ri station open <id> <player>"));
+                            return true;
+                        }
+                        sm.openStation(target, stationId, 1);
+                        if (!target.equals(sender)) {
+                            plugin.getMessageManager().send(sender, "station-opened", Map.of(
+                                    "#station#", stationId,
+                                    "#player#", target.getName()
+                            ));
+                        }
+                        return true;
+                    }
+                    case "list" -> {
+                        if (!sender.hasPermission("royitems.command.station.list") && !sender.hasPermission("royitems.admin")) {
+                            sender.sendMessage(TextUtility.formatMessage("&cYou do not have permission to execute this command."));
+                            return true;
+                        }
+                        if (sender instanceof Player p) {
+                            new com.github.orenaidaucac.royItems.station.CraftingStationListGui(sm, p).open();
+                        } else {
+                            plugin.getMessageManager().send(sender, "station-list-header", Map.of("#count#", String.valueOf(sm.getStations().size())));
+                            for (var st : sm.getStations()) {
+                                plugin.getMessageManager().send(sender, "station-list-item", Map.of(
+                                        "#id#", st.getId(),
+                                        "#title#", st.getTitle(),
+                                        "#recipes#", String.valueOf(st.getRecipes().size())
+                                ));
+                            }
+                        }
+                        return true;
+                    }
+                    case "create" -> {
+                        if (!sender.hasPermission("royitems.command.station.create") && !sender.hasPermission("royitems.admin")) {
+                            sender.sendMessage(TextUtility.formatMessage("&cYou do not have permission to execute this command."));
+                            return true;
+                        }
+                        if (args.length < 3) {
+                            sender.sendMessage(TextUtility.formatMessage("&cUsage: /ri station create <id>"));
+                            return true;
+                        }
+                        String newId = args[2].toLowerCase();
+                        boolean created = sm.createStation(newId);
+                        if (created) {
+                            plugin.getMessageManager().send(sender, "station-created", Map.of("#station#", newId));
+                        } else {
+                            plugin.getMessageManager().send(sender, "station-create-failed", Map.of("#station#", newId));
+                        }
+                        return true;
+                    }
+                    case "delete" -> {
+                        if (!sender.hasPermission("royitems.command.station.delete") && !sender.hasPermission("royitems.admin")) {
+                            sender.sendMessage(TextUtility.formatMessage("&cYou do not have permission to execute this command."));
+                            return true;
+                        }
+                        if (args.length < 3) {
+                            sender.sendMessage(TextUtility.formatMessage("&cUsage: /ri station delete <id>"));
+                            return true;
+                        }
+                        String delId = args[2].toLowerCase();
+                        boolean deleted = sm.deleteStation(delId);
+                        if (deleted) {
+                            plugin.getMessageManager().send(sender, "station-deleted", Map.of("#station#", delId));
+                        } else {
+                            plugin.getMessageManager().send(sender, "station-delete-failed", Map.of("#station#", delId));
+                        }
+                        return true;
+                    }
+                    default -> {
+                        sender.sendMessage(TextUtility.formatMessage("&cUnknown action. Use: /ri station <open|list|create|delete>"));
+                        return true;
+                    }
+                }
+            }
+
+            case "dummy" -> {
+                // /ri dummy spawn <dummy_id> [mob_type]
+                // /ri dummy despawn <dummy_id|all>
+                if (!sender.hasPermission("royitems.command.dummy") && !sender.hasPermission("royitems.admin") && !sender.isOp()) {
+                    sender.sendMessage(TextUtility.formatMessage("&cYou do not have permission to execute this command."));
+                    return true;
+                }
+                if (args.length < 2) {
+                    sender.sendMessage(TextUtility.formatMessage("&cUsage: /ri dummy <spawn|despawn> ..."));
+                    return true;
+                }
+                String action = args[1].toLowerCase();
+                var dm = plugin.getDummyManager();
+                if (dm == null) {
+                    sender.sendMessage(TextUtility.formatMessage("&cDummy manager is not initialized!"));
+                    return true;
+                }
+                switch (action) {
+                    case "spawn" -> {
+                        if (!(sender instanceof Player player)) {
+                            sender.sendMessage(TextUtility.formatMessage("&cThis command can only be executed by a player in-game."));
+                            return true;
+                        }
+                        if (args.length < 3) {
+                            player.sendMessage(TextUtility.formatMessage("&cUsage: /ri dummy spawn <dummy_id> [mob_type]"));
+                            return true;
+                        }
+                        String dummyId = args[2].toLowerCase();
+                        String mobType = args.length >= 4 ? args[3] : "ZOMBIE";
+
+                        // Get block target that player is looking at (up to 7 blocks away)
+                        Block targetBlock = player.getTargetBlockExact(7);
+                        Location spawnLoc;
+                        if (targetBlock != null) {
+                            if (targetBlock.isPassable()) {
+                                spawnLoc = targetBlock.getLocation().clone().add(0.5, 0.0, 0.5);
+                            } else {
+                                spawnLoc = targetBlock.getLocation().clone().add(0.5, 1.0, 0.5);
+                            }
+                        } else {
+                            spawnLoc = player.getLocation().getBlock().getLocation().clone().add(0.5, 0.0, 0.5);
+                        }
+
+                        // Face towards the player
+                        spawnLoc.setYaw(player.getLocation().getYaw() + 180f);
+                        spawnLoc.setPitch(0f);
+
+                        var dummy = dm.spawnDummy(dummyId, spawnLoc, mobType, player);
+                        if (dummy != null) {
+                            player.sendMessage(TextUtility.formatMessage("&aSuccessfully spawned packet training dummy &e" + dummyId
+                                    + " &a(&f" + dummy.getMobTypeName() + "&a) centered at target location!"));
+                        } else {
+                            player.sendMessage(TextUtility.formatMessage("&cFailed to spawn dummy &e" + dummyId + "&c."));
+                        }
+                        return true;
+                    }
+                    case "despawn" -> {
+                        if (args.length < 3) {
+                            sender.sendMessage(TextUtility.formatMessage("&cUsage: /ri dummy despawn <dummy_id|all>"));
+                            return true;
+                        }
+                        String target = args[2].toLowerCase();
+                        if (target.equalsIgnoreCase("all")) {
+                            int count = dm.despawnAll();
+                            sender.sendMessage(TextUtility.formatMessage("&aSuccessfully despawned all &e" + count + " &atraining dummies!"));
+                        } else {
+                            boolean despawned = dm.despawnDummy(target);
+                            if (despawned) {
+                                sender.sendMessage(TextUtility.formatMessage("&aSuccessfully despawned training dummy &e" + target + "&a!"));
+                            } else {
+                                sender.sendMessage(TextUtility.formatMessage("&cTraining dummy not found: &e" + target));
+                            }
+                        }
+                        return true;
+                    }
+                    default -> {
+                        sender.sendMessage(TextUtility.formatMessage("&cUnknown action. Usage: /ri dummy <spawn|despawn>"));
+                        return true;
+                    }
+                }
+            }
         }
 
         sendHelp(sender);
@@ -315,6 +510,12 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(TextUtility.formatMessage("&e/ri take <player|all> <type> <id> [amount] &7- Remove custom item"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri drop <player|all> <type> <id> [amount] &7- Drop item at player"));
         sender.sendMessage(TextUtility.formatMessage("&e/ri drop <world> <x> <y> <z> <type> <id> [amount] &7- Drop at location"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri station open <id> [player] &7- Open a crafting station GUI"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri station list &7- Open interactive Crafting Station list GUI"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri station create <id> &7- Create a new sample crafting station"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri station delete <id> &7- Permanently delete a crafting station"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri dummy spawn <id> [mob_type] &7- Spawn packet-based DPS training dummy"));
+        sender.sendMessage(TextUtility.formatMessage("&e/ri dummy despawn <id|all> &7- Despawn training dummy and cleanup hologram"));
     }
 
     @Override
@@ -322,7 +523,7 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
-            List<String> subs = List.of("help", "reload", "editor", "checkupdate", "give", "take", "drop");
+            List<String> subs = List.of("help", "reload", "editor", "checkupdate", "give", "take", "drop", "station", "dummy");
             for (String s : subs) {
                 if (s.startsWith(args[0].toLowerCase())) completions.add(s);
             }
@@ -330,6 +531,73 @@ public class RoyItemsCommand implements CommandExecutor, TabCompleter {
         }
 
         String sub = args[0].toLowerCase();
+
+        if (sub.equals("dummy")) {
+            if (args.length == 2) {
+                List<String> actions = List.of("spawn", "despawn");
+                for (String a : actions) {
+                    if (a.startsWith(args[1].toLowerCase())) completions.add(a);
+                }
+                return completions;
+            }
+            if (args.length == 3) {
+                String act = args[1].toLowerCase();
+                if (act.equals("despawn")) {
+                    completions.add("all");
+                    var dm = plugin.getDummyManager();
+                    if (dm != null) {
+                        for (var d : dm.getDummies()) {
+                            if (d.getId().toLowerCase().startsWith(args[2].toLowerCase())) {
+                                completions.add(d.getId());
+                            }
+                        }
+                    }
+                } else if (act.equals("spawn")) {
+                    completions.add("dummy_1");
+                    completions.add("target_dummy");
+                }
+                return completions;
+            }
+            if (args.length == 4 && args[1].equalsIgnoreCase("spawn")) {
+                List<String> mobTypes = List.of(
+                        "ZOMBIE", "SKELETON", "IRON_GOLEM", "VILLAGER", "CREEPER",
+                        "ENDERMAN", "PIGLIN", "WITHER_SKELETON", "BLAZE", "WARDEN",
+                        "BREEZE", "ARMOR_STAND", "COW", "SHEEP", "WOLF"
+                );
+                for (String m : mobTypes) {
+                    if (m.toLowerCase().startsWith(args[3].toLowerCase())) completions.add(m);
+                }
+                return completions;
+            }
+        }
+
+        if (sub.equals("station")) {
+            if (args.length == 2) {
+                List<String> actions = List.of("open", "list", "create", "delete");
+                for (String a : actions) {
+                    if (a.startsWith(args[1].toLowerCase())) completions.add(a);
+                }
+                return completions;
+            }
+            if (args.length == 3) {
+                String act = args[1].toLowerCase();
+                if (act.equals("open") || act.equals("delete")) {
+                    var sm = plugin.getCraftingStationManager();
+                    if (sm != null) {
+                        for (var st : sm.getStations()) {
+                            if (st.getId().toLowerCase().startsWith(args[2].toLowerCase())) completions.add(st.getId());
+                        }
+                    }
+                }
+                return completions;
+            }
+            if (args.length == 4 && args[1].equalsIgnoreCase("open")) {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase().startsWith(args[3].toLowerCase())) completions.add(p.getName());
+                }
+                return completions;
+            }
+        }
 
         if (sub.equals("give") || sub.equals("take")) {
             if (args.length == 2) {

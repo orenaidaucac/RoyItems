@@ -1,5 +1,5 @@
 name: RoyItems
-version: '2026.1.3'
+version: '2026.1.4'
 main: com.github.orenaidaucac.royItems.RoyItems
 api-version: '1.21'
 folia-supported: true
@@ -21,6 +21,10 @@ softdepend:
   - Nexo
   - ItemsAdder
   - Oraxen
+  - Citizens
+  - FancyNpcs
+  - PlayerPoints
+  - ExcellentEconomy
 
 commands:
   royitems:
@@ -52,6 +56,24 @@ permissions:
     default: op
   royitems.command.drop:
     description: Access to /ri drop
+    default: op
+  royitems.command.station:
+    description: Access to all /ri station commands
+    default: op
+  royitems.command.station.open:
+    description: Access to /ri station open
+    default: op
+  royitems.command.station.list:
+    description: Access to /ri station list
+    default: op
+  royitems.command.station.create:
+    description: Access to /ri station create
+    default: op
+  royitems.command.station.delete:
+    description: Access to /ri station delete
+    default: op
+  royitems.command.dummy:
+    description: Access to /ri dummy commands (spawn, despawn)
     default: op
   royitems.item.expired.bypass:
     description: Bypass expiration timer countdown on custom items

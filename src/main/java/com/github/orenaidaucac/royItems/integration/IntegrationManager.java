@@ -21,6 +21,10 @@ public class IntegrationManager {
     private AuraSkillsHook auraSkillsHook;
     private MythicMobsHook mythicMobsHook;
     private WorldGuardHook worldGuardHook;
+    private PlayerPointsHook playerPointsHook;
+    private ExcellentEconomyHook excellentEconomyHook;
+    private CitizensHook citizensHook;
+    private FancyNpcsHook fancyNpcsHook;
 
     public IntegrationManager(Plugin plugin) {
         this.plugin = plugin;
@@ -32,6 +36,30 @@ public class IntegrationManager {
         vaultHook = new VaultHook();
         if (vaultHook.setup()) {
             logger.info("Hooked into Vault Economy successfully.");
+        }
+
+        // PlayerPoints
+        playerPointsHook = new PlayerPointsHook();
+        if (playerPointsHook.setup()) {
+            logger.info("Hooked into PlayerPoints successfully.");
+        }
+
+        // ExcellentEconomy
+        excellentEconomyHook = new ExcellentEconomyHook();
+        if (excellentEconomyHook.setup()) {
+            logger.info("Hooked into ExcellentEconomy successfully.");
+        }
+
+        // Citizens
+        citizensHook = new CitizensHook();
+        if (citizensHook.isAvailable()) {
+            logger.info("Hooked into Citizens successfully.");
+        }
+
+        // FancyNpcs
+        fancyNpcsHook = new FancyNpcsHook();
+        if (fancyNpcsHook.isAvailable()) {
+            logger.info("Hooked into FancyNpcs successfully.");
         }
 
         // MMOCore
@@ -103,6 +131,38 @@ public class IntegrationManager {
 
     public boolean hasPlaceholderAPI() {
         return Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI");
+    }
+
+    public boolean hasPlayerPoints() {
+        return playerPointsHook != null && playerPointsHook.isAvailable();
+    }
+
+    public PlayerPointsHook getPlayerPointsHook() {
+        return playerPointsHook;
+    }
+
+    public boolean hasExcellentEconomy() {
+        return excellentEconomyHook != null && excellentEconomyHook.isAvailable();
+    }
+
+    public ExcellentEconomyHook getExcellentEconomyHook() {
+        return excellentEconomyHook;
+    }
+
+    public boolean hasCitizens() {
+        return citizensHook != null && citizensHook.isAvailable();
+    }
+
+    public CitizensHook getCitizensHook() {
+        return citizensHook;
+    }
+
+    public boolean hasFancyNpcs() {
+        return fancyNpcsHook != null && fancyNpcsHook.isAvailable();
+    }
+
+    public FancyNpcsHook getFancyNpcsHook() {
+        return fancyNpcsHook;
     }
 
     public WorldGuardHook getWorldGuardHook() {

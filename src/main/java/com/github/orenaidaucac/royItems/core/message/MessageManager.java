@@ -116,21 +116,41 @@ public class MessageManager {
     }
 
     public String getRawMessage(String key, String def) {
-        if (config != null && config.contains("messages." + key)) {
-            return config.getString("messages." + key, def);
+        if (config != null) {
+            if (config.contains("messages." + key)) {
+                return config.getString("messages." + key, def);
+            }
+            if (config.contains(key)) {
+                return config.getString(key, def);
+            }
         }
-        if (fallbackConfig != null && fallbackConfig.contains("messages." + key)) {
-            return fallbackConfig.getString("messages." + key, def);
+        if (fallbackConfig != null) {
+            if (fallbackConfig.contains("messages." + key)) {
+                return fallbackConfig.getString("messages." + key, def);
+            }
+            if (fallbackConfig.contains(key)) {
+                return fallbackConfig.getString(key, def);
+            }
         }
         return def;
     }
 
     public List<String> getRawList(String key, List<String> def) {
-        if (config != null && config.isList("messages." + key)) {
-            return config.getStringList("messages." + key);
+        if (config != null) {
+            if (config.isList("messages." + key)) {
+                return config.getStringList("messages." + key);
+            }
+            if (config.isList(key)) {
+                return config.getStringList(key);
+            }
         }
-        if (fallbackConfig != null && fallbackConfig.isList("messages." + key)) {
-            return fallbackConfig.getStringList("messages." + key);
+        if (fallbackConfig != null) {
+            if (fallbackConfig.isList("messages." + key)) {
+                return fallbackConfig.getStringList("messages." + key);
+            }
+            if (fallbackConfig.isList(key)) {
+                return fallbackConfig.getStringList(key);
+            }
         }
         return def;
     }
@@ -142,11 +162,22 @@ public class MessageManager {
         msg = msg.replace("%prefix%", prefix).replace("#prefix#", prefix);
         if (placeholders != null) {
             for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-                msg = msg.replace("%" + entry.getKey() + "%", entry.getValue());
-                msg = msg.replace("#" + entry.getKey() + "#", entry.getValue());
+                String k = entry.getKey();
+                String cleanKey = k.replaceAll("^[#%]+|[#%]+$", "");
+                msg = msg.replace("%" + cleanKey + "%", entry.getValue());
+                msg = msg.replace("#" + cleanKey + "#", entry.getValue());
+                msg = msg.replace(k, entry.getValue());
             }
         }
         return msg;
+    }
+
+    public void send(CommandSender sender, String key) {
+        send(sender, key, "", Collections.emptyMap());
+    }
+
+    public void send(CommandSender sender, String key, Map<String, String> placeholders) {
+        send(sender, key, "", placeholders);
     }
 
     public void send(CommandSender sender, String key, String def, Map<String, String> placeholders) {

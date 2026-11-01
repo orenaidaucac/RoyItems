@@ -97,13 +97,28 @@ public class ItemPDCManager {
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         pdc.set(KEY_TYPE, PersistentDataType.STRING, type.name());
         pdc.set(KEY_ID, PersistentDataType.STRING, id.toLowerCase());
-        pdc.set(KEY_UUID, PersistentDataType.STRING, UUID.randomUUID().toString());
+        // Do NOT generate random unique UUIDs on items, as this causes every crafted item
+        // to have differing NBT / PDC data, preventing identical items from stacking together.
+        pdc.remove(KEY_UUID);
         pdc.set(KEY_VERSION, PersistentDataType.INTEGER, version);
         if (expireTimestamp > 0) {
             pdc.set(KEY_EXPIRE, PersistentDataType.LONG, expireTimestamp);
+        } else {
+            pdc.remove(KEY_EXPIRE);
         }
         if (socketsData != null && !socketsData.isEmpty()) {
             pdc.set(KEY_SOCKETS, PersistentDataType.STRING, socketsData);
+        } else {
+            pdc.remove(KEY_SOCKETS);
+        }
+    }
+
+    public void tagUUID(ItemMeta meta, UUID uuid) {
+        if (meta == null) return;
+        if (uuid != null) {
+            meta.getPersistentDataContainer().set(KEY_UUID, PersistentDataType.STRING, uuid.toString());
+        } else {
+            meta.getPersistentDataContainer().remove(KEY_UUID);
         }
     }
 

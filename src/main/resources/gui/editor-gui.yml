@@ -256,6 +256,17 @@ detail-editor:
         - ""
         - "<#FFD166>Click: <white>Toggle Hide Attributes</white>"
 
+    hide-unbreakable:
+      page: 1
+      slot: 25
+      material: SHIELD
+      name: "<#FFD166>Hide Unbreakable"
+      lore:
+        - "<gray>Hides unbreakable status and durability line from tooltip."
+        - "<dark_gray>▪ <gray>Status: %status%"
+        - ""
+        - "<#FFD166>Click: <white>Toggle Hide Unbreakable</white>"
+
     # --------------------------------------------------------------------------
     # ITEM RESTRICTIONS & PROTECTIONS (PAGE 1 - ROW 4)
     # --------------------------------------------------------------------------

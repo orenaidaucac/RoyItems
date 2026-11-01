@@ -71,6 +71,9 @@ public class ItemBuilder {
 
         // 3. Unbreakable
         meta.setUnbreakable(def.isUnbreakable());
+        if (def.isHideUnbreakable()) {
+            meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+        }
 
         // 4. Glow
         if (def.isGlow()) {
@@ -115,12 +118,9 @@ public class ItemBuilder {
             }
         }
 
-        // 9. Attribute Modifiers for Vanilla Attributes
-        if (def.isHideAttributes()) {
-            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-        } else {
-            applyVanillaAttributeModifiers(meta, def);
-        }
+        // 9. Suppress Default Material Attributes & Apply Hide Attributes flag
+        suppressDefaultMaterialAttributes(meta);
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
 
         // 10. Tag PDC
         long finalExpire = expireTimestamp;
@@ -184,9 +184,11 @@ public class ItemBuilder {
     private ItemStack createBase64Head(String base64) {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-        if (meta != null) {
+        if (meta != null && base64 != null && !base64.isBlank()) {
             try {
-                PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID(), null);
+                // Use deterministic UUID based on texture content to ensure custom heads can stack together
+                UUID profileUuid = UUID.nameUUIDFromBytes(base64.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                PlayerProfile profile = Bukkit.createProfile(profileUuid, null);
                 profile.setProperty(new ProfileProperty("textures", base64));
                 meta.setPlayerProfile(profile);
                 head.setItemMeta(meta);
@@ -222,36 +224,20 @@ public class ItemBuilder {
         } catch (Throwable ignored) {}
     }
 
-    private void applyVanillaAttributeModifiers(ItemMeta meta, ItemDefinition def) {
-        EquipmentSlotGroup slotGroup = resolveSlotGroup(def.getType());
+    private static final NamespacedKey OVERRIDE_KEY = new NamespacedKey("royitems", "base_override");
 
-        for (Map.Entry<StatType, StatModifier> entry : def.getStats().entrySet()) {
-            StatType type = entry.getKey();
-            StatModifier mod = entry.getValue();
-            if (type.hasVanillaAttribute() && mod != null && !mod.isEmpty()) {
-                Attribute attr = type.getVanillaAttribute();
-                if (Math.abs(mod.getFlat()) > 0.0001) {
-                    NamespacedKey key = new NamespacedKey("royitems", type.getKey() + "_flat");
-                    meta.addAttributeModifier(attr, new AttributeModifier(key, mod.getFlat(),
-                            AttributeModifier.Operation.ADD_NUMBER, slotGroup));
-                }
-                if (Math.abs(mod.getPercent()) > 0.0001) {
-                    NamespacedKey key = new NamespacedKey("royitems", type.getKey() + "_percent");
-                    meta.addAttributeModifier(attr, new AttributeModifier(key, mod.getPercent(),
-                            AttributeModifier.Operation.ADD_SCALAR, slotGroup));
-                }
+    private void suppressDefaultMaterialAttributes(ItemMeta meta) {
+        if (meta == null) return;
+        try {
+            Attribute luck = Attribute.LUCK;
+            if (luck != null) {
+                meta.addAttributeModifier(luck, new AttributeModifier(OVERRIDE_KEY, 0.0,
+                        AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
             }
-        }
+        } catch (Throwable ignored) {}
     }
 
-    private EquipmentSlotGroup resolveSlotGroup(ItemType type) {
-        return switch (type) {
-            case ARMOR -> EquipmentSlotGroup.ARMOR;
-            case OFF_HAND -> EquipmentSlotGroup.OFFHAND;
-            case WING -> EquipmentSlotGroup.CHEST;
-            default -> EquipmentSlotGroup.MAINHAND;
-        };
-    }
+
 
     public static long parseDurationMillis(String durationStr) {
         if (durationStr == null || durationStr.isEmpty()) return 0L;

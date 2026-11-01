@@ -1,6 +1,9 @@
 package com.github.orenaidaucac.royItems.stat;
 
+import org.bukkit.attribute.Attribute;
+
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -9,6 +12,7 @@ import java.util.Map;
 public class PlayerStatCache {
 
     private final Map<StatType, StatModifier> stats = new EnumMap<>(StatType.class);
+    private final Map<Attribute, StatModifier> vanillaAttributes = new HashMap<>();
 
     public PlayerStatCache() {
         for (StatType type : StatType.values()) {
@@ -25,12 +29,23 @@ public class PlayerStatCache {
             stats.get(type).setFlat(0);
             stats.get(type).setPercent(0);
         }
+        vanillaAttributes.clear();
     }
 
     public void addStat(StatType type, StatModifier modifier) {
         if (type == null || modifier == null) return;
         StatModifier current = stats.computeIfAbsent(type, k -> new StatModifier(0, 0));
         current.add(modifier);
+    }
+
+    public void addVanillaAttribute(Attribute attribute, StatModifier modifier) {
+        if (attribute == null || modifier == null) return;
+        StatModifier current = vanillaAttributes.computeIfAbsent(attribute, k -> new StatModifier(0, 0));
+        current.add(modifier);
+    }
+
+    public Map<Attribute, StatModifier> getVanillaAttributes() {
+        return vanillaAttributes;
     }
 
     public StatModifier getModifier(StatType type) {

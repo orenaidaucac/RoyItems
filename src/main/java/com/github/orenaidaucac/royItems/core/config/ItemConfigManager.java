@@ -111,8 +111,16 @@ public class ItemConfigManager {
         if (statSec != null) {
             for (String statKey : statSec.getKeys(false)) {
                 StatType statType = StatType.fromKey(statKey);
+                StatModifier mod = StatModifier.parse(statSec.get(statKey));
                 if (statType != null) {
-                    def.setStat(statType, StatModifier.parse(statSec.get(statKey)));
+                    def.setStat(statType, mod);
+                } else {
+                    org.bukkit.attribute.Attribute attr = com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.findVanillaAttribute(statKey);
+                    if (attr != null) {
+                        def.getVanillaAttributes().put(attr, mod);
+                    } else {
+                        def.setCustomStat(statKey, mod);
+                    }
                 }
             }
         }
@@ -154,6 +162,7 @@ public class ItemConfigManager {
 
         def.setHideEnchantments(sec.getBoolean("hide-enchantments", false));
         def.setHideAttributes(sec.getBoolean("hide-attributes", false));
+        def.setHideUnbreakable(sec.getBoolean("hide-unbreakable", false));
 
         // Requirements
         def.setPermission(sec.getString("permission", null));
@@ -271,6 +280,24 @@ public class ItemConfigManager {
                 }
             }
         }
+        if (def.getCustomStats() != null && !def.getCustomStats().isEmpty()) {
+            for (Map.Entry<String, StatModifier> e : def.getCustomStats().entrySet()) {
+                StatModifier mod = e.getValue();
+                if (mod == null || mod.isEmpty()) continue;
+                boolean hasFlat = Math.abs(mod.getFlat()) > 0.00001;
+                boolean hasPct = Math.abs(mod.getPercent()) > 0.00001;
+                if (hasFlat && hasPct) {
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("flat", mod.getFlat());
+                    map.put("percent", formatPercent(mod.getPercentValue()) + "%");
+                    config.set(path + ".stats." + e.getKey(), map);
+                } else if (hasPct) {
+                    config.set(path + ".stats." + e.getKey(), formatPercent(mod.getPercentValue()) + "%");
+                } else {
+                    config.set(path + ".stats." + e.getKey(), mod.getFlat());
+                }
+            }
+        }
 
         // Vanilla Attributes
         config.set(path + ".attributes", null);
@@ -317,6 +344,7 @@ public class ItemConfigManager {
         }
         config.set(path + ".hide-enchantments", def.isHideEnchantments() ? true : null);
         config.set(path + ".hide-attributes", def.isHideAttributes() ? true : null);
+        config.set(path + ".hide-unbreakable", def.isHideUnbreakable() ? true : null);
 
         // Requirements & Permissions
         config.set(path + ".permission", (def.getPermission() != null && !def.getPermission().trim().isEmpty()) ? def.getPermission().trim() : null);
@@ -441,6 +469,23 @@ public class ItemConfigManager {
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to delete item " + id + ": " + e.getMessage(), e);
             return false;
+        }
+    }
+
+    /**
+     * Retrieves all item keys from item/<TYPE>.yml in their exact top-to-bottom file order.
+     */
+    public List<String> getItemKeysInFileOrder(ItemType type) {
+        if (type == null || plugin == null) return Collections.emptyList();
+        File itemFolder = new File(plugin.getDataFolder(), "item");
+        File file = new File(itemFolder, type.name() + ".yml");
+        if (!file.exists()) return Collections.emptyList();
+
+        try {
+            FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+            return new ArrayList<>(config.getKeys(false));
+        } catch (Exception e) {
+            return Collections.emptyList();
         }
     }
 }

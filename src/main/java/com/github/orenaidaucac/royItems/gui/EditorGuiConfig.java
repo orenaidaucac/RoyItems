@@ -76,7 +76,7 @@ public class EditorGuiConfig {
     // --- Type Selector Getters ---
 
     public Component getTypeSelectorTitle() {
-        String raw = config.getString("type-selector.title", "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>Chọn Danh Mục</yellow>");
+        String raw = config.getString("type-selector.title", "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>Select Category</yellow>");
         return TextUtility.formatGui(raw);
     }
 
@@ -93,7 +93,7 @@ public class EditorGuiConfig {
     public ButtonConfig getTypeSelectorCloseButton() {
         int slot = config.getInt("type-selector.close-button.slot", 49);
         Material mat = resolveMaterial(config.getString("type-selector.close-button.material"), Material.BARRIER);
-        String name = config.getString("type-selector.close-button.name", "<red><bold>Đóng Menu</bold></red>");
+        String name = config.getString("type-selector.close-button.name", "<red><bold>Close Menu</bold></red>");
         List<String> lore = config.getStringList("type-selector.close-button.lore");
         return new ButtonConfig(slot, mat, name, lore, 0);
     }
@@ -106,10 +106,10 @@ public class EditorGuiConfig {
         List<String> lore = config.getStringList("type-selector.type-item.lore");
         if (lore.isEmpty()) {
             return List.of(
-                    "<gray>Phân loại: <white>%description%</white>",
-                    "<gray>Tổng số vật phẩm: <green>%count%</green>",
+                    "<gray>Category: <white>%description%</white>",
+                    "<gray>Total Items: <green>%count%</green>",
                     "",
-                    "<yellow>▶ Click để xem và quản lý danh sách!</yellow>"
+                    "<yellow>▶ Click to browse and manage items!</yellow>"
             );
         }
         return lore;
@@ -153,9 +153,9 @@ public class EditorGuiConfig {
         if (lore.isEmpty()) {
             return List.of(
                     "",
-                    "<yellow>Chuột trái: <white>Chỉnh sửa chi tiết thuộc tính</white></yellow>",
-                    "<aqua>Chuột phải: <white>Lấy 1x vật phẩm vào túi đồ</white></aqua>",
-                    "<red>Shift + Chuột phải: <white>Xóa vĩnh viễn vật phẩm</white></red>"
+                    "<yellow>Left-Click: <white>Edit properties in detail</white></yellow>",
+                    "<aqua>Right-Click: <white>Take 1x item to inventory</white></aqua>",
+                    "<red>Shift + Right-Click: <white>Delete item permanently</white></red>"
             );
         }
         return lore;
@@ -193,7 +193,7 @@ public class EditorGuiConfig {
 
     public List<String> getPreviewLoreHint() {
         List<String> hints = config.getStringList("detail-editor.preview.lore-hint");
-        return hints.isEmpty() ? List.of("", "<green>▶ Click để lấy 1x bản sao vào túi đồ!</green>") : hints;
+        return hints.isEmpty() ? List.of("", "<green>▶ Click to take a 1x copy into your inventory!</green>") : hints;
     }
 
     public ButtonConfig getDetailNavigationButton(String key, ButtonConfig fallback) {

@@ -3,6 +3,7 @@ package com.github.orenaidaucac.royItems.core.text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
@@ -107,6 +108,37 @@ public class TextUtility {
             components.add(format(line, true));
         }
         return components;
+    }
+
+    /**
+     * Formats a line by substituting a named placeholder (e.g. %name% or <name>)
+     * with an Adventure Component (such as a TranslatableComponent).
+     * Retains full Adventure formatting and anti-italic decoration.
+     */
+    public static Component formatLineWithComponent(String input, String placeholderName, Component placeholderValue) {
+        if (input == null || input.isEmpty()) {
+            return Component.empty();
+        }
+        boolean hasExplicitItalic = containsExplicitItalic(input);
+        String prepared = input.replace("%" + placeholderName + "%", "<" + placeholderName + ">");
+        String converted = normalizeHexAndLegacy(prepared);
+        Component component;
+        try {
+            component = MINI_MESSAGE.deserialize(
+                    converted,
+                    Placeholder.component(placeholderName, placeholderValue != null ? placeholderValue : Component.empty())
+            );
+        } catch (Exception e) {
+            try {
+                component = format(input.replace("%" + placeholderName + "%", PlainTextComponentSerializer.plainText().serialize(placeholderValue)), false);
+            } catch (Exception ignored) {
+                component = Component.text(input);
+            }
+        }
+        if (!hasExplicitItalic) {
+            component = component.decoration(TextDecoration.ITALIC, false);
+        }
+        return component;
     }
 
     /**

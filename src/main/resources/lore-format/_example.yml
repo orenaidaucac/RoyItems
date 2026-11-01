@@ -159,3 +159,24 @@ stat-format:
     symbol: "🩸"
     format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"
     percent-format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"
+
+# ==============================================================================
+# 4. CUSTOMIZABLE SECTIONS (NO HARDCODED TEXT)
+# ==============================================================================
+sockets-format:
+  empty: "&8[&7◇&8] &7Empty Socket (%type%)"
+  filled: "&8[&a◆&8] &f%gem%"
+
+requirements-format:
+  level: "&cRequires Level: &f%level%"
+  permission: "&cRequires Permission: &f%permission%"
+  class: "&cClass: &f%class%"
+  class-with-level: "&cClass: &f%class% (Lv.%level%)"
+  auraskill: "&cAuraSkill: &f%skill% Lv.%level%"
+
+enchantments-format:
+  format: "&7%name% %level%"
+
+durability-format:
+  unbreakable: "&aUnbreakable"
+  format: "%current%/%max%"

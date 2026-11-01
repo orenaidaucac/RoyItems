@@ -1,11 +1,12 @@
 # ⚔️ RoyItems — Advanced MMORPG Custom Items Engine
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-2026.1.3-blue?style=for-the-badge&logo=git" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-2026.1.4-blue?style=for-the-badge&logo=git" alt="Version" />
   <img src="https://img.shields.io/badge/Minecraft-1.21.x%20%7C%2026.3%2B-2ea44f?style=for-the-badge&logo=minecraft&logoColor=white" alt="Minecraft" />
   <img src="https://img.shields.io/badge/Platforms-Paper%20%7C%20Spigot%20%7C%20Purpur%20%7C%20Folia-orange?style=for-the-badge" alt="Platforms" />
   <img src="https://img.shields.io/badge/Java-21%2B-ea76cb?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
   <img src="https://img.shields.io/badge/Modrinth-RoyItems-00AF5C?style=for-the-badge&logo=modrinth&logoColor=white" alt="Modrinth" />
+  <a href="https://bstats.org/plugin/bukkit/RoyItems/34832"><img src="https://img.shields.io/bstats/servers/34832?style=for-the-badge&logo=chartdotjs&logoColor=white&color=007ec6" alt="bStats Servers" /></a>
   <img src="https://img.shields.io/badge/Build-Maven-informational?style=for-the-badge&logo=apachemaven" alt="Maven" />
 </p>
 
@@ -20,15 +21,18 @@
 3. [Supported Item Types (14 Total)](#-supported-item-types-14-total)
 4. [16 Custom RPG Stats & Calculation](#-16-custom-rpg-stats--calculation)
 5. [Item Security & Protection Flags](#-item-security--protection-flags)
-6. [Non-Linear Defense Engine](#-non-linear-defense-engine)
-7. [Tier Glowing Drop Outline System](#-tier-glowing-drop-outline-system)
-8. [Drag & Drop Gem Sockets](#-drag--drop-gem-sockets)
-9. [Ingame GUI Editor (`/ri editor`)](#-ingame-gui-editor-ri-editor)
-10. [Configuration Guide](#-configuration-guide)
-11. [Commands & Permissions](#-commands--permissions)
-12. [PlaceholderAPI Reference](#-placeholderapi-reference)
-13. [Compatible Plugins & Official Links](#-compatible-plugins--official-links)
-14. [Building from Source](#-building-from-source)
+6. [Crafting Station System (New)](#-crafting-station-system)
+7. [Packet-Based Training Dummy System (New)](#-packet-based-training-dummy-system)
+8. [Non-Linear Defense Engine](#-non-linear-defense-engine)
+9. [Tier Glowing Drop Outline System](#-tier-glowing-drop-outline-system)
+10. [Drag & Drop Gem Sockets](#-drag--drop-gem-sockets)
+11. [Ingame GUI Editor (`/ri editor`)](#-ingame-gui-editor-ri-editor)
+12. [Configuration Guide](#-configuration-guide)
+13. [Commands & Permissions](#-commands--permissions)
+14. [PlaceholderAPI Reference](#-placeholderapi-reference)
+15. [Metrics & Statistics (bStats)](#-metrics--statistics-bstats)
+16. [Compatible Plugins & Official Links](#-compatible-plugins--official-links)
+17. [Building from Source](#-building-from-source)
 
 ---
 
@@ -38,12 +42,15 @@
 * **Folia Regionized Multi-Threading:** All entity, location, and world interactions are scheduled through region-aware platform schedulers (`entity.getScheduler()`, `Bukkit.getRegionScheduler()`, and `Bukkit.getAsyncScheduler()`) ensuring zero desync on Folia.
 * **LiveUpdate Service:** When editing item stats, lore formats, or tiers in YAML, running `/ri reload` automatically hot-updates all existing items across online player inventories and ender chests without wiping durability or socketed gems.
 * **Damage Particle Filter:** Seamlessly intercepts vanilla `DAMAGE_INDICATOR` heart particle packets using PacketEvents or ProtocolLib, eliminating client FPS drops and screen freezing when dealing massive MMORPG damage numbers.
+* **Clean Attribute Isolation:** Suppresses default vanilla weapon and armor attributes via zero-luck modifiers, ensuring players only receive stats explicitly configured in RoyItems without hidden vanilla armor/damage drift.
 
 ---
 
 ## 🌟 Feature Highlights
 
 * ⚔️ **14 Item Categories:** Weapons, armor, tools, accessories, wings, pets, vouchers, consumables, and gems.
+* 🔨 **Modular Crafting Stations:** Create unlimited GUI workstations with TriumphGUI, custom commands, FancyNpcs/Citizens integration, multi-currency recipes, and dynamic client-translated lore.
+* 🎯 **Packet-Based Training Dummies:** Client-side DPS & damage testing dummies with Text Display holograms, immune to entity purges and `/kill @e`, with zero tick performance cost.
 * 🛡️ **3-Mode Defense Engine:** Choose between `MMORPG` (diminishing returns curve), `SIMPLE` (flat reduction), or `CUSTOM_LIMIT` (clamped min/max boundaries).
 * 🔒 **Built-In Item Restrictions:** 4 airtight protection flags (`disable-on-use`, `disable-on-drop`, `disable-on-crafting`, `disable-on-enchantment`).
 * 💎 **Drag-and-Drop Gem Socketing:** Socket gems intuitively directly inside player inventories.
@@ -123,6 +130,93 @@ disable-on-enchantment: true # Blocks vanilla enchanting, anvil repairs/renaming
 * **`disable-on-drop`:** Cancels `PlayerDropItemEvent`, clicking outside inventory window (`SlotType.OUTSIDE`), pressing `Q` or `Ctrl+Q` over slots in any container, and dragging items outside windows.
 * **`disable-on-crafting`:** Prevents item from being used in `PrepareItemCraftEvent`, `CraftItemEvent`, `FurnaceSmeltEvent`, `FurnaceBurnEvent`, `BrewEvent`, stonecutters, looms, cartography tables, and smithing tables.
 * **`disable-on-enchantment`:** Blocks item from `PrepareItemEnchantEvent`, `EnchantItemEvent`, `PrepareAnvilEvent`, `PrepareGrindstoneEvent`, and `PrepareSmithingEvent`.
+
+---
+
+## 🔨 Crafting Station System
+
+Create unlimited custom crafting stations in `plugins/RoyItems/crafting-station/<station-id>.yml` rendered using [TriumphGUI](https://github.com/TriumphTeam/TriumphGUI).
+
+```yaml
+title: "<gradient:#FF512F:#DD2476>✦ Blacksmith Forge ✦</gradient>"
+size: 54
+permission: "royitems.station.blacksmith"
+
+# Custom commands registered at runtime with dynamic tab-completion
+commands:
+  - blacksmith
+  - forge
+
+# Link to NPCs (click NPC to directly open this station)
+fancynpcs:
+  - 10
+citizen:
+  - 5
+
+# Decorative background items
+backgrounds:
+  border:
+    material: "GRAY_STAINED_GLASS_PANE"
+    name: "&7"
+    slots:
+      - 0-8
+      - 45-53
+  anvil_decor:
+    material: "ANVIL"
+    name: "&e&lForge Anvil"
+    lore:
+      - "&7Craft legendary weapons here."
+    slots:
+      - 49
+    click-commands:
+      - "[sound] BLOCK_ANVIL_USE"
+      - "[player] spawn"
+
+# Unlimited recipe definitions
+recipes:
+  excalibur_recipe:
+    input:
+      - "royitems[type=MATERIAL,id=dragon_scale,amount=5]"
+      - "vanilla[type=NETHERITE_INGOT,amount=2]"
+      - "money=5000"
+      - "exp=1000"
+      - "point=250"
+      - "excellenteconomy:gems=50"
+    output:
+      - "royitems[type=SWORD,id=excalibur,amount=1]"
+    icon:
+      - "royitems[type=SWORD,id=excalibur,amount=1]"
+```
+
+### Key Crafting Station Features:
+* 🌐 **Dynamic Client-Language Translation:** Vanilla ingredient names in dynamic lore translate automatically to match each player's Minecraft client language setting.
+* 📦 **Clean Output Stacking:** Items produced by recipes stack seamlessly without hidden NBT differences.
+* ⚡ **Multi-Economy & Item Sources:** Supports RoyItems, Vanilla items, Vault Economy (`money=X`), Player Experience (`exp=X`), PlayerPoints (`point=X`), and ExcellentEconomy (`excellenteconomy:<id>=X`).
+* 🎨 **Rich Material Formats:** Icons & backgrounds support Vanilla materials, Nexo, ItemsAdder, Oraxen, HeadDatabase, and custom Base64 head skins (`basehead-<base64>`).
+* ⚡ **NPC Integration:** Directly open stations upon clicking NPCs from **FancyNpcs** or **Citizens**.
+
+---
+
+## 🎯 Packet-Based Training Dummy System
+
+Test player weapon damage, critical strikes, and output DPS in real time using client-side packet entities powered by **PacketEvents** or **ProtocolLib**.
+
+```bash
+# Spawn a dummy centered at the block you are looking at
+/ri dummy spawn dps_dummy ZOMBIE
+
+# Despawn a specific dummy or all dummies
+/ri dummy despawn dps_dummy
+/ri dummy despawn all
+```
+
+### Training Dummy Highlights:
+* 🚀 **Zero Server Overhead:** Dummies and holograms exist purely client-side via network packets. Never burdens the server tick loop or main thread.
+* 🛡️ **Airtight Immunity:** Immune to `/kill @e`, clear-lag entity purges, and server mob sweeps.
+* 🌐 **WorldGuard Region Bypass:** Bypasses region flags and world gamerules to spawn and register attacks reliably in any protected spawn or arena.
+* 📊 **Text Display Hologram:** Displays real-time **DPS**, **Total Damage**, **Last Hit**, and **Hit Count** using customizable MiniMessage and RGB colors.
+* ⚙️ **Per-Dummy Configuration:** Configurable in `plugins/RoyItems/dummy/<dummy_id>.yml` (custom idle & active lines, billboard mode, shadow, background ARGB color, and reset timeout).
+* 🔄 **PlugmanX & Reload Safe:** Automatically cleans up and resynchronizes upon server reload or hot-reloading via PlugmanX, preventing ghost entities or desynced text displays.
 
 ---
 
@@ -241,13 +335,17 @@ excalibur:
 | Command | Permission | Description |
 | :--- | :--- | :--- |
 | `/ri help` | `royitems.command.help` | Displays command assistance menu |
-| `/ri reload` | `royitems.command.reload` | Hot-reloads all configs and triggers LiveUpdate |
+| `/ri reload` | `royitems.command.reload` | Hot-reloads all configs, stations, dummies, and triggers LiveUpdate |
 | `/ri editor` | `royitems.command.editor` | Opens the paginated Ingame GUI Editor |
 | `/ri checkupdate` | `royitems.command.checkupdate` | Checks for updates on Modrinth |
 | `/ri give <player\|all> <type> <id> [amount]` | `royitems.command.give` | Gives custom items (supports ranges: `1-5`) |
 | `/ri take <player\|all> <type> <id> [amount]` | `royitems.command.take` | Removes specified amount of custom items |
 | `/ri drop <player\|all> <type> <id> [amount]` | `royitems.command.drop` | Drops items at target player location |
 | `/ri drop <world> <x> <y> <z> <type> <id> [amount]` | `royitems.command.drop` | Drops items at exact world coordinates |
+| `/ri station open <station_id> [player]` | `royitems.command.station.open` | Opens a crafting station GUI directly |
+| `/ri station list` or `/ri stations` | `royitems.command.station.list` | Opens the global Crafting Stations list GUI |
+| `/ri dummy spawn <dummy_id> [mob_type]` | `royitems.command.dummy` | Spawns a packet-based training dummy centered at target block |
+| `/ri dummy despawn <dummy_id\|all>` | `royitems.command.dummy` | Despawns a training dummy or all active dummies |
 
 ---
 
@@ -261,6 +359,25 @@ excalibur:
 | `%royitems_hand_name%` | Formatted display name of held item |
 | `%royitems_hand_tier%` | Tier identifier of held item |
 | `%royitems_hand_version%` | LiveUpdate internal version number of held item |
+
+---
+
+## 📊 Metrics & Statistics (bStats)
+
+RoyItems collects completely anonymous server telemetry via [bStats](https://bstats.org/plugin/bukkit/RoyItems/34832) to track version adoption, optimize server platform compatibility, and guide future development. Server administrators can opt-out at any time via `plugins/bStats/config.yml`.
+
+| Telemetry Metric | Details & Live Status |
+| :--- | :--- |
+| **bStats Overview** | [bstats.org/plugin/bukkit/RoyItems/34832](https://bstats.org/plugin/bukkit/RoyItems/34832) |
+| **Plugin ID** | `34832` |
+| **Active Servers** | [![bStats Servers](https://img.shields.io/bstats/servers/34832?style=flat-square&color=007ec6)](https://bstats.org/plugin/bukkit/RoyItems/34832) |
+| **Online Players** | [![bStats Players](https://img.shields.io/bstats/players/34832?style=flat-square&color=2ea44f)](https://bstats.org/plugin/bukkit/RoyItems/34832) |
+
+<p align="center">
+  <a href="https://bstats.org/plugin/bukkit/RoyItems/34832" target="_blank">
+    <img src="https://bstats.org/signatures/bukkit/RoyItems.svg" alt="bStats Server Statistics" />
+  </a>
+</p>
 
 ---
 
@@ -302,4 +419,4 @@ cd RoyItems
 mvn clean package
 ```
 
-The compiled JAR will be output to `target/RoyItems-2026.1.3.jar`.
+The compiled JAR will be output to `target/RoyItems-2026.1.4.jar`.

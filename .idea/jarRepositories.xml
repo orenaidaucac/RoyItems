@@ -2,14 +2,14 @@
 <project version="4">
   <component name="RemoteRepositoriesConfiguration">
     <remote-repository>
+      <option name="id" value="citizens-repo" />
+      <option name="name" value="citizens-repo" />
+      <option name="url" value="https://maven.citizensnpcs.co/repo" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Central Repository" />
       <option name="url" value="https://repo.maven.apache.org/maven2" />
-    </remote-repository>
-    <remote-repository>
-      <option name="id" value="xenondevs" />
-      <option name="name" value="xenondevs" />
-      <option name="url" value="https://repo.xenondevs.xyz/releases" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="jitpack.io" />
@@ -20,16 +20,6 @@
       <option name="id" value="sonatype" />
       <option name="name" value="sonatype" />
       <option name="url" value="https://oss.sonatype.org/content/groups/public/" />
-    </remote-repository>
-    <remote-repository>
-      <option name="id" value="codemc-releases" />
-      <option name="name" value="codemc-releases" />
-      <option name="url" value="https://repo.codemc.io/repository/maven-releases/" />
-    </remote-repository>
-    <remote-repository>
-      <option name="id" value="dmulloy2-repo" />
-      <option name="name" value="dmulloy2-repo" />
-      <option name="url" value="https://repo.dmulloy2.net/repository/public/" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="papermc-repo" />
@@ -45,6 +35,36 @@
       <option name="id" value="central" />
       <option name="name" value="Maven Central repository" />
       <option name="url" value="https://repo1.maven.org/maven2" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="rosewood-repo" />
+      <option name="name" value="rosewood-repo" />
+      <option name="url" value="https://repo.rosewooddev.io/repository/public/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="nightexpress-releases" />
+      <option name="name" value="nightexpress-releases" />
+      <option name="url" value="https://repo.nightexpressdev.com/releases" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="xenondevs" />
+      <option name="name" value="xenondevs" />
+      <option name="url" value="https://repo.xenondevs.xyz/releases" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="codemc-releases" />
+      <option name="name" value="codemc-releases" />
+      <option name="url" value="https://repo.codemc.io/repository/maven-releases/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="dmulloy2-repo" />
+      <option name="name" value="dmulloy2-repo" />
+      <option name="url" value="https://repo.dmulloy2.net/repository/public/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="fancyinnovations-releases" />
+      <option name="name" value="FancyInnovations Repository" />
+      <option name="url" value="https://repo.fancyinnovations.com/releases" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="jboss.community" />

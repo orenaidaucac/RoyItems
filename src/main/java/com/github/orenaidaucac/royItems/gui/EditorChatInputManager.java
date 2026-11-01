@@ -60,12 +60,12 @@ public class EditorChatInputManager implements Listener {
 
         player.closeInventory();
         player.sendMessage(TextUtility.formatMessage("&8&m----------------------------------------------------"));
-        player.sendMessage(TextUtility.formatMessage("&6&lRoyItems &8— &eChỉnh sửa: &f" + propertyName));
+        player.sendMessage(TextUtility.formatMessage("&6&lRoyItems &8— &eEditing Property: &f" + propertyName));
         if (currentValue != null && !currentValue.isEmpty()) {
-            player.sendMessage(TextUtility.formatMessage("&7Giá trị hiện tại: &f" + currentValue));
+            player.sendMessage(TextUtility.formatMessage("&7Current Value: &f" + currentValue));
         }
         player.sendMessage(TextUtility.formatMessage("&e" + promptHelp));
-        player.sendMessage(TextUtility.formatMessage("&7Gõ &c'cancel'&7 hoặc &c'huy'&7 để hủy bỏ thao tác."));
+        player.sendMessage(TextUtility.formatMessage("&7Type &c'cancel'&7 to abort this edit operation."));
         player.sendMessage(TextUtility.formatMessage("&8&m----------------------------------------------------"));
 
         try {
@@ -98,7 +98,7 @@ public class EditorChatInputManager implements Listener {
     private void processInput(Player player, ChatSession session, String input) {
         // Handle cancel
         if (input.equalsIgnoreCase("cancel") || input.equalsIgnoreCase("huy") || input.equalsIgnoreCase("exit")) {
-            player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Đã hủy thao tác chỉnh sửa."));
+            player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Edit operation cancelled."));
             plugin.getPlatformScheduler().runEntity(player, () -> {
                 guiManager.openDetailEditor(player, session.def(), session.page());
             });
@@ -107,7 +107,7 @@ public class EditorChatInputManager implements Listener {
 
         // Validate
         if (session.validator() != null && !session.validator().test(input)) {
-            player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Giá trị nhập không hợp lệ! Vui lòng thử lại hoặc gõ &f'cancel'&c để hủy."));
+            player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Invalid value! Please try again or type &f'cancel'&c to abort."));
             // Keep session active for retry
             activeSessions.put(player.getUniqueId(), session);
             return;
@@ -116,12 +116,12 @@ public class EditorChatInputManager implements Listener {
         // Apply changes
         try {
             session.consumer().accept(input);
-            player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã cập nhật &e" + session.propertyName() + " &athành: &f" + input));
+            player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Successfully updated &e" + session.propertyName() + " &ato: &f" + input));
             try {
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
             } catch (Throwable ignored) {}
         } catch (Exception e) {
-            player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Lỗi khi xử lý dữ liệu: &f" + e.getMessage()));
+            player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Error processing input: &f" + e.getMessage()));
         }
 
         // Reopen Editor on entity thread
@@ -147,7 +147,7 @@ public class EditorChatInputManager implements Listener {
                     activeSessions.remove(entry.getKey());
                     Player player = Bukkit.getPlayer(entry.getKey());
                     if (player != null && player.isOnline()) {
-                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Phiên nhập liệu đã hết hạn do quá thời gian chờ (60s)."));
+                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Input session expired due to inactivity (60s)."));
                     }
                 }
             }

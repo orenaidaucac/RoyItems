@@ -1,0 +1,60 @@
+# ==============================================================================
+#                 ROYITEMS — CRAFTING STATION RECIPE DETAIL GUI
+# Displays full breakdown of required inputs and outputs for a specific recipe.
+# Fully configurable via MiniMessage and hex codes.
+# ==============================================================================
+title: "<gold><bold>Recipe Details</bold></gold> <dark_gray>—</dark_gray> <yellow>%recipe_id%</yellow>"
+rows: 5
+
+border:
+  material: BLACK_STAINED_GLASS_PANE
+  name: " "
+
+# Arrow or indicator placed in the middle
+indicator:
+  slot: 22
+  material: SPECTRAL_ARROW
+  name: "<#06D6A0><bold>➜ Craft ➜</bold></#06D6A0>"
+  lore:
+    - "<gray>Crafting Time: <white>%time%s</white></gray>"
+    - ""
+    - "<yellow>Ingredients (Left) ➜ Result (Right)</yellow>"
+
+# Slots dedicated to inputs (left side)
+input-slots:
+  - 10
+  - 11
+  - 12
+  - 19
+  - 20
+  - 21
+  - 28
+  - 29
+  - 30
+
+# Slots dedicated to outputs (right side)
+output-slots:
+  - 14
+  - 15
+  - 16
+  - 23
+  - 24
+  - 25
+  - 32
+  - 33
+  - 34
+
+# Back to station button
+back-button:
+  slot: 40
+  material: ARROW
+  name: "<#FFD166><bold>◀ Back to Station</bold></#FFD166>"
+  lore:
+    - "<gray>Click to return to the crafting station."
+
+close-button:
+  slot: 44
+  material: BARRIER
+  name: "<#EF476F><bold>Close Menu</bold></#EF476F>"
+  lore:
+    - "<gray>Click to exit this menu."

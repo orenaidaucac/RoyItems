@@ -28,11 +28,13 @@ public class ItemDefinition {
     // Stats & Attributes
     private Map<StatType, StatModifier> stats = new EnumMap<>(StatType.class);
     private Map<Attribute, StatModifier> vanillaAttributes = new HashMap<>();
+    private Map<String, StatModifier> customStats = new LinkedHashMap<>();
 
     // Enchants & Tooltip
     private Map<Enchantment, Integer> enchantments = new HashMap<>();
     private boolean hideEnchantments = false;
     private boolean hideAttributes = false;
+    private boolean hideUnbreakable = false;
 
     // Requirements & Permissions
     private String permission = null;
@@ -110,6 +112,18 @@ public class ItemDefinition {
     public Map<StatType, StatModifier> getStats() { return stats; }
     public void setStats(Map<StatType, StatModifier> stats) { this.stats = stats; }
 
+    public Map<String, StatModifier> getCustomStats() { return customStats; }
+    public void setCustomStats(Map<String, StatModifier> customStats) { this.customStats = customStats != null ? customStats : new LinkedHashMap<>(); }
+    public StatModifier getCustomStat(String key) {
+        if (key == null) return null;
+        return customStats.get(key.toLowerCase().replace('_', '-'));
+    }
+    public void setCustomStat(String key, StatModifier mod) {
+        if (key != null && mod != null) {
+            customStats.put(key.toLowerCase().replace('_', '-'), mod);
+        }
+    }
+
     public Map<Attribute, StatModifier> getVanillaAttributes() { return vanillaAttributes; }
     public void setVanillaAttributes(Map<Attribute, StatModifier> vanillaAttributes) { this.vanillaAttributes = vanillaAttributes; }
 
@@ -121,6 +135,9 @@ public class ItemDefinition {
 
     public boolean isHideAttributes() { return hideAttributes; }
     public void setHideAttributes(boolean hideAttributes) { this.hideAttributes = hideAttributes; }
+
+    public boolean isHideUnbreakable() { return hideUnbreakable; }
+    public void setHideUnbreakable(boolean hideUnbreakable) { this.hideUnbreakable = hideUnbreakable; }
 
     public String getPermission() { return permission; }
     public void setPermission(String permission) { this.permission = permission; }

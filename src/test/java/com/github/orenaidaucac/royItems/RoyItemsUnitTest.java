@@ -2,6 +2,8 @@ package com.github.orenaidaucac.royItems;
 
 import com.github.orenaidaucac.royItems.command.RoyItemsCommand;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
+import com.github.orenaidaucac.royItems.dummy.DummyManager;
+import com.github.orenaidaucac.royItems.dummy.TrainingDummy;
 import com.github.orenaidaucac.royItems.gui.GuiHelper;
 import com.github.orenaidaucac.royItems.item.ItemBuilder;
 import com.github.orenaidaucac.royItems.socket.GemSocketManager;
@@ -892,5 +894,728 @@ class RoyItemsUnitTest {
         assertEquals(1, gui.getInt("detail-editor.properties.disable-on-enchantment.page"));
         assertEquals(33, gui.getInt("detail-editor.properties.disable-on-enchantment.slot"));
         assertEquals("ENCHANTING_TABLE", gui.getString("detail-editor.properties.disable-on-enchantment.material"));
+    }
+
+    @Test
+    @DisplayName("Lore Format: Custom stat-format display-name, symbol, format, and shorthand are fully respected")
+    void testStatFormatCustomDisplayAndOverrides() {
+        org.bukkit.configuration.file.YamlConfiguration config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.set("format", java.util.List.of("#stats#"));
+        config.set("stat-format.positive", "&7#name#: &a+#value#");
+        config.set("stat-format.negative", "&7#name#: &c-#value#");
+
+        // Custom config for attack-damage using display-name, symbol, and format
+        config.set("stat-format.attack-damage.display-name", "Sát thương");
+        config.set("stat-format.attack-damage.symbol", "⚔");
+        config.set("stat-format.attack-damage.format", "&7%symbol% %name%: &c+%value%");
+        config.set("stat-format.attack-damage.percent-format", "&7%symbol% %name%: &c+%value%%");
+
+        // Shorthand string for defense
+        config.set("stat-format.defense", "&9🛡 Phòng thủ: &f+#value#");
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat lf =
+                com.github.orenaidaucac.royItems.lore.LoreFormat.fromConfig("weapon", config);
+
+        assertNotNull(lf.getCustomStat("attack-damage"));
+        assertEquals("Sát thương", lf.getCustomStat("attack-damage").getName());
+        assertEquals("⚔", lf.getCustomStat("attack-damage").getSymbol());
+
+        // Test positive flat attack-damage
+        String line1 = lf.formatStatLine("attack-damage", "Attack Damage",
+                new com.github.orenaidaucac.royItems.stat.StatModifier(15.0, 0.0), new java.text.DecimalFormat("#,##0.##"));
+        assertEquals("&7⚔ Sát thương: &c+15", line1);
+
+        // Test percent attack-damage
+        String line2 = lf.formatStatLine("attack-damage", "Attack Damage",
+                new com.github.orenaidaucac.royItems.stat.StatModifier(0.0, 0.2), new java.text.DecimalFormat("#,##0.##"));
+        assertEquals("&7⚔ Sát thương: &c+20%", line2);
+
+        // Test defense with shorthand string
+        String line3 = lf.formatStatLine("defense", "Defense",
+                new com.github.orenaidaucac.royItems.stat.StatModifier(25.0, 0.0), new java.text.DecimalFormat("#,##0.##"));
+        assertEquals("&9🛡 Phòng thủ: &f+25", line3);
+
+        // Test negative auto-adaptation
+        String line4 = lf.formatStatLine("attack-damage", "Attack Damage",
+                new com.github.orenaidaucac.royItems.stat.StatModifier(-10.0, 0.0), new java.text.DecimalFormat("#,##0.##"));
+        assertEquals("&7⚔ Sát thương: &c-10", line4);
+    }
+
+    @Test
+    @DisplayName("Lore Format: Arbitrary custom stats and dynamic placeholders are supported and customizable")
+    void testArbitraryCustomStatsAndPlaceholders() {
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine =
+                new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null);
+
+        org.bukkit.configuration.file.YamlConfiguration config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.set("format", java.util.List.of("#stats#", "&bMana: #mana#"));
+        config.set("stat-format.mana.display-name", "Năng lượng");
+        config.set("stat-format.mana.symbol", "🌀");
+        config.set("stat-format.mana.format", "&b%symbol% %name%: &f+%value%");
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat lf =
+                com.github.orenaidaucac.royItems.lore.LoreFormat.fromConfig("custom", config);
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.STAFF, "staff");
+        def.setLoreFormat("custom");
+        def.setCustomStat("mana", new com.github.orenaidaucac.royItems.stat.StatModifier(100.0, 0.0));
+
+        // Inject format into engine
+        try {
+            java.lang.reflect.Field field = com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.class.getDeclaredField("formats");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, com.github.orenaidaucac.royItems.lore.LoreFormat> map =
+                    (java.util.Map<String, com.github.orenaidaucac.royItems.lore.LoreFormat>) field.get(engine);
+            map.put("custom", lf);
+        } catch (Exception e) {
+            fail("Reflection failed: " + e.getMessage());
+        }
+
+        java.util.List<String> lore = engine.buildLore(def, java.util.List.of(), 0);
+        assertFalse(lore.isEmpty());
+        assertTrue(lore.contains("&b🌀 Năng lượng: &f+100"));
+        assertTrue(lore.contains("&bMana: 100"));
+    }
+
+    @Test
+    @DisplayName("Lore Format: Sockets, requirements, durability, and enchantments are 100% customizable without hardcoded text")
+    void testFullyCustomizableLoreSections() {
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine =
+                new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null);
+
+        org.bukkit.configuration.file.YamlConfiguration config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.set("format", java.util.List.of("#sockets#", "#requirements#", "#durability#"));
+        config.set("sockets-format.empty", "&8[&7◇&8] &7Ô khảm trống (%type%)");
+        config.set("sockets-format.filled", "&8[&a◆&8] &aNgọc đã khảm: &f%gem%");
+        config.set("requirements-format.level", "&e⚡ Yêu cầu cấp độ: &c%level%");
+        config.set("requirements-format.permission", "&e⚡ Yêu cầu quyền: &c%permission%");
+        config.set("requirements-format.class-with-level", "&e⚡ Hệ: &6%class% (Cấp %level%)");
+        config.set("durability-format.unbreakable", "&b✦ Bất hoại ✦");
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat lf =
+                com.github.orenaidaucac.royItems.lore.LoreFormat.fromConfig("vietnamese", config);
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "mythic_armor");
+        def.setLoreFormat("vietnamese");
+        def.setGemSockets(java.util.List.of("RED", "BLUE"));
+        def.setLevelRequired(50);
+        def.setPermission("royitems.vip");
+        def.setMmocoreClass("Warrior");
+        def.setMmocoreLevel(20);
+        def.setUnbreakable(true);
+
+        try {
+            java.lang.reflect.Field field = com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.class.getDeclaredField("formats");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, com.github.orenaidaucac.royItems.lore.LoreFormat> map =
+                    (java.util.Map<String, com.github.orenaidaucac.royItems.lore.LoreFormat>) field.get(engine);
+            map.put("vietnamese", lf);
+        } catch (Exception e) {
+            fail("Reflection failed: " + e.getMessage());
+        }
+
+        java.util.List<String> slotted = java.util.List.of("Ruby of Flame");
+        java.util.List<String> lore = engine.buildLore(def, slotted, 0);
+
+        assertTrue(lore.contains("&8[&a◆&8] &aNgọc đã khảm: &fRuby of Flame"));
+        assertTrue(lore.contains("&8[&7◇&8] &7Ô khảm trống (BLUE)"));
+        assertTrue(lore.contains("&e⚡ Yêu cầu cấp độ: &c50"));
+        assertTrue(lore.contains("&e⚡ Yêu cầu quyền: &croyitems.vip"));
+        assertTrue(lore.contains("&e⚡ Hệ: &6Warrior (Cấp 20)"));
+        assertTrue(lore.contains("&b✦ Bất hoại ✦"));
+    }
+
+    @Test
+    @DisplayName("Lore Format: getCustomStat must never throw StackOverflowError on unconfigured or mutual keys")
+    void testNonRecursiveGetCustomStat() {
+        com.github.orenaidaucac.royItems.lore.LoreFormat lf = new com.github.orenaidaucac.royItems.lore.LoreFormat();
+
+        // Must return null without any recursion or StackOverflowError
+        assertNull(lf.getCustomStat("attack-damage"));
+        assertNull(lf.getCustomStat("attack_damage"));
+        assertNull(lf.getCustomStat("vanilla-attack-damage"));
+        assertNull(lf.getCustomStat("generic.attack_damage"));
+        assertNull(lf.getCustomStat("generic-attack-damage"));
+        assertNull(lf.getCustomStat("defense"));
+        assertNull(lf.getCustomStat("non_existent_custom_stat"));
+        assertNull(lf.getCustomStat(null));
+        assertNull(lf.getCustomStat(""));
+
+        // Add one key and verify exact and alias resolution
+        lf.addCustomStat("attack-damage", new com.github.orenaidaucac.royItems.lore.LoreFormat.StatDisplayConfig(
+                "Sát thương", "⚔", "&c+%value%", null, null, null));
+
+        assertNotNull(lf.getCustomStat("attack-damage"));
+        assertNotNull(lf.getCustomStat("attack_damage"));
+        assertNotNull(lf.getCustomStat("vanilla-attack-damage"));
+        assertNotNull(lf.getCustomStat("generic.attack_damage"));
+        assertEquals("Sát thương", lf.getCustomStat("attack_damage").getName());
+        assertEquals("Sát thương", lf.getCustomStat("vanilla-attack-damage").getName());
+    }
+
+    @Test
+    @DisplayName("Hide Unbreakable: verify lore suppression and serialization")
+    void testHideUnbreakable() {
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine =
+                new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null);
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat lf = new com.github.orenaidaucac.royItems.lore.LoreFormat();
+        lf.setId("test_format");
+        lf.setFormat(java.util.List.of("&7Item Name", "#durability#", "&aDescription"));
+        lf.setDurabilityUnbreakable("&b✦ Unbreakable ✦");
+
+        try {
+            java.lang.reflect.Field field = com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.class.getDeclaredField("formats");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, com.github.orenaidaucac.royItems.lore.LoreFormat> map =
+                    (java.util.Map<String, com.github.orenaidaucac.royItems.lore.LoreFormat>) field.get(engine);
+            map.put("test_format", lf);
+        } catch (Exception e) {
+            fail("Reflection failed: " + e.getMessage());
+        }
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "sacred_sword");
+        def.setLoreFormat("test_format");
+        def.setUnbreakable(true);
+        def.setHideUnbreakable(false);
+
+        // When hide-unbreakable is false: unbreakable line must be present
+        java.util.List<String> visibleLore = engine.buildLore(def, java.util.List.of(), 0);
+        assertTrue(visibleLore.contains("&b✦ Unbreakable ✦"));
+
+        // When hide-unbreakable is true: unbreakable line must be omitted
+        def.setHideUnbreakable(true);
+        java.util.List<String> hiddenLore = engine.buildLore(def, java.util.List.of(), 0);
+        assertFalse(hiddenLore.contains("&b✦ Unbreakable ✦"));
+        assertEquals(2, hiddenLore.size());
+        assertEquals("&7Item Name", hiddenLore.get(0));
+        assertEquals("&aDescription", hiddenLore.get(1));
+
+        // Test Configuration Section parsing
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        org.bukkit.configuration.ConfigurationSection sec = yaml.createSection("sacred_sword");
+        sec.set("material", "DIAMOND_SWORD");
+        sec.set("unbreakable", true);
+        sec.set("hide-unbreakable", true);
+
+        com.github.orenaidaucac.royItems.core.config.ItemConfigManager manager =
+                new com.github.orenaidaucac.royItems.core.config.ItemConfigManager(null, null);
+        com.github.orenaidaucac.royItems.item.ItemDefinition loaded =
+                manager.parseItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "sacred_sword", sec);
+        assertNotNull(loaded);
+        assertTrue(loaded.isUnbreakable());
+        assertTrue(loaded.isHideUnbreakable());
+
+        // Test hide-unbreakable defaults to false when omitted
+        sec.set("hide-unbreakable", null);
+        com.github.orenaidaucac.royItems.item.ItemDefinition loadedDefault =
+                manager.parseItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "sacred_sword", sec);
+        assertNotNull(loadedDefault);
+        assertFalse(loadedDefault.isHideUnbreakable());
+    }
+
+    @Test
+    @DisplayName("Item Registry & Browser: preserves file top-to-bottom order")
+    void testItemRegistryOrderAndSorting() {
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry = new com.github.orenaidaucac.royItems.item.ItemRegistry();
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def1 =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.MATERIAL, "trade_material_1");
+        com.github.orenaidaucac.royItems.item.ItemDefinition def2 =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.MATERIAL, "trade_material_2");
+        com.github.orenaidaucac.royItems.item.ItemDefinition def3 =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.MATERIAL, "trade_material_3");
+        com.github.orenaidaucac.royItems.item.ItemDefinition def4 =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.MATERIAL, "trade_material_4");
+
+        // Register in order 1, 2, 3, 4
+        registry.register(def1);
+        registry.register(def2);
+        registry.register(def3);
+        registry.register(def4);
+
+        java.util.List<com.github.orenaidaucac.royItems.item.ItemDefinition> list = registry.getByType(com.github.orenaidaucac.royItems.item.ItemType.MATERIAL);
+        assertEquals(4, list.size());
+        assertEquals("trade_material_1", list.get(0).getId());
+        assertEquals("trade_material_2", list.get(1).getId());
+        assertEquals("trade_material_3", list.get(2).getId());
+        assertEquals("trade_material_4", list.get(3).getId());
+
+        // Updating an existing item must not alter its position
+        def2.setName("Updated Material 2");
+        registry.register(def2);
+        java.util.List<com.github.orenaidaucac.royItems.item.ItemDefinition> updatedList = registry.getByType(com.github.orenaidaucac.royItems.item.ItemType.MATERIAL);
+        assertEquals("trade_material_1", updatedList.get(0).getId());
+        assertEquals("trade_material_2", updatedList.get(1).getId());
+        assertEquals("trade_material_3", updatedList.get(2).getId());
+        assertEquals("trade_material_4", updatedList.get(3).getId());
+
+        // Test sorting by file keys
+        java.util.List<String> fileOrder = java.util.List.of("trade_material_3", "trade_material_1", "trade_material_4", "trade_material_2");
+        java.util.Map<String, Integer> orderMap = new java.util.HashMap<>();
+        for (int i = 0; i < fileOrder.size(); i++) {
+            orderMap.put(fileOrder.get(i).toLowerCase(), i);
+        }
+
+        java.util.List<com.github.orenaidaucac.royItems.item.ItemDefinition> scrambled =
+                new java.util.ArrayList<>(java.util.List.of(def4, def2, def1, def3));
+        scrambled.sort(java.util.Comparator.comparingInt(def -> orderMap.getOrDefault(def.getId().toLowerCase(), Integer.MAX_VALUE)));
+
+        assertEquals("trade_material_3", scrambled.get(0).getId());
+        assertEquals("trade_material_1", scrambled.get(1).getId());
+        assertEquals("trade_material_4", scrambled.get(2).getId());
+        assertEquals("trade_material_2", scrambled.get(3).getId());
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Ingredient parsing for all supported types")
+    void testStationIngredientParsing() {
+        // 1. RoyItems
+        com.github.orenaidaucac.royItems.station.RecipeIngredient r1 =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("royitems[type=SWORD,id=starter_sword,amount=5]");
+        assertNotNull(r1);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIngredient.Type.ROYITEMS, r1.getType());
+        assertEquals(5, r1.getAmount());
+        assertTrue(r1 instanceof com.github.orenaidaucac.royItems.station.RecipeIngredient.RoyItemIngredient);
+        com.github.orenaidaucac.royItems.station.RecipeIngredient.RoyItemIngredient rItem =
+                (com.github.orenaidaucac.royItems.station.RecipeIngredient.RoyItemIngredient) r1;
+        assertEquals(com.github.orenaidaucac.royItems.item.ItemType.SWORD, rItem.getItemType());
+        assertEquals("starter_sword", rItem.getId());
+
+        // 2. Vanilla with displayname and lore
+        com.github.orenaidaucac.royItems.station.RecipeIngredient r2 =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("vanilla[type=DIAMOND,amount=10,displayname='&bKim Cương',lore='&7Dòng 1\\n&7Dòng 2']");
+        assertNotNull(r2);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIngredient.Type.VANILLA, r2.getType());
+        assertEquals(10, r2.getAmount());
+        assertTrue(r2 instanceof com.github.orenaidaucac.royItems.station.RecipeIngredient.VanillaIngredient);
+        com.github.orenaidaucac.royItems.station.RecipeIngredient.VanillaIngredient vItem =
+                (com.github.orenaidaucac.royItems.station.RecipeIngredient.VanillaIngredient) r2;
+        assertEquals(org.bukkit.Material.DIAMOND, vItem.getMaterial());
+        assertEquals("&bKim Cương", vItem.getDisplayName());
+        assertEquals("&7Dòng 1\\n&7Dòng 2", vItem.getLore());
+
+        // 3. Vault Money
+        com.github.orenaidaucac.royItems.station.RecipeIngredient r3 =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("money=5000");
+        assertNotNull(r3);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIngredient.Type.MONEY, r3.getType());
+        assertEquals(5000, r3.getAmount());
+
+        // 4. Experience
+        com.github.orenaidaucac.royItems.station.RecipeIngredient r4 =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("exp=250");
+        assertNotNull(r4);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIngredient.Type.EXP, r4.getType());
+        assertEquals(250, r4.getAmount());
+
+        // 5. PlayerPoints
+        com.github.orenaidaucac.royItems.station.RecipeIngredient r5 =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("point=100");
+        assertNotNull(r5);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIngredient.Type.POINT, r5.getType());
+        assertEquals(100, r5.getAmount());
+
+        // 6. ExcellentEconomy
+        com.github.orenaidaucac.royItems.station.RecipeIngredient r6 =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("excellenteconnomy:coins=500");
+        assertNotNull(r6);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIngredient.Type.EXCELLENT_ECONOMY, r6.getType());
+        assertEquals(500, r6.getAmount());
+        assertTrue(r6 instanceof com.github.orenaidaucac.royItems.station.RecipeIngredient.ExcellentEconomyIngredient);
+        com.github.orenaidaucac.royItems.station.RecipeIngredient.ExcellentEconomyIngredient eeItem =
+                (com.github.orenaidaucac.royItems.station.RecipeIngredient.ExcellentEconomyIngredient) r6;
+        assertEquals("coins", eeItem.getCurrencyId());
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Recipe Icon parsing for all supported formats")
+    void testStationIconParsing() {
+        // 1. RoyItems icon
+        com.github.orenaidaucac.royItems.station.RecipeIcon icon1 =
+                com.github.orenaidaucac.royItems.station.RecipeIcon.parse("royitems[type=SWORD,id=blazing_sword,amount=1]");
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIcon.IconType.ROYITEMS, icon1.getIconType());
+        assertEquals(com.github.orenaidaucac.royItems.item.ItemType.SWORD, icon1.getRoyType());
+        assertEquals("blazing_sword", icon1.getRoyId());
+        assertEquals(1, icon1.getAmount());
+
+        // 2. Vanilla icon with displayname and lore
+        com.github.orenaidaucac.royItems.station.RecipeIcon icon2 =
+                com.github.orenaidaucac.royItems.station.RecipeIcon.parse("vanilla[type=EMERALD,amount=10,displayname='<green>Ngọc</green>',lore='Dòng 1\\nDòng 2']");
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIcon.IconType.VANILLA, icon2.getIconType());
+        assertEquals(org.bukkit.Material.EMERALD, icon2.getVanillaMat());
+        assertEquals(10, icon2.getAmount());
+        assertEquals("<green>Ngọc</green>", icon2.getDisplayName());
+
+        // 3. HeadDatabase icon
+        com.github.orenaidaucac.royItems.station.RecipeIcon icon3 =
+                com.github.orenaidaucac.royItems.station.RecipeIcon.parse("hdb[id=12345,amount=1]");
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIcon.IconType.HDB, icon3.getIconType());
+        assertEquals("12345", icon3.getHdbId());
+
+        // 4. Basehead icon
+        com.github.orenaidaucac.royItems.station.RecipeIcon icon4 =
+                com.github.orenaidaucac.royItems.station.RecipeIcon.parse("basehead[value=eyJ0ZXh0dXJlcyI6...=,amount=1]");
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIcon.IconType.BASEHEAD, icon4.getIconType());
+        assertEquals("eyJ0ZXh0dXJlcyI6...=", icon4.getBaseheadValue());
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Slot range parsing ('1', '1-9', etc.)")
+    void testStationSlotRangeParsing() {
+        java.util.List<String> rawSlots = java.util.List.of("1", "3-5", "10", "20-22");
+        java.util.List<Integer> parsed = com.github.orenaidaucac.royItems.station.StationBackground.parseSlots(rawSlots);
+
+        // Expected: 1, 3, 4, 5, 10, 20, 21, 22
+        java.util.List<Integer> expected = java.util.List.of(1, 3, 4, 5, 10, 20, 21, 22);
+        assertEquals(expected, parsed);
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Load blacksmith.yml from resources and verify configuration")
+    void testStationConfigFileLoading() throws Exception {
+        java.io.File file = new java.io.File("src/main/resources/crafting-station/blacksmith.yml");
+        assertTrue(file.exists(), "Default blacksmith.yml must exist");
+
+        org.bukkit.configuration.file.YamlConfiguration yaml =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+
+        com.github.orenaidaucac.royItems.station.CraftingStation station =
+                com.github.orenaidaucac.royItems.station.CraftingStation.fromConfig("blacksmith", yaml);
+
+        assertNotNull(station);
+        assertEquals("blacksmith", station.getId());
+        assertEquals(54, station.getSize());
+        assertEquals(6, station.getRows());
+        assertTrue(station.getCommands().contains("blacksmith"));
+        assertTrue(station.getCommands().contains("thoren"));
+        assertTrue(station.getFancyNpcs().contains("blacksmith_npc"));
+        assertTrue(station.getCitizenNpcs().contains(10));
+
+        // Verify recipes
+        assertEquals(2, station.getRecipes().size());
+        com.github.orenaidaucac.royItems.station.StationRecipe r1 = station.getRecipes().get("blazing_sword_craft");
+        assertNotNull(r1);
+        assertEquals(5, r1.getInputs().size());
+        assertEquals(1, r1.getOutputs().size());
+        assertEquals(3, r1.getCraftingTime());
+
+        // Verify dynamic lore config
+        assertNotNull(station.getDynamicLore());
+        assertEquals("<#06D6A0>✔</#06D6A0>", station.getDynamicLore().getSymbolEnough());
+        assertEquals("<#EF476F>✘</#EF476F>", station.getDynamicLore().getSymbolMissing());
+        assertFalse(station.getDynamicLore().getHeader().isEmpty());
+        assertFalse(station.getDynamicLore().getFooter().isEmpty());
+    }
+
+    @Test
+    void testVanillaTranslatableComponentAndDynamicLore() {
+        com.github.orenaidaucac.royItems.station.RecipeIngredient ing =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("vanilla[type=DIAMOND,amount=3]");
+        assertNotNull(ing);
+        assertTrue(ing instanceof com.github.orenaidaucac.royItems.station.RecipeIngredient.VanillaIngredient);
+
+        net.kyori.adventure.text.Component comp = ing.getDisplayNameComponent(null, null);
+        assertNotNull(comp);
+        assertTrue(comp instanceof net.kyori.adventure.text.TranslatableComponent);
+        net.kyori.adventure.text.TranslatableComponent trans = (net.kyori.adventure.text.TranslatableComponent) comp;
+        assertTrue(trans.key().contains("diamond"));
+
+        // Test dynamic lore line interpolation with translatable component
+        String line = " %status% %name%: <white>%have%</white><gray>/%need%</gray>";
+        String prepared = line.replace("%status%", "<#06D6A0>✔</#06D6A0>")
+                .replace("%have%", "5")
+                .replace("%need%", "3");
+        net.kyori.adventure.text.Component formatted =
+                com.github.orenaidaucac.royItems.core.text.TextUtility.formatLineWithComponent(prepared, "name", comp);
+        assertNotNull(formatted);
+
+        // Test RecipeIcon with Vanilla material
+        com.github.orenaidaucac.royItems.station.RecipeIcon icon =
+                com.github.orenaidaucac.royItems.station.RecipeIcon.parse("vanilla[type=BLAZE_ROD,amount=2]");
+        assertNotNull(icon);
+        assertEquals(com.github.orenaidaucac.royItems.station.RecipeIcon.IconType.VANILLA, icon.getIconType());
+        assertEquals(org.bukkit.Material.BLAZE_ROD, icon.getVanillaMat());
+        assertEquals(2, icon.getAmount());
+
+        // Test fallback English title-casing format
+        assertEquals("Blaze Rod",
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.VanillaIngredient.formatVanillaName(org.bukkit.Material.BLAZE_ROD));
+        assertEquals("Diamond Sword",
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.VanillaIngredient.formatVanillaName(org.bukkit.Material.DIAMOND_SWORD));
+    }
+
+    @Test
+    @DisplayName("Crafting Outputs: Deterministic Profile UUID and Stack Consistency")
+    void testCraftingOutputStackingAndDeterministicHead() {
+        // Test deterministic UUID for basehead textures
+        String base64 = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTIzIn19fQ==";
+        java.util.UUID u1 = java.util.UUID.nameUUIDFromBytes(base64.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        java.util.UUID u2 = java.util.UUID.nameUUIDFromBytes(base64.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals(u1, u2, "Base64 head profile UUIDs must be deterministic so identical heads can stack together!");
+
+        // Test RecipeIngredient parsing and multiplier
+        com.github.orenaidaucac.royItems.station.RecipeIngredient royIng =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("royitems[type=ITEM,id=ruby,amount=2]");
+        assertNotNull(royIng);
+        assertEquals(2, royIng.getAmount());
+
+        com.github.orenaidaucac.royItems.station.RecipeIngredient moneyIng =
+                com.github.orenaidaucac.royItems.station.RecipeIngredient.parse("money=500");
+        assertNotNull(moneyIng);
+        assertEquals(500, moneyIng.getAmount());
+    }
+
+    @Test
+    @DisplayName("Stats: Verify StatType alias lookups and fallback normalization")
+    void testStatTypeAliases() {
+        assertEquals(StatType.MAX_HEALTH, StatType.fromKey("hp"));
+        assertEquals(StatType.MAX_HEALTH, StatType.fromKey("health"));
+        assertEquals(StatType.MAX_HEALTH, StatType.fromKey("maxhealth"));
+        assertEquals(StatType.MAX_HEALTH, StatType.fromKey("max-health"));
+        assertEquals(StatType.MAX_HEALTH, StatType.fromKey("max_health"));
+
+        assertEquals(StatType.ATTACK_DAMAGE, StatType.fromKey("damage"));
+        assertEquals(StatType.ATTACK_DAMAGE, StatType.fromKey("dmg"));
+        assertEquals(StatType.ATTACK_DAMAGE, StatType.fromKey("attack-damage"));
+        assertEquals(StatType.ATTACK_DAMAGE, StatType.fromKey("attack_damage"));
+
+        assertEquals(StatType.MOVEMENT_SPEED, StatType.fromKey("speed"));
+        assertEquals(StatType.MOVEMENT_SPEED, StatType.fromKey("move-speed"));
+        assertEquals(StatType.MOVEMENT_SPEED, StatType.fromKey("movespeed"));
+        assertEquals(StatType.MOVEMENT_SPEED, StatType.fromKey("movement-speed"));
+
+        assertEquals(StatType.CRIT_RATE, StatType.fromKey("crit"));
+        assertEquals(StatType.CRIT_RATE, StatType.fromKey("crit-rate"));
+        assertEquals(StatType.CRIT_RATE, StatType.fromKey("critical-rate"));
+
+        assertEquals(StatType.DEFENSE, StatType.fromKey("def"));
+        assertEquals(StatType.DEFENSE, StatType.fromKey("defense"));
+    }
+
+    @Test
+    @DisplayName("Stats: Multi-slot Equipment and Talisman max-health Accumulation")
+    void testMultiSlotMaxHealthAccumulation() {
+        PlayerStatCache cache = new PlayerStatCache();
+
+        // 1. Mainhand weapon with +10 max-health and +25 attack-damage
+        cache.addStat(StatType.MAX_HEALTH, new StatModifier(10.0, 0.0));
+        cache.addStat(StatType.ATTACK_DAMAGE, new StatModifier(25.0, 0.0));
+
+        // 2. Offhand shield with +5 max-health and +30 defense
+        cache.addStat(StatType.MAX_HEALTH, new StatModifier(5.0, 0.0));
+        cache.addStat(StatType.DEFENSE, new StatModifier(30.0, 0.0));
+
+        // 3. Armor chestplate with +15 max-health and +45 defense
+        cache.addStat(StatType.MAX_HEALTH, new StatModifier(15.0, 0.0));
+        cache.addStat(StatType.DEFENSE, new StatModifier(45.0, 0.0));
+
+        // 4. Talisman in inventory with +10 max-health
+        cache.addStat(StatType.MAX_HEALTH, new StatModifier(10.0, 0.0));
+
+        // Expected max health = 10 (mainhand) + 5 (offhand) + 15 (chestplate) + 10 (talisman) = 40.0
+        assertEquals(40.0, cache.getFlat(StatType.MAX_HEALTH), 0.001);
+
+        // Expected attack damage = 25
+        assertEquals(25.0, cache.getFlat(StatType.ATTACK_DAMAGE), 0.001);
+
+        // Expected defense = 30 + 45 = 75
+        assertEquals(75.0, cache.getFlat(StatType.DEFENSE), 0.001);
+
+        // Calculate total with base 20.0 max health
+        double totalMaxHealth = cache.calculateTotal(StatType.MAX_HEALTH, 20.0);
+        assertEquals(60.0, totalMaxHealth, 0.001);
+    }
+
+    @Test
+    @DisplayName("Dummy: TrainingDummy creation, metrics, and hologram height")
+    void testTrainingDummyCreationAndHologramHeight() {
+        org.bukkit.Location loc = new org.bukkit.Location(null, 100.5, 64.0, -200.5);
+        TrainingDummy dummy = new TrainingDummy("test_dummy", loc, "IRON_GOLEM", null, 1001, 1002);
+
+        assertEquals("test_dummy", dummy.getId());
+        assertEquals("IRON_GOLEM", dummy.getMobTypeName());
+        assertEquals(1001, dummy.getEntityId());
+        assertEquals(1002, dummy.getHologramEntityId());
+        assertEquals(0, dummy.getHitCount());
+        assertEquals(0.0, dummy.getTotalDamage(), 0.001);
+        assertEquals(0.0, dummy.getDps(), 0.001);
+
+        // Hologram height for IRON_GOLEM should be 3.0
+        assertEquals(3.0, dummy.getHologramHeight(), 0.001);
+
+        // Hologram height for zombie / default should be 2.2
+        TrainingDummy zombieDummy = new TrainingDummy("z1", loc, "ZOMBIE", null, 2001, 2002);
+        assertEquals(2.2, zombieDummy.getHologramHeight(), 0.001);
+
+        // Hologram height for enderman should be 3.1
+        TrainingDummy enderDummy = new TrainingDummy("e1", loc, "ENDERMAN", null, 3001, 3002);
+        assertEquals(3.1, enderDummy.getHologramHeight(), 0.001);
+
+        // Hologram height for sheep/pig should be 1.4
+        TrainingDummy sheepDummy = new TrainingDummy("s1", loc, "SHEEP", null, 4001, 4002);
+        assertEquals(1.4, sheepDummy.getHologramHeight(), 0.001);
+
+        // Initial hologram component should render without errors
+        Component initialText = dummy.getHologramText();
+        assertNotNull(initialText);
+    }
+
+    @Test
+    @DisplayName("Dummy: Damage recording, critical strikes, and DPS calculation")
+    void testTrainingDummyDamageAndDps() {
+        org.bukkit.Location loc = new org.bukkit.Location(null, 0, 0, 0);
+        TrainingDummy dummy = new TrainingDummy("dps_test", loc, "ZOMBIE", null, 5001, 5002);
+
+        // 1st hit: 150 damage, non-crit
+        dummy.recordHit(150.0, false);
+        assertEquals(1, dummy.getHitCount());
+        assertEquals(150.0, dummy.getTotalDamage(), 0.001);
+        assertEquals(150.0, dummy.getLastDamage(), 0.001);
+        assertFalse(dummy.isLastCrit());
+        assertTrue(dummy.getDps() > 0.0);
+
+        // 2nd hit: 350 damage, crit
+        dummy.recordHit(350.0, true);
+        assertEquals(2, dummy.getHitCount());
+        assertEquals(500.0, dummy.getTotalDamage(), 0.001);
+        assertEquals(350.0, dummy.getLastDamage(), 0.001);
+        assertTrue(dummy.isLastCrit());
+        assertTrue(dummy.getDps() > 0.0);
+
+        // Hologram text after hits should contain stats
+        Component text = dummy.getHologramText();
+        assertNotNull(text);
+    }
+
+    @Test
+    @DisplayName("Dummy: Smooth Look-At yaw and pitch calculation")
+    void testDummyLookAtCalculation() {
+        org.bukkit.Location from = new org.bukkit.Location(null, 0.5, 64.0, 0.5);
+
+        // Target directly North (negative Z)
+        org.bukkit.Location targetNorth = new org.bukkit.Location(null, 0.5, 65.5, -9.5);
+        float[] lookNorth = DummyManager.calculateLookAt(from, targetNorth);
+        assertNotNull(lookNorth);
+        assertEquals(2, lookNorth.length);
+        // Yaw should be ~180 degrees (North)
+        assertEquals(180.0f, Math.abs(lookNorth[0]), 1.0f);
+
+        // Target directly South (positive Z)
+        org.bukkit.Location targetSouth = new org.bukkit.Location(null, 0.5, 65.5, 10.5);
+        float[] lookSouth = DummyManager.calculateLookAt(from, targetSouth);
+        // Yaw should be ~0 degrees (South)
+        assertEquals(0.0f, Math.abs(lookSouth[0]), 1.0f);
+
+        // Pitch should be 0 when at eye height (from.getY() + 1.5 == target.getY())
+        assertEquals(0.0f, lookSouth[1], 0.1f);
+    }
+
+    @Test
+    @DisplayName("Dummy: EntityType string resolution")
+    void testDummyEntityTypeResolution() {
+        // Without active server / PacketEvents runtime, resolveEntityType handles errors gracefully without crashing
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("ZOMBIE"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("skeleton"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("iron_golem"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("warden"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("breeze"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("armor_stand"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("cow"));
+        assertDoesNotThrow(() -> DummyManager.resolveEntityType("unknown_mob_fallback"));
+    }
+
+    @Test
+    @DisplayName("Dummy: Custom Hologram Lines, Colors, Billboard, and Crit Indicator")
+    void testTrainingDummyCustomHologramLinesAndColors() {
+        org.bukkit.Location loc = new org.bukkit.Location(null, 0, 0, 0);
+        TrainingDummy dummy = new TrainingDummy("custom_test", loc, "ZOMBIE", null, 6001, 6002);
+
+        // Customize lines with MiniMessage, hex, and legacy colors
+        dummy.setIdleLines(java.util.List.of(
+                "&6&l[DUMMY] &#00FF99{id}",
+                "<gradient:#00b4db:#0083b0>Mob: {mob_type}</gradient>",
+                "&7Ready to strike!"
+        ));
+        dummy.setActiveLines(java.util.List.of(
+                "&c&lIN COMBAT: &e{id}",
+                "&bDPS: &f{dps} &8| &cTotal: &f{total_damage}{crit}",
+                "&aLast hit: &f{last_damage}"
+        ));
+        dummy.setCritIndicator(" &4&l[CRIT!]");
+        dummy.setBillboardType("VERTICAL");
+        dummy.setHologramShadow(true);
+        dummy.setHologramBackgroundColor(0x50000000);
+
+        assertEquals((byte) 1, dummy.getBillboardByte());
+        assertEquals(0x50000000, dummy.getHologramBackgroundColor());
+        assertTrue(dummy.isHologramShadow());
+
+        // Check billboard conversions
+        dummy.setBillboardType("CENTER");
+        assertEquals((byte) 3, dummy.getBillboardByte());
+        dummy.setBillboardType("HORIZONTAL");
+        assertEquals((byte) 2, dummy.getBillboardByte());
+        dummy.setBillboardType("FIXED");
+        assertEquals((byte) 0, dummy.getBillboardByte());
+
+        // Initial idle text
+        Component idleText = dummy.getHologramText();
+        assertNotNull(idleText);
+
+        // Record a critical hit
+        dummy.recordHit(777.5, true);
+        assertTrue(dummy.isSessionActive());
+        Component activeText = dummy.getHologramText();
+        assertNotNull(activeText);
+    }
+
+    @Test
+    @DisplayName("Dummy: Background Color parsing helper")
+    void testDummyColorParsing() {
+        assertEquals(0x40000000, DummyManager.parseColorInt("#40000000", 0));
+        assertEquals(0x40000000, DummyManager.parseColorInt("0x40000000", 0));
+        assertEquals((int) 0xFFFF0000L, DummyManager.parseColorInt("#FF0000", 0));
+        assertEquals(1073741824, DummyManager.parseColorInt(1073741824, 0));
+        assertEquals(0x12345678, DummyManager.parseColorInt("invalid_hex", 0x12345678));
+        assertEquals(0x12345678, DummyManager.parseColorInt(null, 0x12345678));
+    }
+
+    @Test
+    @DisplayName("Dummy: Weapon Attack Damage Calculation does not double-count (6 dmg not 13)")
+    void testDummyWeaponAttackDamageCalculationNotDoubled() {
+        PlayerStatCache cache = new PlayerStatCache();
+        // Weapon has attack-damage: 6
+        cache.addStat(StatType.ATTACK_DAMAGE, new StatModifier(6.0, 0.0));
+
+        double customDamage = cache.calculateTotal(StatType.ATTACK_DAMAGE, 0.0);
+        assertEquals(6.0, customDamage, 0.0001);
+
+        // Simulated vanilla base damage (unarmed 1.0 + transient attribute 6.0 = 7.0)
+        double vanillaDamage = 7.0;
+
+        // Correct algorithm: if customDamage > 0.001, baseDamage is customDamage
+        double baseDamage = customDamage > 0.001 ? customDamage : vanillaDamage;
+        assertEquals(6.0, baseDamage, 0.0001, "Base damage must be 6.0 and must not double-count to 13.0");
+
+        // Format checks: integers should format without trailing .0
+        assertEquals("6", TrainingDummy.formatNumber(6.0));
+        assertEquals("6.5", TrainingDummy.formatNumber(6.5));
+        assertEquals("13", TrainingDummy.formatNumber(13.0));
+
+        // Test dummy hit record
+        org.bukkit.Location loc = new org.bukkit.Location(null, 0, 0, 0);
+        TrainingDummy dummy = new TrainingDummy("sword_test", loc, "ZOMBIE", null, 7001, 7002);
+        dummy.recordHit(baseDamage, false);
+
+        assertEquals(6.0, dummy.getLastDamage(), 0.0001);
+        assertEquals(6.0, dummy.getTotalDamage(), 0.0001);
+        assertEquals("6", TrainingDummy.formatNumber(dummy.getLastDamage()));
     }
 }

@@ -1,0 +1,138 @@
+# ==============================================================================
+#                 ROYITEMS — SAMPLE CRAFTING STATION
+# ID: blacksmith (plugins/RoyItems/crafting-station/blacksmith.yml)
+# ==============================================================================
+title: "<gold><bold>Royal Blacksmith</bold></gold>"
+size: 54
+
+permission: ""
+commands:
+  - blacksmith
+  - thoren
+  - forge
+
+fancynpcs:
+  - "blacksmith_npc"
+citizen:
+  - 10
+
+# Navigation controls for pagination and closing
+navigation:
+  prev-page:
+    slot: 48
+    material: SPECTRAL_ARROW
+    name: "<#FFD166>◀ Previous Page <gray>(%prev_page%/%max_pages%)</gray></#FFD166>"
+    lore:
+      - "<gray>Click to return to previous page."
+  next-page:
+    slot: 50
+    material: SPECTRAL_ARROW
+    name: "<#FFD166>Next Page <gray>(%next_page%/%max_pages%)</gray> ▶</#FFD166>"
+    lore:
+      - "<gray>Click to navigate to next page."
+  close:
+    slot: 49
+    material: BARRIER
+    name: "<#EF476F><bold>Close Menu</bold></#EF476F>"
+    lore:
+      - "<gray>Click to exit crafting station."
+
+# Sound effects for crafting feedback
+sounds:
+  craft-success: "entity.player.levelup"
+  craft-fail: "entity.villager.no"
+  craft-countdown: "block.note_block.hat"
+
+# Decorative background items
+backgrounds:
+  border:
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+    lore: []
+    slots:
+      - 0-8
+      - 45-47
+      - 51-53
+      - 9
+      - 17
+      - 18
+      - 26
+      - 27
+      - 35
+      - 36
+      - 44
+    click-commands: []
+
+  info_hub:
+    material: BOOK
+    name: "<#FFD166><bold>Crafting Station Info</bold></#FFD166>"
+    lore:
+      - "<gray>Welcome to the Royal Blacksmith!"
+      - "<gray>Forge and enhance legendary gear."
+      - ""
+      - "<#06D6A0>• Left Click:</#06D6A0> <white>Craft x1</white>"
+      - "<#06D6A0>• Shift + Click:</#06D6A0> <white>Batch craft</white>"
+      - "<#06D6A0>• Press Q:</#06D6A0> <white>Inspect recipe details</white>"
+    slots:
+      - 4
+    click-commands:
+      - "[sound] block.note_block.chime"
+
+# Dynamic lore customization for recipe icons
+dynamic-lore:
+  format:
+    header:
+      - "<dark_gray>------------------------</dark_gray>"
+      - "<yellow><bold>Required Materials:</bold></yellow>"
+    ingredient-line: " %status% %name%: <white>%have%</white><gray>/%need%</gray>"
+    symbol-enough: "<#06D6A0>✔</#06D6A0>"
+    symbol-missing: "<#EF476F>✘</#EF476F>"
+    footer:
+      - "<dark_gray>------------------------</dark_gray>"
+      - "<yellow>• Click</yellow> <gray>to craft x1</gray>"
+      - "<yellow>• Shift + Click</yellow> <gray>to batch craft</gray>"
+      - "<yellow>• Press Q</yellow> <gray>to inspect recipe</gray>"
+  names:
+    vault: "<gold>Money (Vault)</gold>"
+    exp: "<green>Experience</green>"
+    playerpoints: "<light_purple>PlayerPoints</light_purple>"
+    excellenteconomy: "<aqua>Currency (%currency%)</aqua>"
+
+# Crafting Recipes List
+recipes:
+  blazing_sword_craft:
+    input:
+      - "royitems[type=SWORD,id=starter_sword,amount=1]"
+      - "vanilla[type=DIAMOND,amount=5]"
+      - "vanilla[type=BLAZE_ROD,amount=2]"
+      - "money=5000"
+      - "exp=100"
+    output:
+      - "royitems[type=SWORD,id=blazing_sword,amount=1]"
+    icon:
+      - "royitems[type=SWORD,id=blazing_sword,amount=1]"
+    slots:
+      - 20
+    page: 1
+    options:
+      hide-displayname: false
+      hide-lore: false
+      hide-attributes: false
+      crafting-time: 3
+
+  emerald_exchange:
+    input:
+      - "vanilla[type=EMERALD,amount=10]"
+    output:
+      - "money=1000"
+      - "exp=50"
+    icon:
+      - "vanilla[type=EMERALD,amount=10,displayname='<#06D6A0><bold>Emerald Exchange</bold></#06D6A0>',lore='<gray>Exchange 10x Emeralds\\n<gray>for $1,000 and 50 EXP.']"
+    slots:
+      - 22
+    page: 1
+    options:
+      hide-displayname: false
+      hide-lore: false
+      hide-attributes: false
+      crafting-time: 0

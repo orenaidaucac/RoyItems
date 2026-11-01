@@ -1,6 +1,7 @@
 package com.github.orenaidaucac.royItems.lore;
 
 import com.github.orenaidaucac.royItems.stat.StatModifier;
+import com.github.orenaidaucac.royItems.stat.StatType;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -9,34 +10,62 @@ import java.util.*;
 
 /**
  * Encapsulates dynamic lore formatting rules, templates, and per-stat overrides.
+ * Fully configurable without hardcoded text or symbols.
  */
 public class LoreFormat {
     private String id;
     private List<String> format = new ArrayList<>();
     private String bar = "&8&m------------------------";
+
+    // Stat formatting templates
     private String posStat = "&7#name#: &a+#value#";
     private String negStat = "&7#name#: &c-#value#";
     private String posPctStat = "&7#name#: &a+#value#%";
     private String negPctStat = "&7#name#: &c-#value#%";
 
+    // Sockets formatting
+    private String socketEmpty = "&8[&7◇&8] &7Empty Socket (%type%)";
+    private String socketFilled = "&8[&a◆&8] &f%gem%";
+
+    // Requirements formatting
+    private String reqLevel = "&cRequires Level: &f%level%";
+    private String reqPermission = "&cRequires Permission: &f%permission%";
+    private String reqClass = "&cClass: &f%class%";
+    private String reqClassWithLevel = "&cClass: &f%class% (Lv.%level%)";
+    private String reqAuraSkill = "&cAuraSkill: &f%skill% Lv.%level%";
+
+    // Enchantments formatting
+    private String enchantmentFormat = "&7%name% %level%";
+
+    // Durability formatting
+    private String durabilityUnbreakable = "&aUnbreakable";
+    private String durabilityFormat = "%current%/%max%";
+
     private final Map<String, StatDisplayConfig> customStats = new HashMap<>();
 
     public static class StatDisplayConfig {
         private final String name;
+        private final String symbol;
         private final String positive;
         private final String negative;
         private final String percentagePositive;
         private final String percentageNegative;
 
-        public StatDisplayConfig(String name, String positive, String negative, String percentagePositive, String percentageNegative) {
+        public StatDisplayConfig(String name, String symbol, String positive, String negative, String percentagePositive, String percentageNegative) {
             this.name = name;
+            this.symbol = symbol != null ? symbol : "";
             this.positive = positive;
             this.negative = negative;
             this.percentagePositive = percentagePositive;
             this.percentageNegative = percentageNegative;
         }
 
+        public StatDisplayConfig(String name, String positive, String negative, String percentagePositive, String percentageNegative) {
+            this(name, "", positive, negative, percentagePositive, percentageNegative);
+        }
+
         public String getName() { return name; }
+        public String getSymbol() { return symbol; }
         public String getPositive() { return positive; }
         public String getNegative() { return negative; }
         public String getPercentagePositive() { return percentagePositive; }
@@ -76,6 +105,36 @@ public class LoreFormat {
     public String getNegPctStat() { return negPctStat; }
     public void setNegPctStat(String negPctStat) { this.negPctStat = negPctStat; }
 
+    public String getSocketEmpty() { return socketEmpty; }
+    public void setSocketEmpty(String socketEmpty) { this.socketEmpty = socketEmpty; }
+
+    public String getSocketFilled() { return socketFilled; }
+    public void setSocketFilled(String socketFilled) { this.socketFilled = socketFilled; }
+
+    public String getReqLevel() { return reqLevel; }
+    public void setReqLevel(String reqLevel) { this.reqLevel = reqLevel; }
+
+    public String getReqPermission() { return reqPermission; }
+    public void setReqPermission(String reqPermission) { this.reqPermission = reqPermission; }
+
+    public String getReqClass() { return reqClass; }
+    public void setReqClass(String reqClass) { this.reqClass = reqClass; }
+
+    public String getReqClassWithLevel() { return reqClassWithLevel; }
+    public void setReqClassWithLevel(String reqClassWithLevel) { this.reqClassWithLevel = reqClassWithLevel; }
+
+    public String getReqAuraSkill() { return reqAuraSkill; }
+    public void setReqAuraSkill(String reqAuraSkill) { this.reqAuraSkill = reqAuraSkill; }
+
+    public String getEnchantmentFormat() { return enchantmentFormat; }
+    public void setEnchantmentFormat(String enchantmentFormat) { this.enchantmentFormat = enchantmentFormat; }
+
+    public String getDurabilityUnbreakable() { return durabilityUnbreakable; }
+    public void setDurabilityUnbreakable(String durabilityUnbreakable) { this.durabilityUnbreakable = durabilityUnbreakable; }
+
+    public String getDurabilityFormat() { return durabilityFormat; }
+    public void setDurabilityFormat(String durabilityFormat) { this.durabilityFormat = durabilityFormat; }
+
     public void addCustomStat(String key, StatDisplayConfig cfg) {
         if (key != null && cfg != null) {
             customStats.put(key.toLowerCase().replace('_', '-'), cfg);
@@ -83,8 +142,59 @@ public class LoreFormat {
     }
 
     public StatDisplayConfig getCustomStat(String key) {
-        if (key == null) return null;
-        return customStats.get(key.toLowerCase().replace('_', '-'));
+        if (key == null || key.isEmpty()) return null;
+
+        Set<String> candidates = new LinkedHashSet<>();
+        String normalized = key.toLowerCase().replace('_', '-').trim();
+        candidates.add(normalized);
+        candidates.add(normalized.replace('.', '-'));
+        candidates.add(normalized.replace('-', '.'));
+        candidates.add(key.toLowerCase().trim());
+
+        // Prefix variations: vanilla-, generic., player.
+        for (String c : new ArrayList<>(candidates)) {
+            if (c.startsWith("vanilla-")) {
+                candidates.add(c.substring("vanilla-".length()));
+            } else {
+                candidates.add("vanilla-" + c);
+            }
+            if (c.startsWith("generic.")) {
+                candidates.add(c.substring("generic.".length()));
+            } else if (c.startsWith("generic-")) {
+                candidates.add(c.substring("generic-".length()));
+            } else {
+                candidates.add("generic." + c);
+                candidates.add("generic-" + c);
+            }
+            if (c.startsWith("player.")) {
+                candidates.add(c.substring("player.".length()));
+            } else if (c.startsWith("player-")) {
+                candidates.add(c.substring("player-".length()));
+            }
+        }
+
+        // Mapped StatType
+        StatType statType = StatType.fromKey(normalized);
+        if (statType != null) {
+            candidates.add(statType.getKey().toLowerCase());
+            if (statType.getVanillaAttributeKey() != null) {
+                String vk = statType.getVanillaAttributeKey().toLowerCase().replace('_', '-');
+                candidates.add(vk);
+                candidates.add("generic." + vk);
+                candidates.add("generic-" + vk);
+                candidates.add("vanilla-" + vk);
+            }
+        }
+
+        // Direct lookup without recursion
+        for (String candidate : candidates) {
+            StatDisplayConfig cfg = customStats.get(candidate);
+            if (cfg != null) {
+                return cfg;
+            }
+        }
+
+        return null;
     }
 
     public Map<String, StatDisplayConfig> getCustomStats() {
@@ -100,9 +210,11 @@ public class LoreFormat {
         String key = statKey != null ? statKey.toLowerCase().replace('_', '-') : "";
         StatDisplayConfig custom = getCustomStat(key);
 
-        String name = (custom != null && custom.getName() != null)
+        String name = (custom != null && custom.getName() != null && !custom.getName().isEmpty())
                 ? custom.getName()
-                : (defaultDisplayName != null ? defaultDisplayName : statKey);
+                : (defaultDisplayName != null && !defaultDisplayName.isEmpty() ? defaultDisplayName : statKey);
+
+        String symbol = (custom != null && custom.getSymbol() != null) ? custom.getSymbol() : "";
 
         boolean hasFlat = Math.abs(mod.getFlat()) > 0.00001;
         boolean hasPct = Math.abs(mod.getPercent()) > 0.00001;
@@ -113,25 +225,47 @@ public class LoreFormat {
             if (val >= 0) {
                 tpl = (custom != null && custom.getPositive() != null) ? custom.getPositive() : posStat;
             } else {
-                tpl = (custom != null && custom.getNegative() != null) ? custom.getNegative() : negStat;
+                if (custom != null && custom.getNegative() != null) {
+                    tpl = custom.getNegative();
+                } else if (custom != null && custom.getPositive() != null) {
+                    tpl = adaptToNegative(custom.getPositive());
+                } else {
+                    tpl = negStat;
+                }
             }
-            return tpl.replace("#name#", name).replace("#value#", df.format(Math.abs(val)));
+            return applyStatPlaceholders(tpl, statKey, name, symbol, df.format(Math.abs(val)), val);
         } else if (!hasFlat && hasPct) {
             double pctVal = mod.getPercentValue();
             String tpl;
             if (pctVal >= 0) {
-                tpl = (custom != null && custom.getPercentagePositive() != null) ? custom.getPercentagePositive() : posPctStat;
+                if (custom != null && custom.getPercentagePositive() != null) {
+                    tpl = custom.getPercentagePositive();
+                } else if (custom != null && custom.getPositive() != null) {
+                    tpl = adaptToPercentage(custom.getPositive());
+                } else {
+                    tpl = posPctStat;
+                }
             } else {
-                tpl = (custom != null && custom.getPercentageNegative() != null) ? custom.getPercentageNegative() : negPctStat;
+                if (custom != null && custom.getPercentageNegative() != null) {
+                    tpl = custom.getPercentageNegative();
+                } else if (custom != null && custom.getNegative() != null) {
+                    tpl = adaptToPercentage(custom.getNegative());
+                } else if (custom != null && custom.getPositive() != null) {
+                    tpl = adaptToNegative(adaptToPercentage(custom.getPositive()));
+                } else {
+                    tpl = negPctStat;
+                }
             }
-            return tpl.replace("#name#", name).replace("#value#", df.format(Math.abs(pctVal)));
+            return applyStatPlaceholders(tpl, statKey, name, symbol, df.format(Math.abs(pctVal)), pctVal);
         } else {
             // Both flat and percent present: e.g. +10 (+5%)
             double val = mod.getFlat();
             double pctVal = mod.getPercentValue();
-            String tpl = val >= 0 ? posStat : negStat;
+            String tpl = (val >= 0)
+                    ? (custom != null && custom.getPositive() != null ? custom.getPositive() : posStat)
+                    : (custom != null && custom.getNegative() != null ? custom.getNegative() : (custom != null && custom.getPositive() != null ? adaptToNegative(custom.getPositive()) : negStat));
             String combinedVal = df.format(Math.abs(val)) + " (" + (pctVal >= 0 ? "+" : "") + df.format(pctVal) + "%)";
-            return tpl.replace("#name#", name).replace("#value#", combinedVal);
+            return applyStatPlaceholders(tpl, statKey, name, symbol, combinedVal, val);
         }
     }
 
@@ -154,6 +288,42 @@ public class LoreFormat {
         }
     }
 
+    public static String applyStatPlaceholders(String template, String key, String name, String symbol, String formattedVal, double rawVal) {
+        if (template == null) return "";
+        String s = template;
+
+        if (symbol == null || symbol.isEmpty()) {
+            s = s.replace("%symbol% ", "").replace("#symbol# ", "").replace("%symbol%", "").replace("#symbol#", "");
+        } else {
+            s = s.replace("%symbol%", symbol).replace("#symbol#", symbol);
+        }
+
+        s = s.replace("%name%", name != null ? name : "")
+                .replace("#name#", name != null ? name : "")
+                .replace("%value%", formattedVal)
+                .replace("#value#", formattedVal)
+                .replace("%raw-value%", String.valueOf(rawVal))
+                .replace("#raw-value#", String.valueOf(rawVal))
+                .replace("%key%", key != null ? key : "")
+                .replace("#key#", key != null ? key : "");
+
+        return s;
+    }
+
+    private static String adaptToPercentage(String tpl) {
+        if (tpl == null) return null;
+        if (tpl.contains("%value%%") || tpl.contains("#value#%") || tpl.contains("%")) {
+            return tpl;
+        }
+        return tpl.replace("%value%", "%value%%").replace("#value#", "#value#%");
+    }
+
+    private static String adaptToNegative(String tpl) {
+        if (tpl == null) return null;
+        return tpl.replace("+%value%", "-%value%").replace("+#value#", "-#value#")
+                .replace("+ %value%", "- %value%").replace("+ #value#", "- #value#");
+    }
+
     public static LoreFormat fromConfig(String id, FileConfiguration config) {
         LoreFormat lf = new LoreFormat();
         lf.setId(id);
@@ -162,10 +332,10 @@ public class LoreFormat {
 
         ConfigurationSection statSec = config.getConfigurationSection("stat-format");
         if (statSec != null) {
-            lf.setPosStat(statSec.getString("positive", "&7#name#: &a+#value#"));
-            lf.setNegStat(statSec.getString("negative", "&7#name#: &c-#value#"));
-            lf.setPosPctStat(statSec.getString("percentage-positive", "&7#name#: &a+#value#%"));
-            lf.setNegPctStat(statSec.getString("percentage-negative", "&7#name#: &c-#value#%"));
+            lf.setPosStat(statSec.getString("positive", statSec.getString("format", statSec.getString("positive-format", "&7#name#: &a+#value#"))));
+            lf.setNegStat(statSec.getString("negative", statSec.getString("negative-format", "&7#name#: &c-#value#")));
+            lf.setPosPctStat(statSec.getString("percentage-positive", statSec.getString("percent-format", statSec.getString("percentage-format", statSec.getString("percent-positive", "&7#name#: &a+#value#%")))));
+            lf.setNegPctStat(statSec.getString("percentage-negative", statSec.getString("percent-negative-format", statSec.getString("percent-negative", "&7#name#: &c-#value#%"))));
 
             // Parse custom overrides under stat-format.custom
             ConfigurationSection customSec = statSec.getConfigurationSection("custom");
@@ -177,52 +347,85 @@ public class LoreFormat {
             for (String key : statSec.getKeys(false)) {
                 if (key.equalsIgnoreCase("positive") || key.equalsIgnoreCase("negative")
                         || key.equalsIgnoreCase("percentage-positive") || key.equalsIgnoreCase("percentage-negative")
+                        || key.equalsIgnoreCase("format") || key.equalsIgnoreCase("positive-format")
+                        || key.equalsIgnoreCase("negative-format") || key.equalsIgnoreCase("percent-format")
+                        || key.equalsIgnoreCase("percentage-format") || key.equalsIgnoreCase("percent-negative-format")
+                        || key.equalsIgnoreCase("percent-negative") || key.equalsIgnoreCase("percent-positive")
                         || key.equalsIgnoreCase("custom")) {
                     continue;
                 }
                 if (statSec.isConfigurationSection(key)) {
-                    ConfigurationSection s = statSec.getConfigurationSection(key);
-                    if (s != null) {
-                        lf.addCustomStat(key, new StatDisplayConfig(
-                                s.getString("name", null),
-                                s.getString("positive", null),
-                                s.getString("negative", null),
-                                s.getString("percentage-positive", null),
-                                s.getString("percentage-negative", null)
-                        ));
-                    }
+                    parseStatConfigSection(lf, key, statSec.getConfigurationSection(key));
                 } else if (statSec.isString(key)) {
-                    String val = statSec.getString(key);
-                    lf.addCustomStat(key, new StatDisplayConfig(null, val, val, val, val));
+                    parseStatConfigString(lf, key, statSec.getString(key));
                 }
             }
         }
 
-        // Also allow optional 'stats:' section at root of lore-format file
+        // Parse root 'stats:' section if present
         ConfigurationSection rootCustomSec = config.getConfigurationSection("stats");
         if (rootCustomSec != null) {
             parseCustomStatsSection(lf, rootCustomSec);
         }
 
+        // Sockets format
+        ConfigurationSection socketSec = config.getConfigurationSection("sockets-format");
+        if (socketSec != null) {
+            lf.setSocketEmpty(socketSec.getString("empty", "&8[&7◇&8] &7Empty Socket (%type%)"));
+            lf.setSocketFilled(socketSec.getString("filled", "&8[&a◆&8] &f%gem%"));
+        }
+
+        // Requirements format
+        ConfigurationSection reqSec = config.getConfigurationSection("requirements-format");
+        if (reqSec != null) {
+            lf.setReqLevel(reqSec.getString("level", "&cRequires Level: &f%level%"));
+            lf.setReqPermission(reqSec.getString("permission", "&cRequires Permission: &f%permission%"));
+            lf.setReqClass(reqSec.getString("class", "&cClass: &f%class%"));
+            lf.setReqClassWithLevel(reqSec.getString("class-with-level", "&cClass: &f%class% (Lv.%level%)"));
+            lf.setReqAuraSkill(reqSec.getString("auraskill", "&cAuraSkill: &f%skill% Lv.%level%"));
+        }
+
+        // Enchantments format
+        ConfigurationSection enchSec = config.getConfigurationSection("enchantments-format");
+        if (enchSec != null) {
+            lf.setEnchantmentFormat(enchSec.getString("format", "&7%name% %level%"));
+        }
+
+        // Durability format
+        ConfigurationSection durSec = config.getConfigurationSection("durability-format");
+        if (durSec != null) {
+            lf.setDurabilityUnbreakable(durSec.getString("unbreakable", "&aUnbreakable"));
+            lf.setDurabilityFormat(durSec.getString("format", "%current%/%max%"));
+        }
+
         return lf;
     }
 
+    private static void parseStatConfigSection(LoreFormat lf, String key, ConfigurationSection s) {
+        if (s == null) return;
+        String name = s.getString("display-name", s.getString("name", s.getString("display_name", s.getString("display", s.getString("title", null)))));
+        String symbol = s.getString("symbol", "");
+
+        String pos = s.getString("format", s.getString("positive", s.getString("positive-format", s.getString("pos", null))));
+        String neg = s.getString("negative", s.getString("negative-format", s.getString("neg", null)));
+
+        String posPct = s.getString("percent-format", s.getString("percentage-format", s.getString("percentage-positive", s.getString("percent-positive", s.getString("percentage", null)))));
+        String negPct = s.getString("percent-negative-format", s.getString("percentage-negative", s.getString("percent-negative", s.getString("percentage-neg", null))));
+
+        lf.addCustomStat(key, new StatDisplayConfig(name, symbol, pos, neg, posPct, negPct));
+    }
+
+    private static void parseStatConfigString(LoreFormat lf, String key, String val) {
+        lf.addCustomStat(key, new StatDisplayConfig(null, "", val, val, val, val));
+    }
+
     private static void parseCustomStatsSection(LoreFormat lf, ConfigurationSection sec) {
+        if (sec == null) return;
         for (String key : sec.getKeys(false)) {
             if (sec.isConfigurationSection(key)) {
-                ConfigurationSection s = sec.getConfigurationSection(key);
-                if (s != null) {
-                    lf.addCustomStat(key, new StatDisplayConfig(
-                            s.getString("name", null),
-                            s.getString("positive", null),
-                            s.getString("negative", null),
-                            s.getString("percentage-positive", null),
-                            s.getString("percentage-negative", null)
-                    ));
-                }
+                parseStatConfigSection(lf, key, sec.getConfigurationSection(key));
             } else if (sec.isString(key)) {
-                String val = sec.getString(key);
-                lf.addCustomStat(key, new StatDisplayConfig(null, val, val, val, val));
+                parseStatConfigString(lf, key, sec.getString(key));
             }
         }
     }

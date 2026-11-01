@@ -1,0 +1,39 @@
+# ==============================================================================
+#                 ROYITEMS — CRAFTING STATION LIST GUI
+# Displays all active Crafting Stations for Administrators (/ri station list).
+# Fully configurable via MiniMessage and hex codes.
+# ==============================================================================
+title: "<gold><bold>RoyItems</bold></gold> <dark_gray>—</dark_gray> <yellow>Crafting Stations</yellow>"
+rows: 6
+page-size: 28
+
+border:
+  material: BLACK_STAINED_GLASS_PANE
+  name: " "
+
+station-item:
+  material: ANVIL
+  name: "<#FFD166><bold>%title%</bold></#FFD166> <gray>(%id%)</gray>"
+  lore:
+    - "<gray>Size: <white>%size% slots</white>"
+    - "<gray>Recipes: <#06D6A0>%recipes% recipes</#06D6A0>"
+    - "<gray>Permission: <white>%permission%</white>"
+    - "<gray>Commands: <yellow>%commands%</yellow>"
+    - ""
+    - "<#06D6A0>▶ Click to open this Crafting Station!</#06D6A0>"
+
+buttons:
+  prev-page:
+    slot: 48
+    material: SPECTRAL_ARROW
+    name: "<#FFD166>◀ Previous Page</#FFD166>"
+  next-page:
+    slot: 50
+    material: SPECTRAL_ARROW
+    name: "<#FFD166>Next Page ▶</#FFD166>"
+  close:
+    slot: 49
+    material: BARRIER
+    name: "<#EF476F><bold>Close Menu</bold></#EF476F>"
+    lore:
+      - "<gray>Click to exit the menu."

@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  */
 public class DynamicLoreEngine {
 
-    private static final Pattern STAT_PLACEHOLDER_PATTERN = Pattern.compile("#([a-zA-Z0-9_.-]+)#");
+    private static final Pattern STAT_PLACEHOLDER_PATTERN = Pattern.compile("[#%]([a-zA-Z0-9_.-]+)[#%]");
 
     private final Plugin plugin;
     private ItemTierManager itemTierManager;
@@ -130,8 +130,9 @@ public class DynamicLoreEngine {
                 ? new ArrayList<>(format.getFormat())
                 : new ArrayList<>(def.getLore());
 
-        List<String> socketLines = generateSocketLines(def, slottedSockets);
-        List<String> reqLines = generateRequirementLines(def);
+        List<String> socketLines = generateSocketLines(def, slottedSockets, format);
+        List<String> reqLines = generateRequirementLines(def, format);
+        List<String> enchLines = generateEnchantmentLines(def, format);
 
         List<String> processed = new ArrayList<>();
         String barString = format.getBar() != null ? format.getBar() : "&8&m------------------------";
@@ -140,22 +141,32 @@ public class DynamicLoreEngine {
             if (rawLine == null) continue;
             String trimmed = rawLine.trim();
 
-            if (trimmed.equalsIgnoreCase("#stats#")) {
+            if (def.isUnbreakable() && def.isHideUnbreakable() &&
+                    (trimmed.contains("#durability#") || trimmed.contains("%durability%")
+                    || trimmed.contains("#unbreakable#") || trimmed.contains("%unbreakable%"))) {
+                continue;
+            }
+
+            if (trimmed.equalsIgnoreCase("#stats#") || trimmed.equalsIgnoreCase("%stats%")) {
                 processed.addAll(generateStatLines(def, format));
-            } else if (trimmed.equalsIgnoreCase("#sockets#")) {
+            } else if (trimmed.equalsIgnoreCase("#sockets#") || trimmed.equalsIgnoreCase("%sockets%")) {
                 processed.addAll(socketLines);
-            } else if (trimmed.equalsIgnoreCase("#requirements#")) {
+            } else if (trimmed.equalsIgnoreCase("#requirements#") || trimmed.equalsIgnoreCase("%requirements%")) {
                 processed.addAll(reqLines);
-            } else if (trimmed.equalsIgnoreCase("#description#") || trimmed.equalsIgnoreCase("#lore#")) {
+            } else if (trimmed.equalsIgnoreCase("#enchantments#") || trimmed.equalsIgnoreCase("%enchantments%")) {
+                processed.addAll(enchLines);
+            } else if (trimmed.equalsIgnoreCase("#description#") || trimmed.equalsIgnoreCase("%description%")
+                    || trimmed.equalsIgnoreCase("#lore#") || trimmed.equalsIgnoreCase("%lore%")) {
                 if (def.getLore() != null) {
                     processed.addAll(def.getLore());
                 }
-            } else if (trimmed.startsWith("#") && trimmed.endsWith("#") && isStatPlaceholder(trimmed)) {
-                // Standalone stat placeholder: e.g. "#attack-damage#" or "#defense#"
+            } else if (((trimmed.startsWith("#") && trimmed.endsWith("#")) || (trimmed.startsWith("%") && trimmed.endsWith("%")))
+                    && isStatPlaceholder(trimmed, format)) {
+                // Standalone stat placeholder: e.g. "#attack-damage#" or "%attack-damage%"
                 String key = trimmed.substring(1, trimmed.length() - 1);
                 StatModifier mod = findStatModifier(def, key);
                 if (mod != null && !mod.isEmpty()) {
-                    String displayName = findStatDisplayName(key);
+                    String displayName = findStatDisplayName(key, format);
                     String statLine = format.formatStatLine(key, displayName, mod, df);
                     if (statLine != null && !statLine.isEmpty()) {
                         processed.add(statLine);
@@ -164,7 +175,7 @@ public class DynamicLoreEngine {
                 // If stat is null or empty, the entire line is skipped cleanly!
             } else {
                 // Inline check: does this line contain any stat placeholders?
-                List<String> statKeysInLine = extractStatPlaceholdersInLine(rawLine);
+                List<String> statKeysInLine = extractStatPlaceholdersInLine(rawLine, format);
                 if (!statKeysInLine.isEmpty()) {
                     // Check if ALL stat placeholders in this line are possessed by the item
                     boolean allStatsPresent = true;
@@ -188,15 +199,21 @@ public class DynamicLoreEngine {
                         String val = format.formatStatValue(mod, df);
                         line = line.replace("#" + key + "#", val != null ? val : "");
                         line = line.replace("#" + key.toUpperCase() + "#", val != null ? val : "");
-                        // Also replace #name# if present on this line
-                        String dName = findStatDisplayName(key);
+                        line = line.replace("%" + key + "%", val != null ? val : "");
+                        line = line.replace("%" + key.toUpperCase() + "%", val != null ? val : "");
+                        // Also replace #name# / %name% / #symbol# / %symbol% if present on this line
+                        String dName = findStatDisplayName(key, format);
                         line = line.replace("#name#", dName != null ? dName : key);
+                        line = line.replace("%name%", dName != null ? dName : key);
+                        LoreFormat.StatDisplayConfig cfg = format.getCustomStat(key);
+                        String sym = (cfg != null && cfg.getSymbol() != null) ? cfg.getSymbol() : "";
+                        line = line.replace("#symbol#", sym).replace("%symbol%", sym);
                     }
 
-                    processed.add(replaceGeneralPlaceholders(line, def, expireTimestamp));
+                    processed.add(replaceGeneralPlaceholders(line, def, expireTimestamp, format));
                 } else {
                     // Standard line
-                    processed.add(replaceGeneralPlaceholders(rawLine, def, expireTimestamp));
+                    processed.add(replaceGeneralPlaceholders(rawLine, def, expireTimestamp, format));
                 }
             }
         }
@@ -205,40 +222,80 @@ public class DynamicLoreEngine {
         return pruneBars(processed, barString);
     }
 
-    private String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp) {
+    public String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp, LoreFormat format) {
         if (input == null) return "";
 
         String tierDisplay = resolveTierDisplayName(def);
         String tierColor = resolveTierColor(def);
         String setDisplay = resolveSetDisplayName(def);
+        String typeDesc = def.getType() != null ? def.getType().getDescription() : "";
+        String tierId = def.getItemTier() != null ? def.getItemTier() : "";
+        String setId = def.getItemSet() != null ? def.getItemSet() : "";
+        String itemName = def.getName() != null ? def.getName() : "";
 
         String s = input
-                .replace("#type#", def.getType() != null ? def.getType().getDescription() : "")
+                // Name
+                .replace("#name#", itemName)
+                .replace("%name%", itemName)
+                // Type
+                .replace("#type#", typeDesc)
+                .replace("%type%", typeDesc)
+                // Tier
                 .replace("#tier#", tierDisplay)
+                .replace("%tier%", tierDisplay)
                 .replace("#tier-name#", tierDisplay)
+                .replace("%tier-name%", tierDisplay)
                 .replace("#tier-display#", tierDisplay)
-                .replace("#tier-id#", def.getItemTier() != null ? def.getItemTier() : "")
+                .replace("%tier-display%", tierDisplay)
+                .replace("#tier-id#", tierId)
+                .replace("%tier-id%", tierId)
                 .replace("#tier-color#", tierColor)
+                .replace("%tier-color%", tierColor)
                 .replace("#tier_color#", tierColor)
+                .replace("%tier_color%", tierColor)
+                // Set
                 .replace("#set#", setDisplay)
+                .replace("%set%", setDisplay)
                 .replace("#set-name#", setDisplay)
+                .replace("%set-name%", setDisplay)
                 .replace("#set-display#", setDisplay)
-                .replace("#set-id#", def.getItemSet() != null ? def.getItemSet() : "");
+                .replace("%set-display%", setDisplay)
+                .replace("#set-id#", setId)
+                .replace("%set-id%", setId);
 
+        // Durability
+        String durDisplay = "";
+        if (def.isUnbreakable() && !def.isHideUnbreakable()) {
+            durDisplay = (format != null && format.getDurabilityUnbreakable() != null)
+                    ? format.getDurabilityUnbreakable() : "&aUnbreakable";
+        }
+        s = s.replace("#durability#", durDisplay).replace("%durability%", durDisplay)
+                .replace("#unbreakable#", durDisplay).replace("%unbreakable%", durDisplay);
+
+        // Expiration
         if (expireTimestamp > 0) {
             long remainingSec = Math.max(0, (expireTimestamp - System.currentTimeMillis()) / 1000);
-            s = s.replace("#expired#", formatDuration(remainingSec));
+            String dur = formatDuration(remainingSec);
+            s = s.replace("#expired#", dur).replace("%expired%", dur)
+                    .replace("#expiration#", dur).replace("%expiration%", dur);
         } else {
-            s = s.replace("#expired#", "");
+            s = s.replace("#expired#", "").replace("%expired%", "")
+                    .replace("#expiration#", "").replace("%expiration%", "");
         }
 
+        // Cooldown
         if (def.getCooldown() > 0) {
-            s = s.replace("#cooldown#", df.format(def.getCooldown()) + "s");
+            String cd = df.format(def.getCooldown()) + "s";
+            s = s.replace("#cooldown#", cd).replace("%cooldown%", cd);
         } else {
-            s = s.replace("#cooldown#", "");
+            s = s.replace("#cooldown#", "").replace("%cooldown%", "");
         }
 
         return s;
+    }
+
+    public String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp) {
+        return replaceGeneralPlaceholders(input, def, expireTimestamp, null);
     }
 
     public String resolveTierDisplayName(ItemDefinition def) {
@@ -295,43 +352,64 @@ public class DynamicLoreEngine {
         return setId;
     }
 
-    private List<String> extractStatPlaceholdersInLine(String line) {
+    private List<String> extractStatPlaceholdersInLine(String line, LoreFormat format) {
         List<String> list = new ArrayList<>();
         if (line == null) return list;
         Matcher m = STAT_PLACEHOLDER_PATTERN.matcher(line);
         while (m.find()) {
             String candidate = m.group(1);
-            if (isStatKey(candidate)) {
+            if (isStatKey(candidate, format)) {
                 list.add(candidate);
             }
         }
         return list;
     }
 
-    public boolean isStatPlaceholder(String token) {
-        if (token == null || !token.startsWith("#") || !token.endsWith("#") || token.length() <= 2) {
-            return false;
-        }
-        String clean = token.substring(1, token.length() - 1);
-        return isStatKey(clean);
+    private List<String> extractStatPlaceholdersInLine(String line) {
+        return extractStatPlaceholdersInLine(line, null);
     }
 
-    public boolean isStatKey(String key) {
+    public boolean isStatPlaceholder(String token, LoreFormat format) {
+        if (token == null || token.length() <= 2) {
+            return false;
+        }
+        if ((token.startsWith("#") && token.endsWith("#")) || (token.startsWith("%") && token.endsWith("%"))) {
+            String clean = token.substring(1, token.length() - 1);
+            return isStatKey(clean, format);
+        }
+        return false;
+    }
+
+    public boolean isStatPlaceholder(String token) {
+        return isStatPlaceholder(token, null);
+    }
+
+    public boolean isStatKey(String key, LoreFormat format) {
         if (key == null || key.isEmpty()) return false;
         String normalized = key.toLowerCase().replace('_', '-');
         if (StatType.fromKey(normalized) != null) return true;
-        return findVanillaAttribute(key) != null;
+        if (findVanillaAttribute(key) != null) return true;
+        if (format != null && format.getCustomStat(normalized) != null) return true;
+        return false;
+    }
+
+    public boolean isStatKey(String key) {
+        return isStatKey(key, null);
     }
 
     public StatModifier findStatModifier(ItemDefinition def, String key) {
         if (def == null || key == null) return null;
         String normalized = key.toLowerCase().replace('_', '-');
 
-        // 1. Custom Stats
+        // 1. Custom Stats (StatType enum)
         StatType type = StatType.fromKey(normalized);
         if (type != null) {
             StatModifier mod = def.getStat(type);
             if (mod != null && !mod.isEmpty()) return mod;
+            if (type.hasVanillaAttribute() && def.getVanillaAttributes() != null) {
+                mod = def.getVanillaAttributes().get(type.getVanillaAttribute());
+                if (mod != null && !mod.isEmpty()) return mod;
+            }
         }
 
         // 2. Vanilla Attributes
@@ -341,27 +419,79 @@ public class DynamicLoreEngine {
             if (mod != null && !mod.isEmpty()) return mod;
         }
 
+        // 3. Dynamic / Arbitrary custom stats
+        if (def.getCustomStats() != null) {
+            StatModifier mod = def.getCustomStat(normalized);
+            if (mod != null && !mod.isEmpty()) return mod;
+            if (normalized.startsWith("vanilla-")) {
+                mod = def.getCustomStat(normalized.substring("vanilla-".length()));
+                if (mod != null && !mod.isEmpty()) return mod;
+            }
+        }
+
         return null;
     }
 
-    public String findStatDisplayName(String key) {
+    public String findStatDisplayName(String key, LoreFormat format) {
         if (key == null) return "";
         String normalized = key.toLowerCase().replace('_', '-');
+
+        // 1. Custom override from LoreFormat
+        if (format != null) {
+            LoreFormat.StatDisplayConfig custom = format.getCustomStat(normalized);
+            if (custom != null && custom.getName() != null && !custom.getName().isEmpty()) {
+                return custom.getName();
+            }
+        }
+
+        // 2. StatType default display name
         StatType type = StatType.fromKey(normalized);
         if (type != null) {
             return type.getDefaultDisplayName();
         }
+
+        // 3. Vanilla Attribute formatted name
         Attribute attr = findVanillaAttribute(key);
         if (attr != null) {
-            return attr.getKey().getKey();
+            return formatAttributeName(attr);
         }
+
         return key;
+    }
+
+    public String findStatDisplayName(String key) {
+        return findStatDisplayName(key, null);
+    }
+
+    public static String formatAttributeName(Attribute attr) {
+        if (attr == null) return "";
+        String key = attr.getKey().getKey();
+        if (key.startsWith("generic.")) {
+            key = key.substring("generic.".length());
+        } else if (key.startsWith("player.")) {
+            key = key.substring("player.".length());
+        }
+        String[] words = key.replace('_', ' ').split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (w.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1).toLowerCase());
+        }
+        return sb.toString();
     }
 
     public static Attribute findVanillaAttribute(String key) {
         if (key == null || key.isEmpty()) return null;
         String normalized = key.toLowerCase().replace('-', '_');
+        if (normalized.startsWith("vanilla_")) {
+            normalized = normalized.substring("vanilla_".length());
+        }
         try {
+            return Attribute.valueOf(normalized.toUpperCase());
+        } catch (Throwable ignored) {}
+        try {
+            if (org.bukkit.Bukkit.getServer() == null) return null;
             NamespacedKey nKey = normalized.contains(":") ? NamespacedKey.fromString(normalized) : NamespacedKey.minecraft(normalized);
             Attribute attr = Registry.ATTRIBUTE.get(nKey);
             if (attr != null) return attr;
@@ -382,7 +512,7 @@ public class DynamicLoreEngine {
         List<String> lines = new ArrayList<>();
         if (def == null) return lines;
 
-        // Custom stats
+        // Custom stats (StatType enum)
         if (def.getStats() != null) {
             for (Map.Entry<StatType, StatModifier> entry : def.getStats().entrySet()) {
                 StatType type = entry.getKey();
@@ -403,7 +533,22 @@ public class DynamicLoreEngine {
                 StatModifier mod = entry.getValue();
                 if (mod == null || mod.isEmpty()) continue;
 
-                String line = format.formatStatLine(attr.getKey().getKey(), attr.getKey().getKey(), mod, df);
+                String attrKey = attr.getKey().getKey();
+                String line = format.formatStatLine(attrKey, formatAttributeName(attr), mod, df);
+                if (line != null && !line.isEmpty()) {
+                    lines.add(line);
+                }
+            }
+        }
+
+        // Dynamic / Arbitrary custom stats
+        if (def.getCustomStats() != null) {
+            for (Map.Entry<String, StatModifier> entry : def.getCustomStats().entrySet()) {
+                String cKey = entry.getKey();
+                StatModifier mod = entry.getValue();
+                if (mod == null || mod.isEmpty()) continue;
+
+                String line = format.formatStatLine(cKey, cKey, mod, df);
                 if (line != null && !line.isEmpty()) {
                     lines.add(line);
                 }
@@ -413,37 +558,94 @@ public class DynamicLoreEngine {
         return lines;
     }
 
-    private List<String> generateSocketLines(ItemDefinition def, List<String> slottedSockets) {
+    private List<String> generateSocketLines(ItemDefinition def, List<String> slottedSockets, LoreFormat format) {
         List<String> lines = new ArrayList<>();
-        if (def.getGemSockets() == null || def.getGemSockets().isEmpty()) return lines;
+        if (def == null || def.getGemSockets() == null || def.getGemSockets().isEmpty()) return lines;
+
+        String emptyTpl = format != null && format.getSocketEmpty() != null ? format.getSocketEmpty() : "&8[&7◇&8] &7Empty Socket (%type%)";
+        String filledTpl = format != null && format.getSocketFilled() != null ? format.getSocketFilled() : "&8[&a◆&8] &f%gem%";
 
         for (int i = 0; i < def.getGemSockets().size(); i++) {
             String socketType = def.getGemSockets().get(i);
             String slottedGem = (slottedSockets != null && i < slottedSockets.size()) ? slottedSockets.get(i) : null;
             if (slottedGem != null && !slottedGem.isEmpty()) {
-                lines.add("&8[&a◆&8] &f" + slottedGem);
+                lines.add(filledTpl.replace("%gem%", slottedGem).replace("#gem#", slottedGem)
+                        .replace("%name%", slottedGem).replace("#name#", slottedGem)
+                        .replace("%type%", socketType).replace("#type#", socketType));
             } else {
-                lines.add("&8[&7◇&8] &7Empty Socket (" + socketType + ")");
+                lines.add(emptyTpl.replace("%type%", socketType).replace("#type#", socketType));
             }
         }
         return lines;
     }
 
-    private List<String> generateRequirementLines(ItemDefinition def) {
+    private List<String> generateRequirementLines(ItemDefinition def, LoreFormat format) {
         List<String> lines = new ArrayList<>();
+        if (def == null) return lines;
+
+        String lvlTpl = format != null && format.getReqLevel() != null ? format.getReqLevel() : "&cRequires Level: &f%level%";
+        String permTpl = format != null && format.getReqPermission() != null ? format.getReqPermission() : "&cRequires Permission: &f%permission%";
+        String classTpl = format != null && format.getReqClass() != null ? format.getReqClass() : "&cClass: &f%class%";
+        String classLvlTpl = format != null && format.getReqClassWithLevel() != null ? format.getReqClassWithLevel() : "&cClass: &f%class% (Lv.%level%)";
+        String auraTpl = format != null && format.getReqAuraSkill() != null ? format.getReqAuraSkill() : "&cAuraSkill: &f%skill% Lv.%level%";
+
         if (def.getLevelRequired() > 0) {
-            lines.add("&cRequires Level: &f" + def.getLevelRequired());
+            lines.add(lvlTpl.replace("%level%", String.valueOf(def.getLevelRequired())).replace("#level#", String.valueOf(def.getLevelRequired())));
         }
         if (def.getPermission() != null && !def.getPermission().isEmpty()) {
-            lines.add("&cRequires Permission: &f" + def.getPermission());
+            lines.add(permTpl.replace("%permission%", def.getPermission()).replace("#permission#", def.getPermission()));
         }
         if (def.getMmocoreClass() != null && !def.getMmocoreClass().isEmpty()) {
-            lines.add("&cClass: &f" + def.getMmocoreClass() + (def.getMmocoreLevel() > 0 ? " (Lv." + def.getMmocoreLevel() + ")" : ""));
+            if (def.getMmocoreLevel() > 0) {
+                lines.add(classLvlTpl.replace("%class%", def.getMmocoreClass()).replace("#class#", def.getMmocoreClass())
+                        .replace("%level%", String.valueOf(def.getMmocoreLevel())).replace("#level#", String.valueOf(def.getMmocoreLevel())));
+            } else {
+                lines.add(classTpl.replace("%class%", def.getMmocoreClass()).replace("#class#", def.getMmocoreClass()));
+            }
         }
         if (def.getAuraSkill() != null && !def.getAuraSkill().isEmpty()) {
-            lines.add("&cAuraSkill: &f" + def.getAuraSkill() + " Lv." + def.getAuraSkillLevel());
+            lines.add(auraTpl.replace("%skill%", def.getAuraSkill()).replace("#skill#", def.getAuraSkill())
+                    .replace("%level%", String.valueOf(def.getAuraSkillLevel())).replace("#level#", String.valueOf(def.getAuraSkillLevel())));
         }
         return lines;
+    }
+
+    private List<String> generateEnchantmentLines(ItemDefinition def, LoreFormat format) {
+        List<String> lines = new ArrayList<>();
+        if (def == null || def.isHideEnchantments() || def.getEnchantments() == null || def.getEnchantments().isEmpty()) {
+            return lines;
+        }
+        String tpl = format != null && format.getEnchantmentFormat() != null ? format.getEnchantmentFormat() : "&7%name% %level%";
+        for (Map.Entry<org.bukkit.enchantments.Enchantment, Integer> entry : def.getEnchantments().entrySet()) {
+            org.bukkit.enchantments.Enchantment ench = entry.getKey();
+            int level = entry.getValue();
+            String name = formatEnchantmentName(ench);
+            String levelStr = toRoman(level);
+            lines.add(tpl.replace("%name%", name).replace("#name#", name)
+                    .replace("%level%", levelStr).replace("#level#", levelStr)
+                    .replace("%raw-level%", String.valueOf(level)).replace("#raw-level#", String.valueOf(level)));
+        }
+        return lines;
+    }
+
+    private static final String[] ROMAN = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
+
+    public static String toRoman(int level) {
+        if (level > 0 && level < ROMAN.length) return ROMAN[level];
+        return String.valueOf(level);
+    }
+
+    public static String formatEnchantmentName(org.bukkit.enchantments.Enchantment ench) {
+        if (ench == null) return "";
+        String key = ench.getKey().getKey();
+        String[] words = key.replace('_', ' ').split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (w.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1).toLowerCase());
+        }
+        return sb.toString();
     }
 
     /**

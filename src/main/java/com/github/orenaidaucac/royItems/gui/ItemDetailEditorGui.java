@@ -66,7 +66,7 @@ public class ItemDetailEditorGui {
                 if (oldCursor != null && !oldCursor.getType().isAir()) {
                     Material newMat = oldCursor.getType();
                     def.setMaterial(newMat.name());
-                    player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã đổi Material thành &e" + newMat.name() + " &atừ vật phẩm kéo thả!"));
+                    player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Changed Material to &e" + newMat.name() + " &afrom dragged item!"));
                     try {
                         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
                     } catch (Throwable ignored) {}
@@ -83,7 +83,7 @@ public class ItemDetailEditorGui {
                 if (current != null && !current.getType().isAir()) {
                     Material newMat = current.getType();
                     def.setMaterial(newMat.name());
-                    player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã đổi Material thành &e" + newMat.name() + " &atừ vật phẩm túi đồ!"));
+                    player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Changed Material to &e" + newMat.name() + " &afrom inventory item!"));
                     try {
                         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
                     } catch (Throwable ignored) {}
@@ -131,7 +131,7 @@ public class ItemDetailEditorGui {
 
         GuiItem previewItem = new GuiItem(previewStack, event -> {
             player.getInventory().addItem(manager.getItemBuilder().build(def, 1));
-            player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã lấy 1x &f" + def.getId() + " &avào túi đồ!"));
+            player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Added 1x &f" + def.getId() + " &ato your inventory!"));
             try {
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.2f);
             } catch (Throwable ignored) {}
@@ -146,7 +146,7 @@ public class ItemDetailEditorGui {
     private void renderNavigationControls(Gui gui) {
         // 1. Back button (slot 45)
         EditorGuiConfig.ButtonConfig backCfg = config.getDetailNavigationButton("back",
-                new EditorGuiConfig.ButtonConfig(45, Material.ARROW, "<#FFD166><bold>◀ Quay Lại</bold></#FFD166>", List.of(), 0));
+                new EditorGuiConfig.ButtonConfig(45, Material.ARROW, "<#FFD166><bold>◀ Back</bold></#FFD166>", List.of(), 0));
         gui.setItem(backCfg.slot(), GuiHelper.createGuiItem(
                 backCfg.material(),
                 TextUtility.formatGui(backCfg.name()),
@@ -159,7 +159,7 @@ public class ItemDetailEditorGui {
 
         // 2. Previous Page button (slot 48)
         EditorGuiConfig.ButtonConfig prevCfg = config.getDetailNavigationButton("prev-page",
-                new EditorGuiConfig.ButtonConfig(48, Material.SPECTRAL_ARROW, "<#FFD166>◀ Trang Trước</#FFD166>", List.of(), 0));
+                new EditorGuiConfig.ButtonConfig(48, Material.SPECTRAL_ARROW, "<#FFD166>◀ Previous Page</#FFD166>", List.of(), 0));
         if (currentPage > 1) {
             String name = prevCfg.name()
                     .replace("%prev_page%", String.valueOf(currentPage - 1))
@@ -174,15 +174,15 @@ public class ItemDetailEditorGui {
             // Disabled indicator on first page
             gui.setItem(prevCfg.slot(), GuiHelper.createGuiItem(
                     Material.GRAY_DYE,
-                    TextUtility.formatGui("<gray>◀ Không có trang trước</gray>"),
-                    List.of(TextUtility.formatGui("<dark_gray>Bạn đang ở trang đầu tiên.</dark_gray>")),
+                    TextUtility.formatGui("<gray>◀ No previous page</gray>"),
+                    List.of(TextUtility.formatGui("<dark_gray>You are on the first page.</dark_gray>")),
                     null
             ));
         }
 
         // 3. Save button (slot 49)
         EditorGuiConfig.ButtonConfig saveCfg = config.getDetailNavigationButton("save",
-                new EditorGuiConfig.ButtonConfig(49, Material.EMERALD_BLOCK, "<#06D6A0><bold>✔ Lưu Thay Đổi</bold></#06D6A0>", List.of(), 0));
+                new EditorGuiConfig.ButtonConfig(49, Material.EMERALD_BLOCK, "<#06D6A0><bold>✔ Save Changes</bold></#06D6A0>", List.of(), 0));
         gui.setItem(saveCfg.slot(), GuiHelper.createGuiItem(
                 saveCfg.material(),
                 TextUtility.formatGui(saveCfg.name()),
@@ -191,20 +191,20 @@ public class ItemDetailEditorGui {
                     boolean success = manager.getConfigManager().saveItem(def);
                     if (success) {
                         manager.getLiveUpdateService().updateAllOnlinePlayers();
-                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã lưu thành công vật phẩm &f" + def.getId() + " &avà kích hoạt LiveUpdate!"));
+                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Successfully saved &f" + def.getId() + " &aand triggered LiveUpdate!"));
                         try {
                             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
                         } catch (Throwable ignored) {}
                         open(); // Refresh view
                     } else {
-                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Lưu thất bại! Vui lòng kiểm tra console server."));
+                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Failed to save! Please check server console."));
                     }
                 }
         ));
 
         // 4. Next Page button (slot 50)
         EditorGuiConfig.ButtonConfig nextCfg = config.getDetailNavigationButton("next-page",
-                new EditorGuiConfig.ButtonConfig(50, Material.SPECTRAL_ARROW, "<#FFD166>Trang Tiếp Theo ▶</#FFD166>", List.of(), 0));
+                new EditorGuiConfig.ButtonConfig(50, Material.SPECTRAL_ARROW, "<#FFD166>Next Page ▶</#FFD166>", List.of(), 0));
         if (currentPage < maxPages) {
             String name = nextCfg.name()
                     .replace("%next_page%", String.valueOf(currentPage + 1))
@@ -219,15 +219,15 @@ public class ItemDetailEditorGui {
             // Disabled indicator on last page
             gui.setItem(nextCfg.slot(), GuiHelper.createGuiItem(
                     Material.GRAY_DYE,
-                    TextUtility.formatGui("<gray>Không có trang sau ▶</gray>"),
-                    List.of(TextUtility.formatGui("<dark_gray>Bạn đang ở trang cuối cùng.</dark_gray>")),
+                    TextUtility.formatGui("<gray>No next page ▶</gray>"),
+                    List.of(TextUtility.formatGui("<dark_gray>You are on the last page.</dark_gray>")),
                     null
             ));
         }
 
         // 5. Close button (slot 53)
         EditorGuiConfig.ButtonConfig closeCfg = config.getDetailNavigationButton("close",
-                new EditorGuiConfig.ButtonConfig(53, Material.BARRIER, "<#EF476F><bold>Đóng Menu</bold></#EF476F>", List.of(), 0));
+                new EditorGuiConfig.ButtonConfig(53, Material.BARRIER, "<#EF476F><bold>Close Menu</bold></#EF476F>", List.of(), 0));
         gui.setItem(closeCfg.slot(), GuiHelper.createGuiItem(
                 closeCfg.material(),
                 TextUtility.formatGui(closeCfg.name()),
@@ -240,7 +240,7 @@ public class ItemDetailEditorGui {
     }
 
     // =========================================================================
-    // PAGE 1: CƠ BẢN & HIỂN THỊ (GENERAL & VISUALS)
+    // PAGE 1: GENERAL & VISUALS
     // =========================================================================
 
     private void renderPage1General(Gui gui) {
@@ -252,7 +252,7 @@ public class ItemDetailEditorGui {
                     if (cursor != null && !cursor.getType().isAir()) {
                         Material newMat = cursor.getType();
                         def.setMaterial(newMat.name());
-                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã đổi Material thành &e" + newMat.name() + " &atừ vật phẩm kéo thả!"));
+                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Changed material to &e" + newMat.name() + " &afrom dragged item!"));
                         try {
                             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
                         } catch (Throwable ignored) {}
@@ -265,8 +265,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Chất Liệu (Material)", def.getMaterial(),
-                                "Nhập tên Material Minecraft (vd: DIAMOND_SWORD, NETHERITE_CHESTPLATE...) hoặc kéo thả vật phẩm vào ô Material:",
+                                "Material", def.getMaterial(),
+                                "Enter Minecraft Material name (e.g. DIAMOND_SWORD, NETHERITE_CHESTPLATE...) or drag-and-drop an item into the Material slot:",
                                 input -> Material.matchMaterial(input.trim()) != null,
                                 input -> def.setMaterial(Material.matchMaterial(input.trim()).name()));
                     }
@@ -274,15 +274,15 @@ public class ItemDetailEditorGui {
 
         // Name
         renderProperty(gui, "name", 1, 11, Material.NAME_TAG,
-                Map.of("%value%", def.getName().isEmpty() ? "Mặc định theo Type" : def.getName()),
+                Map.of("%value%", def.getName().isEmpty() ? "Default by Type" : def.getName()),
                 event -> {
                     if (event.isRightClick()) {
                         def.setName("");
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Tên Hiển Thị (Name)", def.getName(),
-                                "Nhập tên mới cho vật phẩm (Hỗ trợ MiniMessage & mã màu):",
+                                "Display Name", def.getName(),
+                                "Enter new display name for this item (Supports MiniMessage & color codes):",
                                 null,
                                 def::setName);
                     }
@@ -302,8 +302,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Thêm Dòng Lore", "",
-                                "Nhập dòng mô tả mới muốn thêm vào Lore (Hỗ trợ mã màu):",
+                                "Add Lore Line", "",
+                                "Enter new description line to add to Lore (Supports color codes):",
                                 null,
                                 input -> def.getLore().add(input));
                     }
@@ -311,15 +311,15 @@ public class ItemDetailEditorGui {
 
         // Item Model
         renderProperty(gui, "item-model", 1, 13, Material.PAINTING,
-                Map.of("%value%", def.getItemModel() != null ? def.getItemModel() : "Mặc định"),
+                Map.of("%value%", def.getItemModel() != null ? def.getItemModel() : "Default"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setItemModel(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Item Model (Custom Model)", def.getItemModel(),
-                                "Nhập Item Model ID (vd: custom_sword_1):",
+                                "Custom Item Model", def.getItemModel(),
+                                "Enter Custom Item Model ID (e.g. custom_sword_1):",
                                 null,
                                 def::setItemModel);
                     }
@@ -339,7 +339,7 @@ public class ItemDetailEditorGui {
 
         // Unbreakable
         renderProperty(gui, "unbreakable", 1, 15, Material.NETHERITE_INGOT,
-                Map.of("%status%", def.isUnbreakable() ? "<#06D6A0>Bật</#06D6A0>" : "<#EF476F>Tắt</#EF476F>"),
+                Map.of("%status%", def.isUnbreakable() ? "<#06D6A0>Enabled</#06D6A0>" : "<#EF476F>Disabled</#EF476F>"),
                 event -> {
                     def.setUnbreakable(!def.isUnbreakable());
                     open();
@@ -347,7 +347,7 @@ public class ItemDetailEditorGui {
 
         // Glow
         renderProperty(gui, "glow", 1, 16, Material.GLOWSTONE_DUST,
-                Map.of("%status%", def.isGlow() ? "<#06D6A0>Bật</#06D6A0>" : "<#EF476F>Tắt</#EF476F>"),
+                Map.of("%status%", def.isGlow() ? "<#06D6A0>Enabled</#06D6A0>" : "<#EF476F>Disabled</#EF476F>"),
                 event -> {
                     def.setGlow(!def.isGlow());
                     open();
@@ -355,15 +355,15 @@ public class ItemDetailEditorGui {
 
         // Item Tier
         renderProperty(gui, "item-tier", 1, 20, Material.AMETHYST_SHARD,
-                Map.of("%value%", def.getItemTier() != null ? def.getItemTier() : "Không"),
+                Map.of("%value%", def.getItemTier() != null ? def.getItemTier() : "None"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setItemTier(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Cấp Bậc (Tier)", def.getItemTier(),
-                                "Nhập tên Tier (vd: common, rare, epic, legendary, mythic):",
+                                "Item Tier", def.getItemTier(),
+                                "Enter Tier name (e.g. common, rare, epic, legendary, mythic):",
                                 null,
                                 input -> def.setItemTier(input.toLowerCase().trim()));
                     }
@@ -371,15 +371,15 @@ public class ItemDetailEditorGui {
 
         // Item Set
         renderProperty(gui, "item-set", 1, 21, Material.CHAINMAIL_CHESTPLATE,
-                Map.of("%value%", def.getItemSet() != null ? def.getItemSet() : "Không"),
+                Map.of("%value%", def.getItemSet() != null ? def.getItemSet() : "None"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setItemSet(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Bộ Trang Bị (Set)", def.getItemSet(),
-                                "Nhập tên Set (vd: dragon_slayer, shadow_assassin):",
+                                "Item Set", def.getItemSet(),
+                                "Enter Set name (e.g. dragon_slayer, shadow_assassin):",
                                 null,
                                 input -> def.setItemSet(input.toLowerCase().trim()));
                     }
@@ -387,7 +387,7 @@ public class ItemDetailEditorGui {
 
         // Hide Enchantments
         renderProperty(gui, "hide-enchantments", 1, 23, Material.ENCHANTED_BOOK,
-                Map.of("%status%", def.isHideEnchantments() ? "<#06D6A0>Đang ẩn</#06D6A0>" : "<#EF476F>Đang hiện</#EF476F>"),
+                Map.of("%status%", def.isHideEnchantments() ? "<#06D6A0>Hidden</#06D6A0>" : "<#EF476F>Visible</#EF476F>"),
                 event -> {
                     def.setHideEnchantments(!def.isHideEnchantments());
                     open();
@@ -395,9 +395,17 @@ public class ItemDetailEditorGui {
 
         // Hide Attributes
         renderProperty(gui, "hide-attributes", 1, 24, Material.COMPASS,
-                Map.of("%status%", def.isHideAttributes() ? "<#06D6A0>Đang ẩn</#06D6A0>" : "<#EF476F>Đang hiện</#EF476F>"),
+                Map.of("%status%", def.isHideAttributes() ? "<#06D6A0>Hidden</#06D6A0>" : "<#EF476F>Visible</#EF476F>"),
                 event -> {
                     def.setHideAttributes(!def.isHideAttributes());
+                    open();
+                });
+
+        // Hide Unbreakable (Slot 25)
+        renderProperty(gui, "hide-unbreakable", 1, 25, Material.SHIELD,
+                Map.of("%status%", def.isHideUnbreakable() ? "<#06D6A0>Hidden</#06D6A0>" : "<#EF476F>Visible</#EF476F>"),
+                event -> {
+                    def.setHideUnbreakable(!def.isHideUnbreakable());
                     open();
                 });
 
@@ -439,7 +447,7 @@ public class ItemDetailEditorGui {
     }
 
     // =========================================================================
-    // PAGE 2: CHỈ SỐ CHIẾN ĐẤU & RPG (COMBAT & RPG STATS)
+    // PAGE 2: COMBAT & RPG STATS
     // =========================================================================
 
     private void renderPage2Stats(Gui gui) {
@@ -467,7 +475,7 @@ public class ItemDetailEditorGui {
     }
 
     // =========================================================================
-    // PAGE 3: YÊU CẦU, CƠ CHẾ & SOCKET (REQUIREMENTS & MECHANICS)
+    // PAGE 3: REQUIREMENTS, MECHANICS & SOCKETS
     // =========================================================================
 
     private void renderPage3Mechanics(Gui gui) {
@@ -480,8 +488,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Cấp Độ Yêu Cầu (Player Level)", String.valueOf(def.getLevelRequired()),
-                                "Nhập cấp độ kinh nghiệm (XP Level >= 0) tối thiểu:",
+                                "Required Player Level", String.valueOf(def.getLevelRequired()),
+                                "Enter minimum required player XP level (>= 0):",
                                 input -> {
                                     try {
                                         return Integer.parseInt(input.trim()) >= 0;
@@ -495,15 +503,15 @@ public class ItemDetailEditorGui {
 
         // Permission
         renderProperty(gui, "permission", 3, 11, Material.TRIPWIRE_HOOK,
-                Map.of("%value%", def.getPermission() != null ? def.getPermission() : "Không"),
+                Map.of("%value%", def.getPermission() != null ? def.getPermission() : "None"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setPermission(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Quyền Hạn (Permission)", def.getPermission(),
-                                "Nhập Permission node (vd: royitems.use.sword):",
+                                "Required Permission", def.getPermission(),
+                                "Enter permission node (e.g. royitems.use.sword):",
                                 null,
                                 def::setPermission);
                     }
@@ -511,7 +519,7 @@ public class ItemDetailEditorGui {
 
         // Drop on Death
         renderProperty(gui, "drop-on-death", 3, 12, Material.SKELETON_SKULL,
-                Map.of("%status%", def.isDrop() ? "<#06D6A0>Có rơi</#06D6A0>" : "<#EF476F>Không rơi (Bảo vệ)</#EF476F>"),
+                Map.of("%status%", def.isDrop() ? "<#06D6A0>Drop on Death</#06D6A0>" : "<#EF476F>Keep on Death</#EF476F>"),
                 event -> {
                     def.setDrop(!def.isDrop());
                     open();
@@ -519,15 +527,15 @@ public class ItemDetailEditorGui {
 
         // MMOCore Class
         renderProperty(gui, "mmocore-class", 3, 13, Material.IRON_HELMET,
-                Map.of("%value%", def.getMmocoreClass() != null ? def.getMmocoreClass() : "Không"),
+                Map.of("%value%", def.getMmocoreClass() != null ? def.getMmocoreClass() : "None"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setMmocoreClass(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Class MMOCore", def.getMmocoreClass(),
-                                "Nhập tên Class MMOCore (vd: WARRIOR, MAGE):",
+                                "MMOCore Class", def.getMmocoreClass(),
+                                "Enter MMOCore Class name (e.g. WARRIOR, MAGE):",
                                 null,
                                 def::setMmocoreClass);
                     }
@@ -542,8 +550,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Cấp MMOCore", String.valueOf(def.getMmocoreLevel()),
-                                "Nhập cấp độ Class MMOCore tối thiểu (>= 0):",
+                                "MMOCore Level", String.valueOf(def.getMmocoreLevel()),
+                                "Enter minimum MMOCore Class level (>= 0):",
                                 input -> {
                                     try {
                                         return Integer.parseInt(input.trim()) >= 0;
@@ -557,15 +565,15 @@ public class ItemDetailEditorGui {
 
         // AuraSkills Skill
         renderProperty(gui, "auraskill", 3, 15, Material.BOOKSHELF,
-                Map.of("%value%", def.getAuraSkill() != null ? def.getAuraSkill() : "Không"),
+                Map.of("%value%", def.getAuraSkill() != null ? def.getAuraSkill() : "None"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setAuraSkill(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Kỹ Năng AuraSkills", def.getAuraSkill(),
-                                "Nhập tên Skill AuraSkills (vd: FIGHTING, ARCHERY):",
+                                "AuraSkills Skill", def.getAuraSkill(),
+                                "Enter AuraSkills Skill name (e.g. FIGHTING, ARCHERY):",
                                 null,
                                 def::setAuraSkill);
                     }
@@ -580,8 +588,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Cấp AuraSkills", String.valueOf(def.getAuraSkillLevel()),
-                                "Nhập cấp độ AuraSkills tối thiểu (>= 0):",
+                                "AuraSkills Level", String.valueOf(def.getAuraSkillLevel()),
+                                "Enter minimum AuraSkills level (>= 0):",
                                 input -> {
                                     try {
                                         return Integer.parseInt(input.trim()) >= 0;
@@ -595,15 +603,15 @@ public class ItemDetailEditorGui {
 
         // World Required
         renderProperty(gui, "world-required", 3, 19, Material.GRASS_BLOCK,
-                Map.of("%value%", def.getWorldRequired().isEmpty() ? "Tất cả" : String.join(", ", def.getWorldRequired())),
+                Map.of("%value%", def.getWorldRequired().isEmpty() ? "All Worlds" : String.join(", ", def.getWorldRequired())),
                 event -> {
                     if (event.isRightClick()) {
                         def.getWorldRequired().clear();
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Thêm Thế Giới", "",
-                                "Nhập tên Thế giới muốn thêm (vd: world, world_nether):",
+                                "Add Required World", "",
+                                "Enter World name to add (e.g. world, world_nether):",
                                 null,
                                 input -> def.getWorldRequired().add(input.trim()));
                     }
@@ -611,15 +619,15 @@ public class ItemDetailEditorGui {
 
         // Biome Required
         renderProperty(gui, "biome-required", 3, 20, Material.OAK_SAPLING,
-                Map.of("%value%", def.getBiomeRequired().isEmpty() ? "Tất cả" : String.join(", ", def.getBiomeRequired())),
+                Map.of("%value%", def.getBiomeRequired().isEmpty() ? "All Biomes" : String.join(", ", def.getBiomeRequired())),
                 event -> {
                     if (event.isRightClick()) {
                         def.getBiomeRequired().clear();
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Thêm Quần Xã (Biome)", "",
-                                "Nhập tên Quần xã muốn thêm (vd: plains, desert):",
+                                "Add Required Biome", "",
+                                "Enter Biome name to add (e.g. plains, desert):",
                                 null,
                                 input -> def.getBiomeRequired().add(input.trim()));
                     }
@@ -628,7 +636,7 @@ public class ItemDetailEditorGui {
         // Gem Sockets (Only on Gear)
         if (def.getType().isGear()) {
             renderProperty(gui, "gem-sockets", 3, 21, Material.EMERALD,
-                    Map.of("%value%", def.getGemSockets().isEmpty() ? "Không có" : def.getGemSockets().toString()),
+                    Map.of("%value%", def.getGemSockets().isEmpty() ? "None" : def.getGemSockets().toString()),
                     event -> {
                         if (event.isShiftClick() && event.isRightClick()) {
                             def.getGemSockets().clear();
@@ -640,8 +648,8 @@ public class ItemDetailEditorGui {
                             open();
                         } else {
                             manager.getChatInputManager().requestInput(player, def, currentPage,
-                                    "Thêm Lỗ Khảm (Socket)", "",
-                                    "Nhập mã socket (vd: '1' cho ngọc bất kỳ, 'A', 'B'...):",
+                                    "Add Gem Socket", "",
+                                    "Enter socket identifier (e.g. '1' for any gem, 'A', 'B'...):",
                                     null,
                                     input -> def.getGemSockets().add(input.trim()));
                         }
@@ -657,8 +665,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Hồi Chiêu Kỹ Năng", String.valueOf(def.getCooldown()),
-                                "Nhập thời gian hồi chiêu tính bằng giây (vd: 1.5, 3.0):",
+                                "Skill Cooldown", String.valueOf(def.getCooldown()),
+                                "Enter cooldown in seconds (e.g. 1.5, 3.0):",
                                 input -> {
                                     try {
                                         return Double.parseDouble(input.trim()) >= 0;
@@ -672,15 +680,15 @@ public class ItemDetailEditorGui {
 
         // Expiration
         renderProperty(gui, "expiration", 3, 23, Material.COMPASS,
-                Map.of("%value%", def.getExpired() != null ? def.getExpired() : "Vĩnh viễn"),
+                Map.of("%value%", def.getExpired() != null ? def.getExpired() : "Permanent"),
                 event -> {
                     if (event.isRightClick()) {
                         def.setExpired(null);
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Hạn Dùng Real-Time", def.getExpired(),
-                                "Nhập hạn dùng đếm lùi thời gian thực (vd: 3 days, 12 hours):",
+                                "Real-Time Expiration", def.getExpired(),
+                                "Enter real-time countdown duration (e.g. 3 days, 12 hours):",
                                 null,
                                 def::setExpired);
                     }
@@ -695,8 +703,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Thêm Phù Phép (Enchantment)", "",
-                                "Nhập: '<Tên enchant> <Cấp>' (vd: sharpness 5, unbreaking 3):",
+                                "Add Enchantment", "",
+                                "Enter: '<enchant> <level>' (e.g. sharpness 5, unbreaking 3):",
                                 input -> input != null && !input.trim().isEmpty(),
                                 input -> {
                                     String trimmed = input.trim();
@@ -724,9 +732,9 @@ public class ItemDetailEditorGui {
                                     if (ench != null && lvl > 0) {
                                         def.getEnchantments().put(ench, lvl);
                                         String displayKey = "minecraft".equalsIgnoreCase(key.getNamespace()) ? key.getKey() : key.toString();
-                                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã thêm phù phép &e" + displayKey + " &a(Cấp " + lvl + ")!"));
+                                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Added enchantment &e" + displayKey + " &a(Level " + lvl + ")!"));
                                     } else {
-                                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Không tìm thấy phù phép: " + enchPart));
+                                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Enchantment not found: " + enchPart));
                                     }
                                 });
                     }
@@ -741,8 +749,8 @@ public class ItemDetailEditorGui {
                         open();
                     } else {
                         manager.getChatInputManager().requestInput(player, def, currentPage,
-                                "Thêm Hiệu Ứng Bùa Chú", "",
-                                "Nhập: '<Tên effect> <Cấp> [Slot]' (vd: speed 2, strength 1 HAND):",
+                                "Add Potion Effect", "",
+                                "Enter: '<effect> <level> [slot]' (e.g. speed 2, strength 1 HAND):",
                                 input -> input != null && !input.trim().isEmpty(),
                                 input -> {
                                     String trimmed = input.trim();
@@ -775,9 +783,9 @@ public class ItemDetailEditorGui {
                                     if (type != null && lvl > 0) {
                                         def.getEffects().add(new PotionEffectData(type, Math.max(0, lvl - 1), slot));
                                         String displayKey = "minecraft".equalsIgnoreCase(key.getNamespace()) ? key.getKey() : key.toString();
-                                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Đã thêm hiệu ứng &e" + displayKey + " &a(Cấp " + lvl + ", Slot: " + slot + ")!"));
+                                        player.sendMessage(TextUtility.formatMessage("&a[RoyItems] Added potion effect &e" + displayKey + " &a(Level " + lvl + ", Slot: " + slot + ")!"));
                                     } else {
-                                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Không tìm thấy hiệu ứng: " + effPart));
+                                        player.sendMessage(TextUtility.formatMessage("&c[RoyItems] Potion effect not found: " + effPart));
                                     }
                                 });
                     }
@@ -787,8 +795,8 @@ public class ItemDetailEditorGui {
         if (def.getType().isArmor()) {
             renderProperty(gui, "trim-customization", 3, 30, Material.ARMOR_STAND,
                     Map.of(
-                            "%material%", def.getTrimMaterial() != null ? def.getTrimMaterial() : "Không",
-                            "%pattern%", def.getTrimPattern() != null ? def.getTrimPattern() : "Không"
+                            "%material%", def.getTrimMaterial() != null ? def.getTrimMaterial() : "None",
+                            "%pattern%", def.getTrimPattern() != null ? def.getTrimPattern() : "None"
                     ),
                     event -> {
                         if (event.isRightClick()) {
@@ -802,15 +810,15 @@ public class ItemDetailEditorGui {
 
             // Leather Dye Color (Only on Armor)
             renderProperty(gui, "dye-color", 3, 31, Material.CYAN_DYE,
-                    Map.of("%value%", def.getDyeColor() != null ? def.getDyeColor() : "Không"),
+                    Map.of("%value%", def.getDyeColor() != null ? def.getDyeColor() : "None"),
                     event -> {
                         if (event.isRightClick()) {
                             def.setDyeColor(null);
                             open();
                         } else {
                             manager.getChatInputManager().requestInput(player, def, currentPage,
-                                    "Màu Nhuộm Giáp Da", def.getDyeColor(),
-                                    "Nhập mã màu Hex (vd: #FF0000, #00FF00):",
+                                    "Leather Dye Color", def.getDyeColor(),
+                                    "Enter Hex color code (e.g. #FF0000, #00FF00):",
                                     input -> input.trim().matches("#[0-9A-Fa-f]{6}"),
                                     def::setDyeColor);
                         }
@@ -820,15 +828,15 @@ public class ItemDetailEditorGui {
         // Gem ID (Only on GEM_STONE)
         if (def.getType() == com.github.orenaidaucac.royItems.item.ItemType.GEM_STONE) {
             renderProperty(gui, "gem-id", 3, 32, Material.NETHER_STAR,
-                    Map.of("%value%", def.getGemId() != null ? def.getGemId() : "Chưa đặt"),
+                    Map.of("%value%", def.getGemId() != null ? def.getGemId() : "Not set"),
                     event -> {
                         if (event.isRightClick()) {
                             def.setGemId(null);
                             open();
                         } else {
                             manager.getChatInputManager().requestInput(player, def, currentPage,
-                                    "Mã Nhận Diện Ngọc (Gem ID)", def.getGemId(),
-                                    "Nhập mã ngọc (vd: 1, A, FIRE_GEM):",
+                                    "Gem Identifier (Gem ID)", def.getGemId(),
+                                    "Enter gem ID (e.g. 1, A, FIRE_GEM):",
                                     null,
                                     def::setGemId);
                         }
@@ -876,7 +884,7 @@ public class ItemDetailEditorGui {
                 manager.getChatInputManager().requestInput(player, def, currentPage,
                         type.getDefaultDisplayName(),
                         String.format("Flat: %s, Percent: %s%%", STAT_DF.format(mod.getFlat()), STAT_DF.format(mod.getPercentValue())),
-                        "Nhập giá trị mới (vd: '15' cho cộng thẳng, '+10%' cho phần trăm, hoặc '15 10%' cho cả hai):",
+                        "Enter new modifier value (e.g. '15' for flat, '+10%' for percent, or '15 10%' for both):",
                         input -> parseStatModifier(input) != null,
                         input -> {
                             StatModifier parsed = parseStatModifier(input);

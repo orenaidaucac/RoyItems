@@ -27,6 +27,11 @@ public class VaultHook {
         return economy.has(player, amount);
     }
 
+    public double getBalance(Player player) {
+        if (economy == null || player == null) return 0.0;
+        return economy.getBalance(player);
+    }
+
     public boolean withdraw(Player player, double amount) {
         if (economy == null || player == null) return true;
         return economy.withdrawPlayer(player, amount).transactionSuccess();

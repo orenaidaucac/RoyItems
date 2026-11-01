@@ -38,9 +38,32 @@ public enum StatType {
     static {
         for (StatType type : values()) {
             KEY_LOOKUP.put(type.key.toLowerCase(), type);
+            KEY_LOOKUP.put(type.name().toLowerCase(), type);
+            KEY_LOOKUP.put(type.key.toLowerCase().replace('-', '_'), type);
+            if (type.vanillaAttributeKey != null) {
+                KEY_LOOKUP.put("vanilla-" + type.key.toLowerCase(), type);
+                KEY_LOOKUP.put("vanilla_" + type.key.toLowerCase().replace('-', '_'), type);
+                KEY_LOOKUP.put(type.vanillaAttributeKey.toLowerCase(), type);
+                KEY_LOOKUP.put("generic." + type.vanillaAttributeKey.toLowerCase(), type);
+                KEY_LOOKUP.put("generic_" + type.vanillaAttributeKey.toLowerCase(), type);
+            }
         }
-        // Legacy alias migration: damage-redution -> DAMAGE_REDUCTION
+        // Aliases
         KEY_LOOKUP.put("damage-redution", DAMAGE_REDUCTION);
+        KEY_LOOKUP.put("critical-rate", CRIT_RATE);
+        KEY_LOOKUP.put("critical_rate", CRIT_RATE);
+        KEY_LOOKUP.put("critical-damage", CRIT_DAMAGE);
+        KEY_LOOKUP.put("critical_damage", CRIT_DAMAGE);
+        KEY_LOOKUP.put("hp", MAX_HEALTH);
+        KEY_LOOKUP.put("health", MAX_HEALTH);
+        KEY_LOOKUP.put("maxhealth", MAX_HEALTH);
+        KEY_LOOKUP.put("speed", MOVEMENT_SPEED);
+        KEY_LOOKUP.put("move-speed", MOVEMENT_SPEED);
+        KEY_LOOKUP.put("movespeed", MOVEMENT_SPEED);
+        KEY_LOOKUP.put("damage", ATTACK_DAMAGE);
+        KEY_LOOKUP.put("dmg", ATTACK_DAMAGE);
+        KEY_LOOKUP.put("def", DEFENSE);
+        KEY_LOOKUP.put("crit", CRIT_RATE);
     }
 
     StatType(String key, String defaultDisplayName, String vanillaAttributeKey) {
@@ -66,12 +89,22 @@ public enum StatType {
     }
 
     /**
-     * Resolves the official Vanilla Attribute dynamically from Bukkit's Registry.
+     * Resolves the official Vanilla Attribute dynamically from Bukkit's Registry or Enum.
      */
     public Attribute getVanillaAttribute() {
+        try {
+            return Attribute.valueOf(name());
+        } catch (Throwable ignored) {}
+
         if (vanillaAttributeKey == null) return null;
         try {
-            return Registry.ATTRIBUTE.get(NamespacedKey.minecraft(vanillaAttributeKey));
+            if (org.bukkit.Bukkit.getServer() == null) return null;
+            Attribute attr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(vanillaAttributeKey));
+            if (attr != null) return attr;
+            attr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic." + vanillaAttributeKey));
+            if (attr != null) return attr;
+            attr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("player." + vanillaAttributeKey));
+            return attr;
         } catch (Throwable t) {
             return null;
         }

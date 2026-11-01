@@ -1,15 +1,17 @@
 package com.github.orenaidaucac.royItems.item;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Thread-safe registry holding all loaded ItemDefinitions.
+ * Thread-safe, insertion-ordered registry holding all loaded ItemDefinitions.
+ * Preserves the file configuration order (top-to-bottom).
  */
 public class ItemRegistry {
 
     // Key format: "TYPE:ID" (upper-case TYPE, lower-case ID)
-    private final Map<String, ItemDefinition> definitions = new ConcurrentHashMap<>();
+    private final Map<String, ItemDefinition> definitions = new LinkedHashMap<>();
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private String buildKey(ItemType type, String id) {
         if (type == null || id == null) return null;
@@ -20,48 +22,89 @@ public class ItemRegistry {
         if (definition == null) return;
         String key = buildKey(definition.getType(), definition.getId());
         if (key != null) {
-            definitions.put(key, definition);
+            rwLock.writeLock().lock();
+            try {
+                definitions.put(key, definition);
+            } finally {
+                rwLock.writeLock().unlock();
+            }
         }
     }
 
     public void unregister(ItemType type, String id) {
         String key = buildKey(type, id);
         if (key != null) {
-            definitions.remove(key);
+            rwLock.writeLock().lock();
+            try {
+                definitions.remove(key);
+            } finally {
+                rwLock.writeLock().unlock();
+            }
         }
     }
 
     public ItemDefinition get(ItemType type, String id) {
         String key = buildKey(type, id);
         if (key == null) return null;
-        return definitions.get(key);
+        rwLock.readLock().lock();
+        try {
+            return definitions.get(key);
+        } finally {
+            rwLock.readLock().unlock();
+        }
     }
 
     public boolean has(ItemType type, String id) {
         String key = buildKey(type, id);
-        return key != null && definitions.containsKey(key);
+        if (key == null) return false;
+        rwLock.readLock().lock();
+        try {
+            return definitions.containsKey(key);
+        } finally {
+            rwLock.readLock().unlock();
+        }
     }
 
     public List<ItemDefinition> getByType(ItemType type) {
         List<ItemDefinition> list = new ArrayList<>();
         if (type == null) return list;
-        for (ItemDefinition def : definitions.values()) {
-            if (def.getType() == type) {
-                list.add(def);
+        rwLock.readLock().lock();
+        try {
+            for (ItemDefinition def : definitions.values()) {
+                if (def.getType() == type) {
+                    list.add(def);
+                }
             }
+            return list;
+        } finally {
+            rwLock.readLock().unlock();
         }
-        return list;
     }
 
     public Collection<ItemDefinition> getAll() {
-        return Collections.unmodifiableCollection(definitions.values());
+        rwLock.readLock().lock();
+        try {
+            return Collections.unmodifiableList(new ArrayList<>(definitions.values()));
+        } finally {
+            rwLock.readLock().unlock();
+        }
     }
 
     public void clear() {
-        definitions.clear();
+        rwLock.writeLock().lock();
+        try {
+            definitions.clear();
+        } finally {
+            rwLock.writeLock().unlock();
+        }
     }
 
     public int size() {
-        return definitions.size();
+        rwLock.readLock().lock();
+        try {
+            return definitions.size();
+        } finally {
+            rwLock.readLock().unlock();
+        }
     }
 }

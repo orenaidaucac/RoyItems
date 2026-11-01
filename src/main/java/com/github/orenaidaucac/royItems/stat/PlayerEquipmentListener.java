@@ -1,5 +1,6 @@
 package com.github.orenaidaucac.royItems.stat;
 
+import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.item.ItemPDCManager;
@@ -11,13 +12,16 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Event-driven listener tracking player gear changes to update stat caches without continuous tick polling.
+ * Event-driven listener tracking player gear changes to update stat caches and
+ * synchronize player attributes without continuous tick polling.
  */
 public class PlayerEquipmentListener implements Listener {
 
@@ -67,7 +71,49 @@ public class PlayerEquipmentListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            // Schedule recalculate after click processing is finished
+            scheduler.runEntity(player, () -> statManager.recalculate(player));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            scheduler.runEntity(player, () -> statManager.recalculate(player));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            Player player = event.getPlayer();
+            ItemStack item = event.getItem();
+            if (item != null) {
+                scheduler.runEntity(player, () -> statManager.recalculate(player));
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onArmorChange(PlayerArmorChangeEvent event) {
+        Player player = event.getPlayer();
+        scheduler.runEntity(player, () -> statManager.recalculate(player));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        scheduler.runEntityDelayed(player, () -> statManager.recalculate(player), 1L);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onItemBreak(PlayerItemBreakEvent event) {
+        Player player = event.getPlayer();
+        scheduler.runEntity(player, () -> statManager.recalculate(player));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
             scheduler.runEntity(player, () -> statManager.recalculate(player));
         }
     }
@@ -76,16 +122,14 @@ public class PlayerEquipmentListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         scheduler.runEntityDelayed(player, () -> {
-            // 1. LiveUpdate check for outdated items
             liveUpdateService.updatePlayer(player);
-            // 2. Initial stat cache calculation
             statManager.recalculate(player);
         }, 1L);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        statManager.removePlayer(event.getPlayer().getUniqueId());
+        statManager.cleanupPlayer(event.getPlayer());
     }
 
     private void checkHandRequirement(Player player, ItemStack item) {

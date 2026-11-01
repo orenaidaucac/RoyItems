@@ -24,6 +24,8 @@ import com.github.orenaidaucac.royItems.tier_set.ItemTierManager;
 import com.github.orenaidaucac.royItems.tier_set.TierDropGlowListener;
 import com.github.orenaidaucac.royItems.mechanics.DamageParticleFilterManager;
 import com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -62,6 +64,8 @@ public final class RoyItems extends JavaPlugin {
     private UpdateChecker updateChecker;
     private TierDropGlowListener tierDropGlowListener;
     private DamageParticleFilterManager particleFilterManager;
+    private com.github.orenaidaucac.royItems.station.CraftingStationManager craftingStationManager;
+    private com.github.orenaidaucac.royItems.dummy.DummyManager dummyManager;
 
     public static RoyItems getInstance() {
         return instance;
@@ -70,6 +74,7 @@ public final class RoyItems extends JavaPlugin {
     public PlatformScheduler getPlatformScheduler() { return platformScheduler; }
     public ItemPDCManager getItemPDCManager() { return itemPDCManager; }
     public DynamicLoreEngine getDynamicLoreEngine() { return dynamicLoreEngine; }
+    public com.github.orenaidaucac.royItems.dummy.DummyManager getDummyManager() { return dummyManager; }
     public ItemRegistry getItemRegistry() { return itemRegistry; }
     public ItemBuilder getItemBuilder() { return itemBuilder; }
     public ItemConfigManager getItemConfigManager() { return itemConfigManager; }
@@ -85,6 +90,7 @@ public final class RoyItems extends JavaPlugin {
     public GemSocketManager getGemSocketManager() { return gemSocketManager; }
     public IntegrationManager getIntegrationManager() { return integrationManager; }
     public EditorGUIManager getEditorGUIManager() { return editorGUIManager; }
+    public com.github.orenaidaucac.royItems.station.CraftingStationManager getCraftingStationManager() { return craftingStationManager; }
     public RoyMetricsManager getMetricsManager() { return metricsManager; }
     public MessageManager getMessageManager() { return messageManager; }
     public ConfigMigrator getConfigMigrator() { return configMigrator; }
@@ -148,6 +154,7 @@ public final class RoyItems extends JavaPlugin {
         this.integrationManager.initialize(statManager, itemPDCManager, itemRegistry);
 
         this.requirementChecker = new RequirementChecker(integrationManager);
+        this.statManager.setRequirementChecker(this.requirementChecker);
         this.expirationManager = new ExpirationManager(itemPDCManager, platformScheduler);
         this.cooldownManager = new CooldownManager();
         this.potionEffectManager = new PotionEffectManager(itemRegistry, itemPDCManager, platformScheduler);
@@ -156,6 +163,11 @@ public final class RoyItems extends JavaPlugin {
 
         // 9. Ingame GUI Editor
         this.editorGUIManager = new EditorGUIManager(this, itemRegistry, itemConfigManager, itemBuilder, platformScheduler);
+
+        // 9.5. Crafting Station Engine
+        this.craftingStationManager = new com.github.orenaidaucac.royItems.station.CraftingStationManager(
+                this, itemRegistry, itemPDCManager, itemBuilder, integrationManager);
+        this.craftingStationManager.initialize();
 
         // 10. Update Checker (Asynchronous & Admin-Only Notification)
         this.updateChecker = new UpdateChecker(this, platformScheduler);
@@ -167,6 +179,10 @@ public final class RoyItems extends JavaPlugin {
         // 12. Damage Heart Particle Filter (PacketEvents / ProtocolLib)
         this.particleFilterManager = new DamageParticleFilterManager(this);
         this.particleFilterManager.initialize();
+
+        // 12.5. Packet-based Training Dummy System
+        this.dummyManager = new com.github.orenaidaucac.royItems.dummy.DummyManager(this);
+        this.dummyManager.initialize();
 
         // 13. Register Event Listeners
         registerListeners();
@@ -191,10 +207,8 @@ public final class RoyItems extends JavaPlugin {
     public void onDisable() {
         getLogger().info("Disabling RoyItems...");
 
-        // 1. Close all active GUI windows to prevent ghost sessions / memory leaks
-        if (editorGUIManager != null) {
-            editorGUIManager.closeAll();
-        }
+        // 1. Close all active GUI windows across all players to prevent dupes, ghost sessions, or errors
+        closeAllActiveGuis();
 
         // 2. Cleanup Tier Drop Glow Teams
         if (tierDropGlowListener != null) {
@@ -206,12 +220,47 @@ public final class RoyItems extends JavaPlugin {
             particleFilterManager.disable();
         }
 
-        // 4. Cancel all scheduled platform tasks
+        // 4. Cleanup Packet Training Dummies (destroys client packets to prevent ghost entities/holograms)
+        if (dummyManager != null) {
+            dummyManager.cleanup();
+        }
+
+        // 5. Cleanup Player Stat Attribute Modifiers
+        if (statManager != null) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                statManager.cleanupPlayer(player);
+            }
+        }
+
+        // 6. Cancel all scheduled platform tasks
         if (platformScheduler != null) {
             platformScheduler.cancelAllTasks();
         }
 
         getLogger().info("RoyItems disabled cleanly.");
+    }
+
+    /**
+     * Closes every single open GUI belonging to RoyItems for all players online.
+     * Prevents duplication or crashes during reloads or plugin disable (e.g. via PlugmanX).
+     */
+    public void closeAllActiveGuis() {
+        if (editorGUIManager != null) {
+            editorGUIManager.closeAll();
+        }
+        if (craftingStationManager != null) {
+            craftingStationManager.closeAllOpenGuis();
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                if (player.getOpenInventory() != null && player.getOpenInventory().getTopInventory() != null) {
+                    var holder = player.getOpenInventory().getTopInventory().getHolder();
+                    if (holder != null && holder.getClass().getName().contains("triumphteam.gui")) {
+                        player.closeInventory();
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
     }
 
     /**
@@ -231,10 +280,13 @@ public final class RoyItems extends JavaPlugin {
             configMigrator.migrateAll();
         }
 
-        // 1. Close active GUI editor sessions and reload GUI configs
+        // 1. Close active GUI editor sessions and station GUIs
+        closeAllActiveGuis();
         if (editorGUIManager != null) {
-            editorGUIManager.closeAll();
             editorGUIManager.reloadConfig();
+        }
+        if (craftingStationManager != null) {
+            craftingStationManager.loadAll();
         }
 
         // 2. Reload main config, combat defense engine, and update checker
@@ -268,7 +320,13 @@ public final class RoyItems extends JavaPlugin {
         // 6. Reload Items from item/<TYPE>.yml
         itemConfigManager.loadAll();
 
-        // 7. Trigger LiveUpdate across all online players and report statistics
+        // 7. Refresh Packet Training Dummies (cleans up & reloads client models)
+        if (dummyManager != null) {
+            dummyManager.cleanup();
+            dummyManager.initialize();
+        }
+
+        // 8. Trigger LiveUpdate across all online players and report statistics
         liveUpdateService.updateAllOnlinePlayers(report -> {
             if (messageManager != null) {
                 if (sender != null) {
@@ -300,6 +358,9 @@ public final class RoyItems extends JavaPlugin {
         pm.registerEvents(new UpdateListener(this, updateChecker, platformScheduler), this);
         if (tierDropGlowListener != null) {
             pm.registerEvents(tierDropGlowListener, this);
+        }
+        if (dummyManager != null) {
+            pm.registerEvents(new com.github.orenaidaucac.royItems.dummy.DummyAttackListener(dummyManager), this);
         }
     }
 
