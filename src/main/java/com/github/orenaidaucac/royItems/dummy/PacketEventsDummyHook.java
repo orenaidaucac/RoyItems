@@ -38,6 +38,11 @@ public class PacketEventsDummyHook implements DummyPacketHook {
                 if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
                     try {
                         WrapperPlayClientInteractEntity packet = new WrapperPlayClientInteractEntity(event);
+                        // Only register ATTACK (left-click). Ignore right-click (INTERACT / INTERACT_AT) entirely
+                        if (packet.getAction() != WrapperPlayClientInteractEntity.InteractAction.ATTACK) {
+                            return;
+                        }
+
                         int targetId = packet.getEntityId();
                         TrainingDummy dummy = dummyManager.getDummyByEntityId(targetId);
                         if (dummy != null) {

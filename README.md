@@ -214,6 +214,9 @@ Test player weapon damage, critical strikes, and output DPS in real time using c
 * 🚀 **Zero Server Overhead:** Dummies and holograms exist purely client-side via network packets. Never burdens the server tick loop or main thread.
 * 🛡️ **Airtight Immunity:** Immune to `/kill @e`, clear-lag entity purges, and server mob sweeps.
 * 🌐 **WorldGuard Region Bypass:** Bypasses region flags and world gamerules to spawn and register attacks reliably in any protected spawn or arena.
+* ⚔️ **True Final Output Damage:** Accurately recognizes total output damage across weapon stats, attack cooldown charging, enchantments (Sharpness, Smite on undead, Bane of Arthropods, Impaling), Strength/Weakness potions, vanilla jump crits, and Mace smash attacks.
+* 🏹 **Full Projectile Support:** In-flight tracking and hit collision for Bows, Crossbows, and thrown Tridents, calculating arrow velocity, Power enchantments, and ranged stats.
+* 🚫 **Right-Click Attack Blocked:** Only legitimate melee strikes and projectile hits deal damage; right-click interactions are completely ignored.
 * 📊 **Text Display Hologram:** Displays real-time **DPS**, **Total Damage**, **Last Hit**, and **Hit Count** using customizable MiniMessage and RGB colors.
 * ⚙️ **Per-Dummy Configuration:** Configurable in `plugins/RoyItems/dummy/<dummy_id>.yml` (custom idle & active lines, billboard mode, shadow, background ARGB color, and reset timeout).
 * 🔄 **PlugmanX & Reload Safe:** Automatically cleans up and resynchronizes upon server reload or hot-reloading via PlugmanX, preventing ghost entities or desynced text displays.

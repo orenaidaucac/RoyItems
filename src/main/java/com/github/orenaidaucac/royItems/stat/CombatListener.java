@@ -53,14 +53,6 @@ public class CombatListener implements Listener {
         if (attackerPlayer != null) {
             PlayerStatCache attackerCache = statManager.getCache(attackerPlayer);
 
-            // Override base damage with RoyItems custom attack-damage if configured
-            if (!isArrow) {
-                double customDmg = attackerCache.calculateTotal(StatType.ATTACK_DAMAGE, 0.0);
-                if (customDmg > 0.001) {
-                    damage = customDmg;
-                }
-            }
-
             // Arrow damage bonus
             if (isArrow) {
                 double arrowBonus = attackerCache.calculateTotal(StatType.ARROW_DAMAGE, 0.0);

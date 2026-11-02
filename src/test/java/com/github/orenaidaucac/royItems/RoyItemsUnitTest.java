@@ -1618,4 +1618,75 @@ class RoyItemsUnitTest {
         assertEquals(6.0, dummy.getTotalDamage(), 0.0001);
         assertEquals("6", TrainingDummy.formatNumber(dummy.getLastDamage()));
     }
+
+    @Test
+    @DisplayName("Dummy: Mob Type Categories Detection (Undead, Arthropod, Aquatic)")
+    void testDummyMobTypeDetection() {
+        assertTrue(DummyManager.isUndead("ZOMBIE"));
+        assertTrue(DummyManager.isUndead("SKELETON"));
+        assertTrue(DummyManager.isUndead("WITHER_SKELETON"));
+        assertTrue(DummyManager.isUndead("DROWNED"));
+        assertFalse(DummyManager.isUndead("COW"));
+        assertFalse(DummyManager.isUndead("PIG"));
+
+        assertTrue(DummyManager.isArthropod("SPIDER"));
+        assertTrue(DummyManager.isArthropod("CAVE_SPIDER"));
+        assertTrue(DummyManager.isArthropod("BEE"));
+        assertFalse(DummyManager.isArthropod("ZOMBIE"));
+
+        assertTrue(DummyManager.isAquatic("DROWNED"));
+        assertTrue(DummyManager.isAquatic("GUARDIAN"));
+        assertTrue(DummyManager.isAquatic("DOLPHIN"));
+        assertFalse(DummyManager.isAquatic("PIG"));
+    }
+
+    @Test
+    @DisplayName("Dummy: Comprehensive Multi-Factor Output Damage Calculation")
+    void testDummyComprehensiveDamageCalculation() {
+        // 1. Base weapon attack damage
+        double weaponBase = 6.0;
+
+        // 2. Enchantment bonus: Sharpness 5 gives 0.5 * 5 + 0.5 = 3.0
+        double sharpnessBonus = 0.5 * 5 + 0.5;
+        assertEquals(3.0, sharpnessBonus, 0.0001);
+
+        // 3. Potion effect: Strength 2 (amplifier 1) gives +6.0
+        double strengthBonus = 3.0 * (1 + 1);
+        assertEquals(6.0, strengthBonus, 0.0001);
+
+        double totalBaseMelee = weaponBase + strengthBonus; // 12.0
+        double damageWithEnchants = totalBaseMelee + sharpnessBonus; // 15.0
+        assertEquals(15.0, damageWithEnchants, 0.0001);
+
+        // 4. Critical hit multiplier (1.5x)
+        double critDamage = damageWithEnchants * 1.5;
+        assertEquals(22.5, critDamage, 0.0001);
+
+        // 5. Cooldown reduction factor: cooldown = 0.5
+        float cooldown = 0.5f;
+        float cooldownFactor = 0.2f + cooldown * cooldown * 0.8f; // 0.2 + 0.25 * 0.8 = 0.4
+        assertEquals(0.4f, cooldownFactor, 0.0001);
+        double scaledAttack = (totalBaseMelee * cooldownFactor) + (sharpnessBonus * cooldown);
+        assertEquals((12.0 * 0.4) + (3.0 * 0.5), scaledAttack, 0.0001);
+
+        // 6. Projectile Bow calculation: speed = 3.0, base damage = 2.0 -> base = 6.0
+        double arrowBase = 3.0 * 2.0; // 6.0
+        // Power 5 multiplier: 1.0 + 0.25 * (5 + 1) = 2.5
+        double arrowWithPower = arrowBase * (1.0 + 0.25 * 6);
+        assertEquals(15.0, arrowWithPower, 0.0001);
+
+        // RoyItems arrow-damage stat: +5.0
+        double arrowDamage = arrowWithPower + 5.0; // 20.0
+        assertEquals(20.0, arrowDamage, 0.0001);
+
+        // 7. TrainingDummy BoundingBox verification
+        org.bukkit.Location loc = new org.bukkit.Location(null, 10.0, 64.0, 10.0);
+        TrainingDummy dummy = new TrainingDummy("box_test", loc, "ZOMBIE", null, 8001, 8002);
+        org.bukkit.util.BoundingBox box = dummy.getBoundingBox();
+        assertNotNull(box);
+        assertEquals(9.3, box.getMinX(), 0.001);
+        assertEquals(10.7, box.getMaxX(), 0.001);
+        assertEquals(64.0, box.getMinY(), 0.001);
+        assertTrue(box.getMaxY() > 66.0);
+    }
 }

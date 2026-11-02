@@ -9,15 +9,25 @@ import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Trident;
+import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -40,8 +50,26 @@ public class DummyManager {
     private DummyPacketHook packetHook;
     private final Map<String, TrainingDummy> dummies = new ConcurrentHashMap<>();
     private final Map<Integer, TrainingDummy> entityIdLookup = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> playerLastEventTime = new ConcurrentHashMap<>();
     private final Map<UUID, Long> playerLastAttackTime = new ConcurrentHashMap<>();
     private final AtomicInteger entityIdCounter = new AtomicInteger(1_500_000);
+    private final Map<UUID, ProjectileTracker> activeProjectiles = new ConcurrentHashMap<>();
+
+    public static class ProjectileTracker {
+        final WeakReference<Projectile> projectileRef;
+        final UUID shooterId;
+        Location lastLocation;
+        final long spawnTime;
+        final ItemStack weaponUsed;
+
+        public ProjectileTracker(Projectile projectile, Player shooter, ItemStack weaponUsed) {
+            this.projectileRef = new WeakReference<>(projectile);
+            this.shooterId = shooter.getUniqueId();
+            this.lastLocation = projectile.getLocation().clone();
+            this.spawnTime = System.currentTimeMillis();
+            this.weaponUsed = weaponUsed != null ? weaponUsed.clone() : null;
+        }
+    }
 
     public DummyManager(RoyItems plugin) {
         this.plugin = plugin;
@@ -72,6 +100,9 @@ public class DummyManager {
 
         // 3. Start background ticker for proximity tracking, smooth rotation, and session expiration
         startTicker();
+
+        // 4. Start 1-tick background ticker for in-flight projectile collision tracking
+        startProjectileTicker();
     }
 
     private boolean isPluginAvailable(String name) {
@@ -205,11 +236,7 @@ public class DummyManager {
             if (distSq > (maxReach + 2.0) * (maxReach + 2.0)) continue;
 
             // Bounding box for the dummy mob + hologram
-            double height = dummy.getHologramHeight() + 0.6;
-            BoundingBox box = new BoundingBox(
-                    dLoc.getX() - 0.7, dLoc.getY(), dLoc.getZ() - 0.7,
-                    dLoc.getX() + 0.7, dLoc.getY() + height, dLoc.getZ() + 0.7
-            );
+            BoundingBox box = dummy.getBoundingBox();
 
             RayTraceResult hit = box.rayTrace(eye.toVector(), dir, maxReach);
             if (hit != null) {
@@ -239,87 +266,424 @@ public class DummyManager {
     }
 
     /**
-     * Handles attack packet from client when player left-clicks the packet dummy.
+     * Registers active projectiles fired by players (Arrows, Tridents, etc.)
+     * for real-time in-flight collision detection against packet dummies.
      */
-    public void handlePlayerAttack(Player player, TrainingDummy dummy) {
-        if (player == null || dummy == null) return;
-
-        // 200ms debounce prevents double hits between PacketEvents INTERACT_ENTITY and Bukkit Arm Swing raytrace
-        long now = System.currentTimeMillis();
-        Long lastTime = playerLastAttackTime.get(player.getUniqueId());
-        if (lastTime != null && (now - lastTime) < 200L) {
-            return;
+    public void registerActiveProjectile(Projectile proj, Player player) {
+        if (proj == null || player == null || dummies.isEmpty()) return;
+        ItemStack weapon = player.getInventory().getItemInMainHand();
+        if (weapon == null || weapon.getType() == Material.AIR) {
+            weapon = player.getInventory().getItemInOffHand();
         }
-        playerLastAttackTime.put(player.getUniqueId(), now);
+        activeProjectiles.put(proj.getUniqueId(), new ProjectileTracker(proj, player, weapon));
+    }
+
+    private void startProjectileTicker() {
+        plugin.getPlatformScheduler().runGlobalTimer(this::tickActiveProjectiles, 1L, 1L);
+    }
+
+    private void tickActiveProjectiles() {
+        if (activeProjectiles.isEmpty() || dummies.isEmpty()) return;
+        long now = System.currentTimeMillis();
+
+        for (Iterator<Map.Entry<UUID, ProjectileTracker>> it = activeProjectiles.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<UUID, ProjectileTracker> entry = it.next();
+            ProjectileTracker tracker = entry.getValue();
+            Projectile proj = tracker.projectileRef.get();
+
+            if (proj == null || !proj.isValid() || proj.isDead() || proj.isOnGround() || (now - tracker.spawnTime > 15000L)) {
+                it.remove();
+                continue;
+            }
+
+            Location current = proj.getLocation();
+            Location previous = tracker.lastLocation;
+            tracker.lastLocation = current.clone();
+
+            if (current.getWorld() == null || previous.getWorld() == null || !current.getWorld().equals(previous.getWorld())) {
+                it.remove();
+                continue;
+            }
+
+            Vector seg = current.toVector().subtract(previous.toVector());
+            double dist = seg.length();
+            if (dist > 0.001) {
+                Vector dir = seg.clone().normalize();
+                for (TrainingDummy dummy : dummies.values()) {
+                    if (dummy.getLocation().getWorld() == null || !dummy.getLocation().getWorld().equals(current.getWorld())) continue;
+                    BoundingBox box = dummy.getBoundingBox();
+                    RayTraceResult hit = box.rayTrace(previous.toVector(), dir, dist + 0.35);
+                    if (hit != null || box.contains(current.toVector())) {
+                        Player shooter = Bukkit.getPlayer(tracker.shooterId);
+                        if (shooter != null && shooter.isOnline()) {
+                            handleProjectileDamage(shooter, dummy, proj, tracker.weaponUsed);
+                        }
+                        try {
+                            proj.remove();
+                        } catch (Throwable ignored) {}
+                        it.remove();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Fallback collision check triggered when a projectile lands near a dummy.
+     */
+    public void handleProjectileHitFallback(Projectile proj, Player player, ProjectileHitEvent event) {
+        if (proj == null || player == null || dummies.isEmpty()) return;
+        activeProjectiles.remove(proj.getUniqueId());
+
+        Location hitLoc = event.getHitBlock() != null
+                ? event.getHitBlock().getLocation().clone().add(0.5, 0.5, 0.5)
+                : proj.getLocation();
+
+        for (TrainingDummy dummy : dummies.values()) {
+            if (dummy.getLocation().getWorld() == null || !dummy.getLocation().getWorld().equals(hitLoc.getWorld())) continue;
+            BoundingBox box = dummy.getBoundingBox();
+            Vector eye = player.getEyeLocation().toVector();
+            Vector toHit = hitLoc.toVector().subtract(eye);
+            double maxDist = toHit.length();
+            if (maxDist < 0.1) continue;
+
+            RayTraceResult hit = box.rayTrace(eye, toHit.clone().normalize(), maxDist);
+            if (hit != null || hitLoc.distanceSquared(dummy.getLocation().clone().add(0, 1.0, 0)) <= 2.8 * 2.8) {
+                handleProjectileDamage(player, dummy, proj, player.getInventory().getItemInMainHand());
+                try {
+                    proj.remove();
+                } catch (Throwable ignored) {}
+                break;
+            }
+        }
+    }
+
+    /**
+     * Calculates authentic, fair outgoing projectile damage (bow, crossbow, thrown trident)
+     * including arrow velocity, Power/Impaling enchantments, RoyItems stats, and critical strikes.
+     */
+    public void handleProjectileDamage(Player player, TrainingDummy dummy, Projectile proj, ItemStack weapon) {
+        if (player == null || dummy == null || proj == null) return;
 
         plugin.getPlatformScheduler().runEntity(player, () -> {
             PlayerStatCache cache = plugin.getStatManager().getCache(player);
 
-            // 1. Compute weapon base attack damage from RoyItems custom stats or fallback to vanilla attribute instance
-            double customDamage = cache.calculateTotal(StatType.ATTACK_DAMAGE, 0.0);
-            double baseDamage;
-            if (customDamage > 0.001) {
-                baseDamage = customDamage;
-            } else {
-                double vanillaDamage = 1.0;
-                try {
-                    Attribute dmgAttr = Attribute.ATTACK_DAMAGE;
-                    if (dmgAttr == null) {
-                        dmgAttr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic.attack_damage"));
+            double baseDamage = 8.0;
+            boolean isArrowCrit = false;
+
+            if (proj instanceof AbstractArrow arrow) {
+                double speed = arrow.getVelocity().length();
+                if (speed < 0.1) speed = 2.5; // Default charged speed fallback
+                baseDamage = speed * arrow.getDamage();
+                isArrowCrit = arrow.isCritical();
+                if (isArrowCrit) {
+                    baseDamage += (ThreadLocalRandom.current().nextDouble() * (baseDamage / 2.0 + 1.0));
+                }
+                // Arrow power enchantment
+                if (weapon != null) {
+                    int power = weapon.getEnchantmentLevel(Enchantment.POWER);
+                    if (power > 0) {
+                        baseDamage *= (1.0 + 0.25 * (power + 1));
                     }
-                    if (dmgAttr != null) {
-                        AttributeInstance inst = player.getAttribute(dmgAttr);
-                        if (inst != null) {
-                            vanillaDamage = Math.max(1.0, inst.getValue());
+                }
+            } else if (proj instanceof Trident) {
+                baseDamage = 9.0;
+                if (weapon != null) {
+                    int impaling = weapon.getEnchantmentLevel(Enchantment.IMPALING);
+                    if (impaling > 0 && isAquatic(dummy.getMobTypeName())) {
+                        baseDamage += (2.5 * impaling);
+                    }
+                }
+            }
+
+            // Custom RoyItems arrow-damage stat
+            double customArrowDamage = cache.calculateTotal(StatType.ARROW_DAMAGE, 0.0);
+            baseDamage += customArrowDamage;
+
+            // Critical strike calculation
+            double critRate = cache.calculateTotal(StatType.CRIT_RATE, 0.0);
+            boolean isRoyCrit = (critRate > 0.0 && ThreadLocalRandom.current().nextDouble() * 100.0 < critRate);
+            boolean isCrit = isArrowCrit || isRoyCrit;
+
+            double finalDamage = baseDamage;
+            if (isCrit) {
+                double critBonus = cache.calculateTotal(StatType.CRIT_DAMAGE, 50.0);
+                double multiplier = Math.max(1.5, 1.0 + (critBonus / 100.0));
+                finalDamage *= multiplier;
+            }
+
+            // PvE Damage bonus
+            double pveBonus = cache.calculateTotal(StatType.PVE_DAMAGE, 0.0);
+            finalDamage += pveBonus;
+
+            applyDamageToDummy(player, dummy, finalDamage, isCrit, proj.getLocation(), true);
+        });
+    }
+
+    /**
+     * Handles authentic melee attack from client when player left-clicks the packet dummy.
+     * Accurately calculates the true final output damage based on player attribute attack power,
+     * weapon attack-damage, potion effects (Strength/Weakness), attack cooldown, enchantments
+     * (Sharpness/Smite/Bane/Impaling), Mace fall smashing, and critical strikes.
+     */
+    public void handlePlayerAttack(Player player, TrainingDummy dummy) {
+        if (player == null || dummy == null) return;
+
+        long now = System.currentTimeMillis();
+        UUID uuid = player.getUniqueId();
+
+        // 100ms debounce prevents duplicate hits between PacketEvents INTERACT_ENTITY and Bukkit Arm Swing raytrace
+        Long lastEvent = playerLastEventTime.get(uuid);
+        if (lastEvent != null && (now - lastEvent) < 100L) {
+            return;
+        }
+        playerLastEventTime.put(uuid, now);
+
+        // Previous attack timestamp for calculating authentic 1.9+ weapon swing cooldown
+        Long prevAttackTime = playerLastAttackTime.get(uuid);
+        playerLastAttackTime.put(uuid, now);
+
+        plugin.getPlatformScheduler().runEntity(player, () -> {
+            PlayerStatCache cache = plugin.getStatManager().getCache(player);
+            ItemStack weapon = player.getInventory().getItemInMainHand();
+
+            // 1. Resolve Player's True Attack Speed & Cooldown Factor
+            // When attacking client packet entities, the client sends an Arm Swing packet which resets
+            // Paper's internal attackStrengthTicker to 0 before this scheduler runs.
+            // We calculate authentic cooldown using generic.attack_speed and elapsed time since last hit.
+            double attackSpeed = 4.0;
+            try {
+                Attribute speedAttr = Attribute.ATTACK_SPEED;
+                if (speedAttr == null) {
+                    speedAttr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic.attack_speed"));
+                }
+                if (speedAttr != null) {
+                    AttributeInstance speedInst = player.getAttribute(speedAttr);
+                    if (speedInst != null) {
+                        attackSpeed = Math.max(0.1, speedInst.getValue());
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            double periodMillis = (1.0 / attackSpeed) * 1000.0;
+            float cooldown = 1.0f;
+            if (prevAttackTime != null) {
+                long elapsed = now - prevAttackTime;
+                if (elapsed < periodMillis) {
+                    cooldown = (float) Math.min(1.0, Math.max(0.1, (double) elapsed / periodMillis));
+                }
+            }
+            try {
+                cooldown = Math.max(cooldown, player.getAttackCooldown());
+            } catch (Throwable ignored) {}
+
+            // Snap near-full cooldown to 1.0f for smooth feel
+            if (cooldown >= 0.85f) {
+                cooldown = 1.0f;
+            }
+
+            // 2. Base Attack Power (Matches player's generic.attack_damage attribute)
+            double baseAttackPower = 1.0;
+            AttributeInstance inst = null;
+            try {
+                Attribute dmgAttr = Attribute.ATTACK_DAMAGE;
+                if (dmgAttr == null) {
+                    dmgAttr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic.attack_damage"));
+                }
+                if (dmgAttr != null) {
+                    inst = player.getAttribute(dmgAttr);
+                    if (inst != null) {
+                        baseAttackPower = Math.max(1.0, inst.getValue());
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            // Fallback safety if StatManager attribute sync is slightly delayed
+            double customWeaponDmg = cache.calculateTotal(StatType.ATTACK_DAMAGE, 0.0);
+            if (customWeaponDmg > 0.001) {
+                baseAttackPower = Math.max(baseAttackPower, 1.0 + customWeaponDmg);
+            }
+
+            // Potion effects: In Paper 1.20.5+, Strength/Weakness modify generic.attack_damage directly.
+            // If the attribute instance does not already contain the effect modifier, apply manually as fallback.
+            boolean hasStrengthMod = false;
+            boolean hasWeaknessMod = false;
+            if (inst != null) {
+                for (AttributeModifier m : inst.getModifiers()) {
+                    String mName = m.getName() != null ? m.getName().toLowerCase() : "";
+                    String mKey = m.getKey() != null ? m.getKey().getKey().toLowerCase() : "";
+                    if (mName.contains("strength") || mKey.contains("strength")) {
+                        hasStrengthMod = true;
+                    }
+                    if (mName.contains("weakness") || mKey.contains("weakness")) {
+                        hasWeaknessMod = true;
+                    }
+                }
+            }
+            if (!hasStrengthMod) {
+                PotionEffect strength = player.getPotionEffect(PotionEffectType.STRENGTH);
+                if (strength != null) {
+                    baseAttackPower += (3.0 * (strength.getAmplifier() + 1));
+                }
+            }
+            if (!hasWeaknessMod) {
+                PotionEffect weakness = player.getPotionEffect(PotionEffectType.WEAKNESS);
+                if (weakness != null) {
+                    baseAttackPower = Math.max(0.0, baseAttackPower - (4.0 * (weakness.getAmplifier() + 1)));
+                }
+            }
+
+            // 3. Attack Cooldown factor (Vanilla 1.9+ formula: 0.2 + cooldown^2 * 0.8)
+            float cooldownFactor = (cooldown >= 0.9f) ? 1.0f : (0.2f + cooldown * cooldown * 0.8f);
+            double scaledDamage = baseAttackPower * cooldownFactor;
+
+            // 4. Weapon Enchantments
+            double enchantBonus = 0.0;
+            if (weapon != null && weapon.getType() != Material.AIR) {
+                // Sharpness
+                int sharpness = weapon.getEnchantmentLevel(Enchantment.SHARPNESS);
+                if (sharpness > 0) {
+                    enchantBonus += (0.5 * sharpness + 0.5);
+                }
+
+                // Smite (undead mobs)
+                int smite = weapon.getEnchantmentLevel(Enchantment.SMITE);
+                if (smite > 0 && isUndead(dummy.getMobTypeName())) {
+                    enchantBonus += (2.5 * smite);
+                }
+
+                // Bane of Arthropods (arthropods)
+                int bane = weapon.getEnchantmentLevel(Enchantment.BANE_OF_ARTHROPODS);
+                if (bane > 0 && isArthropod(dummy.getMobTypeName())) {
+                    enchantBonus += (2.5 * bane);
+                }
+
+                // Impaling
+                int impaling = weapon.getEnchantmentLevel(Enchantment.IMPALING);
+                if (impaling > 0 && isAquatic(dummy.getMobTypeName())) {
+                    enchantBonus += (2.5 * impaling);
+                }
+
+                // Mace Density (1.21+)
+                try {
+                    Enchantment density = Registry.ENCHANTMENT.get(NamespacedKey.minecraft("density"));
+                    if (density != null) {
+                        int densityLvl = weapon.getEnchantmentLevel(density);
+                        if (densityLvl > 0 && player.getFallDistance() > 1.5f) {
+                            enchantBonus += (0.5 * densityLvl * player.getFallDistance());
                         }
                     }
                 } catch (Throwable ignored) {}
-                baseDamage = vanillaDamage;
             }
-            double critRate = cache.calculateTotal(StatType.CRIT_RATE, 0.0);
-            boolean isCrit = (critRate > 0.0 && ThreadLocalRandom.current().nextDouble() * 100.0 < critRate);
 
-            double damage = baseDamage;
+            // Enchantment damage scales with cooldown in vanilla
+            scaledDamage += (enchantBonus * cooldown);
+
+            // 5. Mace Smash Attack Bonus (Minecraft 1.21)
+            if (weapon != null && weapon.getType().name().equals("MACE") && player.getFallDistance() > 1.5f) {
+                float fall = player.getFallDistance();
+                double maceBonus;
+                if (fall <= 3.0f) {
+                    maceBonus = fall * 3.0;
+                } else if (fall <= 8.0f) {
+                    maceBonus = (3.0 * 3.0) + (fall - 3.0) * 1.5;
+                } else {
+                    maceBonus = (3.0 * 3.0) + (5.0 * 1.5) + (fall - 8.0) * 1.0;
+                }
+                scaledDamage += maceBonus;
+            }
+
+            // 6. Critical Hit: Natural Jump-Crit or RoyItems RPG Crit
+            boolean isVanillaCrit = (
+                    player.getFallDistance() > 0.0f
+                    && !player.isOnGround()
+                    && !player.isClimbing()
+                    && !player.isInWater()
+                    && !player.hasPotionEffect(PotionEffectType.BLINDNESS)
+                    && !player.isInsideVehicle()
+                    && !player.isSprinting()
+                    && cooldown >= 0.85f
+            );
+
+            double critRate = cache.calculateTotal(StatType.CRIT_RATE, 0.0);
+            boolean isRoyCrit = (critRate > 0.0 && ThreadLocalRandom.current().nextDouble() * 100.0 < critRate);
+            boolean isCrit = isVanillaCrit || isRoyCrit;
+
+            double finalDamage = scaledDamage;
             if (isCrit) {
                 double critBonus = cache.calculateTotal(StatType.CRIT_DAMAGE, 50.0);
-                damage *= (1.0 + (critBonus / 100.0));
+                double multiplier = Math.max(1.5, 1.0 + (critBonus / 100.0));
+                finalDamage *= multiplier;
             }
 
-            // PvE damage bonus
+            // 7. PvE Damage Bonus
             double pveBonus = cache.calculateTotal(StatType.PVE_DAMAGE, 0.0);
-            damage += pveBonus;
+            finalDamage += pveBonus;
 
-            // Record combat metrics in dummy
-            dummy.recordHit(damage, isCrit);
-
-            // Audio & Visual particles at dummy location
-            Location dLoc = dummy.getLocation();
-            if (dLoc.getWorld() != null) {
-                if (isCrit) {
-                    dLoc.getWorld().spawnParticle(Particle.CRIT, dLoc.clone().add(0, 1.2, 0), 15, 0.3, 0.3, 0.3, 0.1);
-                    player.playSound(dLoc, Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.9f, 1.15f);
-                } else {
-                    dLoc.getWorld().spawnParticle(Particle.SWEEP_ATTACK, dLoc.clone().add(0, 1.0, 0), 1);
-                    player.playSound(dLoc, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.8f, 1.0f);
-                }
-            }
-
-            // Broadcast hurt animation and hologram text update to attacking player and all tracking players
-            if (packetHook != null) {
-                dummy.getTrackingPlayers().add(player.getUniqueId());
-                packetHook.playHurtAnimation(player, dummy, isCrit);
-                packetHook.updateHologram(player, dummy);
-
-                for (UUID uuid : dummy.getTrackingPlayers()) {
-                    if (uuid.equals(player.getUniqueId())) continue;
-                    Player p = Bukkit.getPlayer(uuid);
-                    if (p != null && p.isOnline()) {
-                        packetHook.playHurtAnimation(p, dummy, isCrit);
-                        packetHook.updateHologram(p, dummy);
-                    }
-                }
-            }
+            applyDamageToDummy(player, dummy, finalDamage, isCrit, dummy.getLocation().clone().add(0, 1.0, 0), false);
         });
+    }
+
+    /**
+     * Applies final damage metrics and visual/audio feedback to the dummy and clients.
+     */
+    public void applyDamageToDummy(Player player, TrainingDummy dummy, double damage, boolean isCrit, Location hitLoc, boolean isProjectile) {
+        // Record combat metrics in dummy
+        dummy.recordHit(damage, isCrit);
+
+        // Audio & Visual particles at dummy location
+        Location dLoc = dummy.getLocation();
+        if (dLoc.getWorld() != null) {
+            Location fxLoc = hitLoc != null ? hitLoc : dLoc.clone().add(0, 1.0, 0);
+            if (isCrit) {
+                dLoc.getWorld().spawnParticle(Particle.CRIT, fxLoc, 15, 0.3, 0.3, 0.3, 0.1);
+                player.playSound(dLoc, Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.9f, 1.15f);
+            } else if (isProjectile) {
+                dLoc.getWorld().spawnParticle(Particle.CRIT, fxLoc, 6, 0.2, 0.2, 0.2, 0.05);
+                player.playSound(dLoc, Sound.ENTITY_ARROW_HIT_PLAYER, 0.9f, 1.0f);
+            } else {
+                dLoc.getWorld().spawnParticle(Particle.SWEEP_ATTACK, dLoc.clone().add(0, 1.0, 0), 1);
+                player.playSound(dLoc, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.8f, 1.0f);
+            }
+        }
+
+        // Broadcast hurt animation and hologram text update to attacking player and all tracking players
+        if (packetHook != null) {
+            dummy.getTrackingPlayers().add(player.getUniqueId());
+            packetHook.playHurtAnimation(player, dummy, isCrit);
+            packetHook.updateHologram(player, dummy);
+
+            for (UUID uuid : dummy.getTrackingPlayers()) {
+                if (uuid.equals(player.getUniqueId())) continue;
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    packetHook.playHurtAnimation(p, dummy, isCrit);
+                    packetHook.updateHologram(p, dummy);
+                }
+            }
+        }
+    }
+
+    public static boolean isUndead(String type) {
+        if (type == null) return false;
+        String t = type.toUpperCase();
+        return t.contains("ZOMBIE") || t.contains("SKELETON") || t.contains("WITHER")
+                || t.contains("DROWNED") || t.contains("STRAY") || t.contains("HUSK")
+                || t.contains("PHANTOM") || t.contains("ZOGLIN");
+    }
+
+    public static boolean isArthropod(String type) {
+        if (type == null) return false;
+        String t = type.toUpperCase();
+        return t.contains("SPIDER") || t.contains("SILVERFISH") || t.contains("ENDERMITE") || t.contains("BEE");
+    }
+
+    public static boolean isAquatic(String type) {
+        if (type == null) return false;
+        String t = type.toUpperCase();
+        return t.contains("GUARDIAN") || t.contains("DROWNED") || t.contains("TURTLE")
+                || t.contains("DOLPHIN") || t.contains("FISH") || t.contains("SQUID");
     }
 
     private void startTicker() {
@@ -657,6 +1021,8 @@ public class DummyManager {
         }
         dummies.clear();
         entityIdLookup.clear();
+        playerLastEventTime.clear();
         playerLastAttackTime.clear();
+        activeProjectiles.clear();
     }
 }

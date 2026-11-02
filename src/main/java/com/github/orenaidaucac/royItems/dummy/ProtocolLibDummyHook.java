@@ -37,7 +37,8 @@ public class ProtocolLibDummyHook implements DummyPacketHook {
                         event.setCancelled(true);
                         Player player = event.getPlayer();
                         EnumWrappers.EntityUseAction action = packet.getEntityUseActions().readSafely(0);
-                        if (action == EnumWrappers.EntityUseAction.ATTACK || action == null) {
+                        // Only register ATTACK (left-click). Ignore right-click entirely
+                        if (action == EnumWrappers.EntityUseAction.ATTACK) {
                             dummyManager.handlePlayerAttack(player, dummy);
                         }
                     }

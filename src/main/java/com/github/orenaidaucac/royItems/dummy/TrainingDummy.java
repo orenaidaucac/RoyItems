@@ -4,6 +4,7 @@ import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
+import org.bukkit.util.BoundingBox;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -307,8 +308,12 @@ public class TrainingDummy {
         lastHitTime = now;
         wasActiveBefore = true;
 
-        double elapsedSec = Math.max(0.5, (now - sessionStartTime) / 1000.0);
-        dps = totalDamage / elapsedSec;
+        if (hitCount <= 1) {
+            dps = totalDamage;
+        } else {
+            double elapsedSec = Math.max(0.1, (now - sessionStartTime) / 1000.0);
+            dps = totalDamage / elapsedSec;
+        }
     }
 
     /**
@@ -380,5 +385,17 @@ public class TrainingDummy {
             return 1.4;
         }
         return 2.2;
+    }
+
+    /**
+     * Gets the full bounding box of the dummy (mob model + hologram text).
+     */
+    public BoundingBox getBoundingBox() {
+        Location dLoc = location;
+        double height = getHologramHeight() + 0.6;
+        return new BoundingBox(
+                dLoc.getX() - 0.7, dLoc.getY(), dLoc.getZ() - 0.7,
+                dLoc.getX() + 0.7, dLoc.getY() + height, dLoc.getZ() + 0.7
+        );
     }
 }

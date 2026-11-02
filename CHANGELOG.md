@@ -31,6 +31,9 @@
   * Runs 100% client-side via PacketEvents / ProtocolLib with zero impact on server main thread or TPS.
   * Immune to `/kill @e`, clear-lag plugins, entity purges, and world mob sweeps.
   * WorldGuard bypass: Dummies spawn and register hits seamlessly inside protected regions, spawns, and PvP-disabled zones.
+  * **Comprehensive Outgoing Damage Engine:** Accurately recognizes the player's true final output damage when attacking the dummy, accounting for weapon attack cooldown, enchantments (Sharpness, Smite on undead, Bane of Arthropods, Impaling), Strength and Weakness potion effects, vanilla jump critical hits, Mace fall-distance smash attacks, and RoyItems RPG stats.
+  * **Real-Time Projectile Hit Detection:** Full support for ranged combat against dummies! Arrows shot from Bows/Crossbows and thrown Tridents are tracked in real time, detecting mid-air collisions with the dummy and calculating projectile velocity, Power/Impaling enchantments, and arrow stats.
+  * **Removed Right-Click Attacks:** Right-clicking dummies is completely blocked from registering attacks. Damage is exclusively triggered by legitimate melee strikes and projectile hits.
   * Text Display Holograms: Track and display real-time **DPS**, **Total Damage**, **Last Hit**, and **Hit Count** with MiniMessage and color gradients.
   * Per-dummy YAML configuration in `plugins/RoyItems/dummy/<dummy_id>.yml` for idle/combat lines, billboard angles, shadows, and background colors.
   * Safe hot-reload: No ghost entities or detached holograms when reloading via `/ri reload` or PlugmanX.
