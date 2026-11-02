@@ -191,6 +191,7 @@ recipes:
 ### Key Crafting Station Features:
 * 🌐 **Dynamic Client-Language Translation:** Vanilla ingredient names in dynamic lore translate automatically to match each player's Minecraft client language setting.
 * 📦 **Clean Output Stacking:** Items produced by recipes stack seamlessly without hidden NBT differences.
+* 🗄️ **ExtraStorage Integration:** Seamlessly pulls ingredients from both the player's Inventory and **ExtraStorage** (inventory prioritized first) with zero-dupe/loss atomic transaction safety. Dynamic lore supports `%have%`, `%storage_have%`, and `%inv_have%`.
 * ⚡ **Multi-Economy & Item Sources:** Supports RoyItems, Vanilla items, Vault Economy (`money=X`), Player Experience (`exp=X`), PlayerPoints (`point=X`), and ExcellentEconomy (`excellenteconomy:<id>=X`).
 * 🎨 **Rich Material Formats:** Icons & backgrounds support Vanilla materials, Nexo, ItemsAdder, Oraxen, HeadDatabase, and custom Base64 head skins (`basehead-<base64>`).
 * ⚡ **NPC Integration:** Directly open stations upon clicking NPCs from **FancyNpcs** or **Citizens**.
@@ -398,6 +399,7 @@ RoyItems is tested and natively integrated with:
 * 💰 **Economy, Placeholders & Skills:**
   * [Vault](https://www.spigotmc.org/resources/vault.34315/)
   * [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/)
+  * [ExtraStorage](https://github.com/HSGamer/ExtraStorage)
   * [MMOCore](https://www.spigotmc.org/resources/%E2%AD%90-mmocore-%E2%AD%90-classes-skills-levels-skill-trees-professions-mana-waypoints.70575/)
   * [AuraSkills](https://modrinth.com/plugin/auraskills)
 * 🛡️ **Combat & Protection:**
@@ -422,4 +424,4 @@ cd RoyItems
 mvn clean package
 ```
 
-The compiled JAR will be output to `target/RoyItems-2026.1.4.jar`.
+The compiled JAR will be output to `target/RoyItems-2026.1.5.jar`.

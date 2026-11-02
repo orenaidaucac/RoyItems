@@ -25,6 +25,7 @@ public class IntegrationManager {
     private ExcellentEconomyHook excellentEconomyHook;
     private CitizensHook citizensHook;
     private FancyNpcsHook fancyNpcsHook;
+    private ExtraStorageHook extraStorageHook;
 
     public IntegrationManager(Plugin plugin) {
         this.plugin = plugin;
@@ -84,6 +85,12 @@ public class IntegrationManager {
         worldGuardHook = new WorldGuardHook();
         if (worldGuardHook.setup()) {
             logger.info("Hooked into WorldGuard successfully.");
+        }
+
+        // ExtraStorage
+        extraStorageHook = new ExtraStorageHook();
+        if (extraStorageHook.setup()) {
+            logger.info("Hooked into ExtraStorage successfully.");
         }
 
         // PlaceholderAPI
@@ -167,5 +174,13 @@ public class IntegrationManager {
 
     public WorldGuardHook getWorldGuardHook() {
         return worldGuardHook;
+    }
+
+    public boolean hasExtraStorage() {
+        return extraStorageHook != null && extraStorageHook.isAvailable();
+    }
+
+    public ExtraStorageHook getExtraStorageHook() {
+        return extraStorageHook;
     }
 }

@@ -2,6 +2,7 @@ package com.github.orenaidaucac.royItems.dummy;
 
 import com.github.orenaidaucac.royItems.RoyItems;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
+import com.github.orenaidaucac.royItems.dummy.event.DummyDamageEvent;
 import com.github.orenaidaucac.royItems.stat.PlayerStatCache;
 import com.github.orenaidaucac.royItems.stat.StatType;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
@@ -19,6 +20,7 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Trident;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.BoundingBox;
@@ -365,6 +367,13 @@ public class DummyManager {
      */
     public void handleProjectileDamage(Player player, TrainingDummy dummy, Projectile proj, ItemStack weapon) {
         if (player == null || dummy == null || proj == null) return;
+        if (!player.isOnline() || player.isDead() || player.getGameMode() == GameMode.SPECTATOR) return;
+
+        // Prevent double hits from the same physical projectile
+        if (proj.hasMetadata("roy_dummy_hit_registered")) {
+            return;
+        }
+        proj.setMetadata("roy_dummy_hit_registered", new FixedMetadataValue(plugin, true));
 
         plugin.getPlatformScheduler().runEntity(player, () -> {
             PlayerStatCache cache = plugin.getStatManager().getCache(player);
@@ -417,6 +426,15 @@ public class DummyManager {
             double pveBonus = cache.calculateTotal(StatType.PVE_DAMAGE, 0.0);
             finalDamage += pveBonus;
 
+            // Fire DummyDamageEvent for cancellation and third-party modifications
+            DummyDamageEvent event = new DummyDamageEvent(player, dummy, finalDamage, isCrit, true);
+            Bukkit.getPluginManager().callEvent(event);
+            if (event.isCancelled() || event.getDamage() <= 0.0) {
+                return;
+            }
+            finalDamage = event.getDamage();
+            isCrit = event.isCrit();
+
             applyDamageToDummy(player, dummy, finalDamage, isCrit, proj.getLocation(), true);
         });
     }
@@ -429,6 +447,9 @@ public class DummyManager {
      */
     public void handlePlayerAttack(Player player, TrainingDummy dummy) {
         if (player == null || dummy == null) return;
+        if (!player.isOnline() || player.isDead() || player.getGameMode() == GameMode.SPECTATOR) return;
+        if (player.getWorld() == null || !player.getWorld().equals(dummy.getLocation().getWorld())) return;
+        if (player.getLocation().distanceSquared(dummy.getLocation()) > 36.0) return;
 
         long now = System.currentTimeMillis();
         UUID uuid = player.getUniqueId();
@@ -620,6 +641,15 @@ public class DummyManager {
             // 7. PvE Damage Bonus
             double pveBonus = cache.calculateTotal(StatType.PVE_DAMAGE, 0.0);
             finalDamage += pveBonus;
+
+            // Fire DummyDamageEvent for cancellation and third-party modifications
+            DummyDamageEvent event = new DummyDamageEvent(player, dummy, finalDamage, isCrit, false);
+            Bukkit.getPluginManager().callEvent(event);
+            if (event.isCancelled() || event.getDamage() <= 0.0) {
+                return;
+            }
+            finalDamage = event.getDamage();
+            isCrit = event.isCrit();
 
             applyDamageToDummy(player, dummy, finalDamage, isCrit, dummy.getLocation().clone().add(0, 1.0, 0), false);
         });

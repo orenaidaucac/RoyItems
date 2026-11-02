@@ -1,5 +1,45 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.5] - 2026-11-03
+
+### 🌟 Highlights
+* **ExtraStorage Crafting Integration:** Crafting Stations now seamlessly pull ingredients from both the player's Inventory and **ExtraStorage**, prioritizing inventory first with atomic transaction safety.
+* **Upgraded Dynamic Recipe Lore:** Real-time `%storage_have%` and unified `%have%` placeholders display live material counts in crafting menus.
+* **MMORPG DPS & Dummy Damage Overhaul:** Completely solved packet-entity cooldown resets, fixed the 10x damage drop, and introduced MMORPG-standard combat duration DPS metering.
+
+---
+
+### ✨ New Features & Enhancements
+
+* **ExtraStorage Native Integration:**
+  * Crafting Stations automatically detect ingredients stored inside player's **ExtraStorage** alongside their regular inventory.
+  * **Inventory-First Consumption:** When crafting, items are deducted from the player's inventory first; only the remaining shortage is taken from ExtraStorage.
+  * **Atomic Transaction Safety:** Strictly validates all recipe ingredients prior to consumption to eliminate any risk of item duplication, item loss, or partial deduction if storage transactions fail.
+  * **Seamless Fallback:** When ExtraStorage is not installed or disabled, crafting stations automatically fallback to standard player inventory.
+
+* **Enhanced Dynamic Lore Placeholders:**
+  * `%have%`: Displays the total combined quantity of the ingredient across **Inventory + ExtraStorage**.
+  * `%storage_have%`: Displays the exact quantity available in **ExtraStorage**.
+  * `%inv_have%`: Displays the quantity present directly in the player's **Inventory**.
+  * Dynamic recipe lore updates immediately in real-time without caching lag or performance overhead.
+
+* **MMORPG DPS Metering & Dummy Damage Accuracy:**
+  * **True Combat Duration DPS:** DPS calculation now follows MMORPG standards, measuring the exact combat interval between the first strike and the last blow. When combat ends, the final DPS score remains frozen during the reset countdown so players can accurately inspect their combat output.
+  * **True Cooldown Reconstruction:** Solved Paper's arm-swing packet ticker reset on packet entities by computing authentic weapon cooldown using `generic.attack_speed` and physical elapsed intervals. Full swings reliably deal 100% full attack damage with enchantments and jump crits.
+  * **Unified Outgoing Damage:** Base attack power now references the player's full `generic.attack_damage` attribute, incorporating vanilla material damage, RoyItems stats, potion effects, and third-party buffs.
+  * **`DummyDamageEvent` API:** Fired whenever a player damages a training dummy, allowing third-party plugins to inspect, scale, or cancel dummy strikes cleanly.
+  * **Projectile Deduplication & State Validation:** Dead, spectator, or out-of-range players cannot damage dummies, and projectile metadata safeguards prevent duplicate hits from arrows or thrown tridents.
+
+---
+
+### 🐛 Bug Fixes
+
+* **Fixed 10x Damage Reduction on Training Dummies:** Fixed a critical bug where attacking a packet dummy triggered client arm-swing packets that reset Paper's attack ticker to 0, causing `getAttackCooldown()` to report 0.04 and cutting damage output by 10x.
+* **Fixed Double DPS on First Hit:** Fixed an issue where the first strike on a dummy was divided by 0.5s, displaying double the actual DPS. First strikes now correctly report the hit damage.
+* **Fixed Projectile Collision Double Hits:** Resolved an edge-case where arrows landing near a dummy could trigger both the continuous raytrace ticker and the projectile hit fallback simultaneously.
+
+---
+
 ## [2026.1.4] - 2026-11-01
 
 ### 🌟 Highlights

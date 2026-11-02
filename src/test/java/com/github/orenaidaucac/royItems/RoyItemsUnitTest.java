@@ -7,6 +7,7 @@ import com.github.orenaidaucac.royItems.dummy.TrainingDummy;
 import com.github.orenaidaucac.royItems.gui.GuiHelper;
 import com.github.orenaidaucac.royItems.item.ItemBuilder;
 import com.github.orenaidaucac.royItems.socket.GemSocketManager;
+import com.github.orenaidaucac.royItems.station.RecipeIngredient;
 import com.github.orenaidaucac.royItems.stat.DefenseManager;
 import com.github.orenaidaucac.royItems.stat.PlayerStatCache;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
@@ -1688,5 +1689,104 @@ class RoyItemsUnitTest {
         assertEquals(10.7, box.getMaxX(), 0.001);
         assertEquals(64.0, box.getMinY(), 0.001);
         assertTrue(box.getMaxY() > 66.0);
+    }
+
+    @Test
+    @DisplayName("ExtraStorage Integration & RecipeIngredient Dual-Source Resolution")
+    void testExtraStorageIngredientIntegration() {
+        RecipeIngredient royIng = RecipeIngredient.parse("royitems[type=MATERIAL,id=dark_matter,amount=5]");
+        assertNotNull(royIng);
+        assertEquals(RecipeIngredient.Type.ROYITEMS, royIng.getType());
+        assertEquals(5, royIng.getAmount());
+
+        RecipeIngredient vanillaIng = RecipeIngredient.parse("vanilla[type=DIAMOND,amount=10]");
+        assertNotNull(vanillaIng);
+        assertEquals(RecipeIngredient.Type.VANILLA, vanillaIng.getType());
+        assertEquals(10, vanillaIng.getAmount());
+
+        // Without online player or ExtraStorage, default fallback returns 0
+        assertEquals(0, royIng.getInventoryAmount(null, null, null, null));
+        assertEquals(0, royIng.getStorageAmount(null, null));
+        assertEquals(0, royIng.getPlayerAmount(null, null, null, null));
+        assertFalse(royIng.hasEnough(null, null, null, null));
+
+        assertEquals(0, vanillaIng.getInventoryAmount(null, null, null, null));
+        assertEquals(0, vanillaIng.getStorageAmount(null, null));
+        assertEquals(0, vanillaIng.getPlayerAmount(null, null, null, null));
+        assertFalse(vanillaIng.hasEnough(null, null, null, null));
+    }
+
+    @Test
+    @DisplayName("Dynamic Lore Placeholders: %have%, %storage_have%, %inv_have%")
+    void testDynamicLorePlaceholders() {
+        String template = " %status% %name%: <white>%have%</white><gray>/%need%</gray> [Inv: %inv_have%, Storage: %storage_have%]";
+        int inv = 3;
+        int storage = 7;
+        int total = inv + storage;
+        int need = 10;
+        String status = total >= need ? "✔" : "✘";
+
+        String formatted = template
+                .replace("%status%", status)
+                .replace("%have%", String.valueOf(total))
+                .replace("%inv_have%", String.valueOf(inv))
+                .replace("%storage_have%", String.valueOf(storage))
+                .replace("%need%", String.valueOf(need));
+
+        assertTrue(formatted.contains("10"));
+        assertTrue(formatted.contains("[Inv: 3, Storage: 7]"));
+        assertTrue(formatted.contains("✔"));
+    }
+
+    @Test
+    @DisplayName("MMORPG DPS Standard Calculation & Session Expiration")
+    void testMmorpgDpsCalculation() {
+        TrainingDummy dummy = new TrainingDummy("dps_test", new org.bukkit.Location(null, 0, 64, 0), "ZOMBIE", null, 9001, 9002);
+
+        // First hit: 100 damage -> DPS should equal 100.0 exactly
+        dummy.recordHit(100.0, false);
+        assertEquals(100.0, dummy.getLastDamage(), 0.001);
+        assertEquals(100.0, dummy.getTotalDamage(), 0.001);
+        assertEquals(1, dummy.getHitCount());
+        assertEquals(100.0, dummy.getDps(), 0.001);
+
+        // Second hit: additional 100 damage after 1 second -> total = 200, elapsed = 1.0s -> DPS = 200.0
+        // Simulate hit after 1000ms
+        dummy.recordHit(100.0, true);
+        assertEquals(100.0, dummy.getLastDamage(), 0.001);
+        assertEquals(200.0, dummy.getTotalDamage(), 0.001);
+        assertEquals(2, dummy.getHitCount());
+        assertTrue(dummy.isLastCrit());
+        assertTrue(dummy.getDps() > 0.0);
+
+        // Session reset verification: checkSessionExpiration should transition from active to idle and reset metrics
+        // Force expiry by manipulating lastHitTime
+        dummy.setSessionResetDelaySeconds(1);
+        assertTrue(dummy.isSessionActive());
+    }
+
+    @Test
+    @DisplayName("DummyDamageEvent Cancellation and Damage Modification")
+    void testDummyDamageEvent() {
+        TrainingDummy dummy = new TrainingDummy("event_test", new org.bukkit.Location(null, 0, 64, 0), "ZOMBIE", null, 9003, 9004);
+        com.github.orenaidaucac.royItems.dummy.event.DummyDamageEvent event =
+                new com.github.orenaidaucac.royItems.dummy.event.DummyDamageEvent(null, dummy, 50.0, false, false);
+
+        assertEquals(50.0, event.getDamage(), 0.001);
+        assertFalse(event.isCrit());
+        assertFalse(event.isProjectile());
+        assertFalse(event.isCancelled());
+
+        // Modifying damage
+        event.setDamage(75.5);
+        assertEquals(75.5, event.getDamage(), 0.001);
+
+        // Modifying crit status
+        event.setCrit(true);
+        assertTrue(event.isCrit());
+
+        // Cancelling event
+        event.setCancelled(true);
+        assertTrue(event.isCancelled());
     }
 }

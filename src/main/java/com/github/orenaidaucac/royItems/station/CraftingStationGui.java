@@ -175,6 +175,8 @@ public class CraftingStationGui {
         // Ingredients
         for (RecipeIngredient ing : recipe.getInputs()) {
             int have = ing.getPlayerAmount(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration());
+            int invHave = ing.getInventoryAmount(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration());
+            int storageHave = ing.getStorageAmount(player, manager.getIntegration());
             int need = ing.getAmount();
             boolean enough = have >= need;
 
@@ -184,6 +186,8 @@ public class CraftingStationGui {
             String lineTemplate = loreConfig.getIngredientLine()
                     .replace("%status%", statusSymbol)
                     .replace("%have%", String.valueOf(have))
+                    .replace("%inv_have%", String.valueOf(invHave))
+                    .replace("%storage_have%", String.valueOf(storageHave))
                     .replace("%need%", String.valueOf(need));
 
             Component lineComp = TextUtility.formatLineWithComponent(lineTemplate, "name", nameComp);
@@ -295,6 +299,12 @@ public class CraftingStationGui {
 
     private boolean consumeInputs(StationRecipe recipe) {
         if (!hasAllIngredients(recipe)) return false;
+        // Strict pre-check on all ingredients to prevent partial deductions
+        for (RecipeIngredient ing : recipe.getInputs()) {
+            if (!ing.hasEnough(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration())) {
+                return false;
+            }
+        }
         for (RecipeIngredient ing : recipe.getInputs()) {
             if (!ing.take(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration())) {
                 return false;

@@ -84,6 +84,7 @@ dynamic-lore:
     header:
       - "<dark_gray>------------------------</dark_gray>"
       - "<yellow><bold>Required Materials:</bold></yellow>"
+    # Placeholders: %status%, %name%, %have% (Inventory + ExtraStorage), %storage_have% (ExtraStorage), %inv_have% (Inventory), %need%
     ingredient-line: " %status% %name%: <white>%have%</white><gray>/%need%</gray>"
     symbol-enough: "<#06D6A0>✔</#06D6A0>"
     symbol-missing: "<#EF476F>✘</#EF476F>"

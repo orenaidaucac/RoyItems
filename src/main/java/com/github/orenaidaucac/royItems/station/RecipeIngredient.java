@@ -38,6 +38,14 @@ public interface RecipeIngredient {
 
     int getPlayerAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration);
 
+    default int getInventoryAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+        return getPlayerAmount(player, registry, pdc, integration);
+    }
+
+    default int getStorageAmount(Player player, IntegrationManager integration) {
+        return 0;
+    }
+
     default boolean hasEnough(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
         return getPlayerAmount(player, registry, pdc, integration) >= getAmount();
     }
@@ -172,7 +180,7 @@ public interface RecipeIngredient {
         public String getId() { return id; }
 
         @Override
-        public int getPlayerAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+        public int getInventoryAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
             if (player == null || pdc == null) return 0;
             int total = 0;
             for (ItemStack item : player.getInventory().getContents()) {
@@ -190,31 +198,78 @@ public interface RecipeIngredient {
         }
 
         @Override
+        public int getStorageAmount(Player player, IntegrationManager integration) {
+            if (player == null || integration == null || !integration.hasExtraStorage()) return 0;
+            // ExtraStorage strictly supports storing MATERIAL type
+            if (itemType != null && itemType != ItemType.MATERIAL) {
+                return 0;
+            }
+            String storageKey = "ROYITEMS:MATERIAL:" + id.toLowerCase(Locale.ROOT);
+            return integration.getExtraStorageHook().getAmount(player, storageKey);
+        }
+
+        @Override
+        public int getPlayerAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+            return getInventoryAmount(player, registry, pdc, integration) + getStorageAmount(player, integration);
+        }
+
+        @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
             if (!hasEnough(player, registry, pdc, integration)) return false;
-            int remaining = amount;
-            ItemStack[] contents = player.getInventory().getContents();
-            for (int i = 0; i < contents.length; i++) {
-                ItemStack item = contents[i];
-                if (item != null && item.getType() != Material.AIR && pdc.isRoyItem(item)) {
-                    String royId = pdc.getId(item);
-                    ItemType rType = pdc.getType(item);
-                    if (id.equalsIgnoreCase(royId) && (itemType == null || itemType == rType)) {
-                        int count = item.getAmount();
-                        if (count <= remaining) {
-                            remaining -= count;
-                            player.getInventory().setItem(i, null);
-                        } else {
-                            item.setAmount(count - remaining);
-                            remaining = 0;
-                            break;
+
+            int need = amount;
+            int invAmount = getInventoryAmount(player, registry, pdc, integration);
+            int takeFromInv = Math.min(invAmount, need);
+            int takeFromStorage = need - takeFromInv;
+
+            // 1. Prioritize taking from Inventory first
+            if (takeFromInv > 0) {
+                int remainingInvToTake = takeFromInv;
+                ItemStack[] contents = player.getInventory().getContents();
+                for (int i = 0; i < contents.length; i++) {
+                    ItemStack item = contents[i];
+                    if (item != null && item.getType() != Material.AIR && pdc.isRoyItem(item)) {
+                        String royId = pdc.getId(item);
+                        ItemType rType = pdc.getType(item);
+                        if (id.equalsIgnoreCase(royId) && (itemType == null || itemType == rType)) {
+                            int count = item.getAmount();
+                            if (count <= remainingInvToTake) {
+                                remainingInvToTake -= count;
+                                player.getInventory().setItem(i, null);
+                            } else {
+                                item.setAmount(count - remainingInvToTake);
+                                remainingInvToTake = 0;
+                                break;
+                            }
+                            if (remainingInvToTake <= 0) break;
                         }
-                        if (remaining <= 0) break;
                     }
                 }
+                player.updateInventory();
             }
-            player.updateInventory();
-            return remaining <= 0;
+
+            // 2. Take remaining shortage from ExtraStorage
+            if (takeFromStorage > 0) {
+                if (integration == null || !integration.hasExtraStorage()) {
+                    return false;
+                }
+                String storageKey = "ROYITEMS:MATERIAL:" + id.toLowerCase(Locale.ROOT);
+                boolean success = integration.getExtraStorageHook().take(player, storageKey, takeFromStorage);
+                if (!success) {
+                    // Safety rollback: if storage subtraction failed unexpectedly, restore inventory items
+                    if (takeFromInv > 0 && registry != null) {
+                        ItemDefinition def = registry.get(itemType, id);
+                        if (def != null && com.github.orenaidaucac.royItems.RoyItems.getInstance() != null) {
+                            ItemStack restored = com.github.orenaidaucac.royItems.RoyItems.getInstance().getItemBuilder().build(def, takeFromInv);
+                            player.getInventory().addItem(restored);
+                            player.updateInventory();
+                        }
+                    }
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         @Override
@@ -298,7 +353,7 @@ public interface RecipeIngredient {
         public String getLore() { return lore; }
 
         @Override
-        public int getPlayerAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+        public int getInventoryAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
             if (player == null) return 0;
             int total = 0;
             for (ItemStack item : player.getInventory().getContents()) {
@@ -312,28 +367,68 @@ public interface RecipeIngredient {
         }
 
         @Override
+        public int getStorageAmount(Player player, IntegrationManager integration) {
+            if (player == null || integration == null || !integration.hasExtraStorage()) return 0;
+            // ExtraStorage stores vanilla materials by their enum name (e.g. DIAMOND)
+            String storageKey = material.name();
+            return integration.getExtraStorageHook().getAmount(player, storageKey);
+        }
+
+        @Override
+        public int getPlayerAmount(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+            return getInventoryAmount(player, registry, pdc, integration) + getStorageAmount(player, integration);
+        }
+
+        @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
             if (!hasEnough(player, registry, pdc, integration)) return false;
-            int remaining = amount;
-            ItemStack[] contents = player.getInventory().getContents();
-            for (int i = 0; i < contents.length; i++) {
-                ItemStack item = contents[i];
-                if (item != null && item.getType() == material) {
-                    if (pdc != null && pdc.isRoyItem(item)) continue;
-                    int count = item.getAmount();
-                    if (count <= remaining) {
-                        remaining -= count;
-                        player.getInventory().setItem(i, null);
-                    } else {
-                        item.setAmount(count - remaining);
-                        remaining = 0;
-                        break;
+
+            int need = amount;
+            int invAmount = getInventoryAmount(player, registry, pdc, integration);
+            int takeFromInv = Math.min(invAmount, need);
+            int takeFromStorage = need - takeFromInv;
+
+            // 1. Prioritize taking from Inventory first
+            if (takeFromInv > 0) {
+                int remainingInvToTake = takeFromInv;
+                ItemStack[] contents = player.getInventory().getContents();
+                for (int i = 0; i < contents.length; i++) {
+                    ItemStack item = contents[i];
+                    if (item != null && item.getType() == material) {
+                        if (pdc != null && pdc.isRoyItem(item)) continue;
+                        int count = item.getAmount();
+                        if (count <= remainingInvToTake) {
+                            remainingInvToTake -= count;
+                            player.getInventory().setItem(i, null);
+                        } else {
+                            item.setAmount(count - remainingInvToTake);
+                            remainingInvToTake = 0;
+                            break;
+                        }
+                        if (remainingInvToTake <= 0) break;
                     }
-                    if (remaining <= 0) break;
+                }
+                player.updateInventory();
+            }
+
+            // 2. Take remaining shortage from ExtraStorage
+            if (takeFromStorage > 0) {
+                if (integration == null || !integration.hasExtraStorage()) {
+                    return false;
+                }
+                String storageKey = material.name();
+                boolean success = integration.getExtraStorageHook().take(player, storageKey, takeFromStorage);
+                if (!success) {
+                    // Rollback inventory deduction if storage failed
+                    if (takeFromInv > 0) {
+                        player.getInventory().addItem(new ItemStack(material, takeFromInv));
+                        player.updateInventory();
+                    }
+                    return false;
                 }
             }
-            player.updateInventory();
-            return remaining <= 0;
+
+            return true;
         }
 
         @Override

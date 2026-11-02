@@ -282,6 +282,11 @@ public class TrainingDummy {
         boolean active = isSessionActive();
         if (!active && wasActiveBefore) {
             wasActiveBefore = false;
+            // Clean up session metrics when returning to idle
+            totalDamage = 0.0;
+            lastDamage = 0.0;
+            hitCount = 0;
+            dps = 0.0;
             return true; // Transitioned from active to idle
         }
         return false;
@@ -298,22 +303,18 @@ public class TrainingDummy {
             sessionStartTime = now;
             totalDamage = damage;
             hitCount = 1;
+            dps = damage;
         } else {
             totalDamage += damage;
             hitCount++;
+            double combatDurationSec = Math.max(0.5, (now - sessionStartTime) / 1000.0);
+            dps = totalDamage / combatDurationSec;
         }
 
         lastDamage = damage;
         lastCrit = isCrit;
         lastHitTime = now;
         wasActiveBefore = true;
-
-        if (hitCount <= 1) {
-            dps = totalDamage;
-        } else {
-            double elapsedSec = Math.max(0.1, (now - sessionStartTime) / 1000.0);
-            dps = totalDamage / elapsedSec;
-        }
     }
 
     /**
