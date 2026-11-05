@@ -26,6 +26,8 @@ public class IntegrationManager {
     private CitizensHook citizensHook;
     private FancyNpcsHook fancyNpcsHook;
     private ExtraStorageHook extraStorageHook;
+    private EcoEnchantsHook ecoEnchantsHook;
+    private AdvancedOreGenHook advancedOreGenHook;
 
     public IntegrationManager(Plugin plugin) {
         this.plugin = plugin;
@@ -33,6 +35,10 @@ public class IntegrationManager {
     }
 
     public void initialize(StatManager statManager, ItemPDCManager pdcManager, ItemRegistry registry) {
+        initialize(statManager, pdcManager, registry, null);
+    }
+
+    public void initialize(StatManager statManager, ItemPDCManager pdcManager, ItemRegistry registry, com.github.orenaidaucac.royItems.stat.DefenseManager defenseManager) {
         // Vault
         vaultHook = new VaultHook();
         if (vaultHook.setup()) {
@@ -78,6 +84,9 @@ public class IntegrationManager {
         // MythicMobs
         mythicMobsHook = new MythicMobsHook();
         if (mythicMobsHook.setup()) {
+            if (defenseManager != null) {
+                mythicMobsHook.registerDamageListener(plugin, defenseManager);
+            }
             logger.info("Hooked into MythicMobs successfully.");
         }
 
@@ -91,6 +100,18 @@ public class IntegrationManager {
         extraStorageHook = new ExtraStorageHook();
         if (extraStorageHook.setup()) {
             logger.info("Hooked into ExtraStorage successfully.");
+        }
+
+        // EcoEnchants
+        ecoEnchantsHook = new EcoEnchantsHook();
+        if (ecoEnchantsHook.setup()) {
+            logger.info("Hooked into EcoEnchants successfully.");
+        }
+
+        // AdvancedOreGen
+        advancedOreGenHook = new AdvancedOreGenHook();
+        if (advancedOreGenHook.setup()) {
+            logger.info("Hooked into AdvancedOreGen successfully.");
         }
 
         // PlaceholderAPI
@@ -182,5 +203,21 @@ public class IntegrationManager {
 
     public ExtraStorageHook getExtraStorageHook() {
         return extraStorageHook;
+    }
+
+    public boolean hasEcoEnchants() {
+        return ecoEnchantsHook != null && ecoEnchantsHook.isAvailable();
+    }
+
+    public EcoEnchantsHook getEcoEnchantsHook() {
+        return ecoEnchantsHook;
+    }
+
+    public boolean hasAdvancedOreGen() {
+        return advancedOreGenHook != null && advancedOreGenHook.isAvailable();
+    }
+
+    public AdvancedOreGenHook getAdvancedOreGenHook() {
+        return advancedOreGenHook;
     }
 }

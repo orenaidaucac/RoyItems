@@ -506,6 +506,19 @@ detail-editor:
         - "<#FFD166>Left-Click: <white>Enter value via Chat</white>"
         - "<#EF476F>Right-Click: <white>Reset to 0</white>"
 
+    mine-radius:
+      page: 2
+      slot: 31
+      material: DIAMOND_PICKAXE
+      name: "<#06D6A0>Mine Radius (Area Mining)"
+      lore:
+        - "<gray>Horizontal wide-area mining radius tier."
+        - "<gray>Tiers: 1 = 3×3, 2 = 5×5, 3 = 7×7, 4 = 9×9, 5 = 11×11"
+        - "<dark_gray>▪ <gray>Tier: <white>%flat%</white>"
+        - ""
+        - "<#FFD166>Left-Click: <white>Enter tier via Chat</white>"
+        - "<#EF476F>Right-Click: <white>Reset to 0</white>"
+
     pve-defense:
       page: 2
       slot: 32

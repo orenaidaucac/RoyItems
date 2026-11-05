@@ -52,6 +52,13 @@ public class ItemBuilder {
      * Builds an ItemStack with specific instance state (slotted gems, expiration).
      */
     public ItemStack build(ItemDefinition def, int amount, List<String> slottedSockets, long expireTimestamp) {
+        return build(def, amount, slottedSockets, expireTimestamp, null);
+    }
+
+    /**
+     * Builds an ItemStack with specific instance state (slotted gems, expiration, active enchantments).
+     */
+    public ItemStack build(ItemDefinition def, int amount, List<String> slottedSockets, long expireTimestamp, Map<Enchantment, Integer> activeEnchants) {
         if (def == null) return new ItemStack(Material.AIR);
 
         ItemStack item = createBaseItemStack(def.getMaterial());
@@ -65,29 +72,38 @@ public class ItemBuilder {
             meta.displayName(TextUtility.formatItemName(def.getName()));
         }
 
-        // 2. Dynamic Lore
-        List<String> rawLore = loreEngine.buildLore(def, slottedSockets, expireTimestamp);
+        // 2. Active Enchantments preparation
+        Map<Enchantment, Integer> enchantsToApply = new LinkedHashMap<>();
+        if (def.getEnchantments() != null) {
+            enchantsToApply.putAll(def.getEnchantments());
+        }
+        if (activeEnchants != null) {
+            enchantsToApply.putAll(activeEnchants);
+        }
+
+        // 3. Dynamic Lore
+        List<String> rawLore = loreEngine.buildLore(def, slottedSockets, expireTimestamp, enchantsToApply);
         meta.lore(TextUtility.formatLore(rawLore));
 
-        // 3. Unbreakable
+        // 4. Unbreakable
         meta.setUnbreakable(def.isUnbreakable());
         if (def.isHideUnbreakable()) {
             meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
         }
 
-        // 4. Glow
+        // 5. Apply Enchantments
+        for (Map.Entry<Enchantment, Integer> e : enchantsToApply.entrySet()) {
+            meta.addEnchant(e.getKey(), e.getValue(), true);
+        }
+
+        // Glow
         if (def.isGlow()) {
             meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         }
 
-        // 5. Enchantments
-        if (def.getEnchantments() != null) {
-            for (Map.Entry<Enchantment, Integer> e : def.getEnchantments().entrySet()) {
-                meta.addEnchant(e.getKey(), e.getValue(), true);
-            }
-        }
-        if (def.isHideEnchantments()) {
+        // If definition hides enchantments or lore format displays #enchantments#, hide vanilla tooltip
+        if (def.isHideEnchantments() || loreEngine.hasEnchantmentsPlaceholder(def)) {
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         }
 
@@ -133,6 +149,7 @@ public class ItemBuilder {
 
         String socketsSerialized = serializeSockets(slottedSockets);
         pdcManager.tagItem(meta, def.getType(), def.getId(), def.getVersion(), finalExpire, socketsSerialized);
+        pdcManager.setEnchantHash(meta, enchantsToApply.hashCode());
         if (def.getItemTier() != null && !def.getItemTier().isEmpty()) {
             pdcManager.tagTier(meta, def.getItemTier());
         }

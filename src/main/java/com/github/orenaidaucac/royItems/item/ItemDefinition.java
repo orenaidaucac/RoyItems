@@ -79,6 +79,7 @@ public class ItemDefinition {
     private boolean disableOnEnchantment = false;
     private boolean disableOnCrafting = false;
     private boolean disableOnDrop = false;
+    private Boolean preventAnvilRename = null; // null = follow global config in config.yml
 
     public ItemDefinition(ItemType type, String id) {
         this.type = type;
@@ -240,4 +241,7 @@ public class ItemDefinition {
 
     public boolean isDisableOnDrop() { return disableOnDrop; }
     public void setDisableOnDrop(boolean disableOnDrop) { this.disableOnDrop = disableOnDrop; }
+
+    public Boolean getPreventAnvilRename() { return preventAnvilRename; }
+    public void setPreventAnvilRename(Boolean preventAnvilRename) { this.preventAnvilRename = preventAnvilRename; }
 }

@@ -27,7 +27,8 @@ public enum StatType {
     ARMOR("armor", "🛡 Armor", "armor"),
     ARMOR_TOUGHNESS("armor-toughness", "🛡 Armor Toughness", "armor_toughness"),
     KNOCKBACK_RESISTANCE("knockback-resistance", "🏋 Knockback Resistance", "knockback_resistance"),
-    MOVEMENT_SPEED("movement-speed", "👟 Movement Speed", "movement_speed");
+    MOVEMENT_SPEED("movement-speed", "👟 Movement Speed", "movement_speed"),
+    MINE_RADIUS("mine-radius", "⛏ Mine Radius", null);
 
     private final String key;
     private final String defaultDisplayName;
@@ -64,6 +65,12 @@ public enum StatType {
         KEY_LOOKUP.put("dmg", ATTACK_DAMAGE);
         KEY_LOOKUP.put("def", DEFENSE);
         KEY_LOOKUP.put("crit", CRIT_RATE);
+        KEY_LOOKUP.put("mineradius", MINE_RADIUS);
+        KEY_LOOKUP.put("radius", MINE_RADIUS);
+        KEY_LOOKUP.put("mine-radius", MINE_RADIUS);
+        KEY_LOOKUP.put("mine_radius", MINE_RADIUS);
+        KEY_LOOKUP.put("mine-area", MINE_RADIUS);
+        KEY_LOOKUP.put("mine_area", MINE_RADIUS);
     }
 
     StatType(String key, String defaultDisplayName, String vanillaAttributeKey) {
@@ -114,5 +121,21 @@ public enum StatType {
         if (key == null) return null;
         String normalized = key.trim().toLowerCase().replace('_', '-');
         return KEY_LOOKUP.get(normalized);
+    }
+
+    public static int getMineRadiusBlocks(double statValue) {
+        int lvl = (int) Math.round(statValue);
+        if (lvl <= 0) return 0;
+        return lvl;
+    }
+
+    public static int getMineAreaSize(double statValue) {
+        int r = getMineRadiusBlocks(statValue);
+        return Math.max(1, 2 * r + 1);
+    }
+
+    public static String formatMineArea(double statValue) {
+        int size = getMineAreaSize(statValue);
+        return size + "×" + size;
     }
 }

@@ -64,6 +64,8 @@ public final class RoyItems extends JavaPlugin {
     private UpdateChecker updateChecker;
     private TierDropGlowListener tierDropGlowListener;
     private DamageParticleFilterManager particleFilterManager;
+    private ItemProtectionListener itemProtectionListener;
+    private MineRadiusListener mineRadiusListener;
     private com.github.orenaidaucac.royItems.station.CraftingStationManager craftingStationManager;
     private com.github.orenaidaucac.royItems.dummy.DummyManager dummyManager;
 
@@ -97,6 +99,8 @@ public final class RoyItems extends JavaPlugin {
     public UpdateChecker getUpdateChecker() { return updateChecker; }
     public TierDropGlowListener getTierDropGlowListener() { return tierDropGlowListener; }
     public DamageParticleFilterManager getParticleFilterManager() { return particleFilterManager; }
+    public ItemProtectionListener getItemProtectionListener() { return itemProtectionListener; }
+    public MineRadiusListener getMineRadiusListener() { return mineRadiusListener; }
 
     @Override
     public void onEnable() {
@@ -143,6 +147,7 @@ public final class RoyItems extends JavaPlugin {
 
         // 6. LiveUpdate Engine
         this.liveUpdateService = new LiveUpdateService(itemRegistry, itemPDCManager, itemBuilder, platformScheduler);
+        this.liveUpdateService.loadConfig(getConfig());
 
         // 7. Stat & Combat Engines
         this.statManager = new StatManager(itemRegistry, itemPDCManager, itemSetManager);
@@ -151,7 +156,11 @@ public final class RoyItems extends JavaPlugin {
 
         // 8. Mechanics & Integrations
         this.integrationManager = new IntegrationManager(this);
-        this.integrationManager.initialize(statManager, itemPDCManager, itemRegistry);
+        this.integrationManager.initialize(statManager, itemPDCManager, itemRegistry, defenseManager);
+
+        this.dynamicLoreEngine.setEcoEnchantsHook(this.integrationManager.getEcoEnchantsHook());
+        this.dynamicLoreEngine.setPdcManager(this.itemPDCManager);
+        this.dynamicLoreEngine.setItemRegistry(this.itemRegistry);
 
         this.requirementChecker = new RequirementChecker(integrationManager);
         this.statManager.setRequirementChecker(this.requirementChecker);
@@ -294,6 +303,15 @@ public final class RoyItems extends JavaPlugin {
         if (defenseManager != null) {
             defenseManager.loadConfig();
         }
+        if (itemProtectionListener != null) {
+            itemProtectionListener.loadConfig(getConfig());
+        }
+        if (mineRadiusListener != null) {
+            mineRadiusListener.loadConfig(getConfig());
+        }
+        if (liveUpdateService != null) {
+            liveUpdateService.loadConfig(getConfig());
+        }
         if (particleFilterManager != null) {
             particleFilterManager.loadConfig();
         }
@@ -327,31 +345,42 @@ public final class RoyItems extends JavaPlugin {
         }
 
         // 8. Trigger LiveUpdate across all online players and report statistics
-        liveUpdateService.updateAllOnlinePlayers(report -> {
-            if (messageManager != null) {
-                if (sender != null) {
-                    messageManager.sendReloadReport(sender, report);
-                    if (updateChecker != null && updateChecker.isUpdateAvailable() && (sender.hasPermission("royitems.admin") || sender.isOp())) {
-                        messageManager.sendUpdateNotification(sender, updateChecker.getCurrentVersion(), updateChecker.getLatestVersion(), updateChecker.getDownloadUrl());
+        if (liveUpdateService != null && liveUpdateService.isEnabled() && liveUpdateService.isAutoUpdateOnReload()) {
+            liveUpdateService.updateAllOnlinePlayers(report -> {
+                if (messageManager != null) {
+                    if (sender != null) {
+                        messageManager.sendReloadReport(sender, report);
+                        if (updateChecker != null && updateChecker.isUpdateAvailable() && (sender.hasPermission("royitems.admin") || sender.isOp())) {
+                            messageManager.sendUpdateNotification(sender, updateChecker.getCurrentVersion(), updateChecker.getLatestVersion(), updateChecker.getDownloadUrl());
+                        }
+                    }
+                    if (!(sender instanceof org.bukkit.command.ConsoleCommandSender)) {
+                        messageManager.sendReloadReport(getServer().getConsoleSender(), report);
+                        if (updateChecker != null && updateChecker.isUpdateAvailable()) {
+                            messageManager.sendUpdateNotification(getServer().getConsoleSender(), updateChecker.getCurrentVersion(), updateChecker.getLatestVersion(), updateChecker.getDownloadUrl());
+                        }
                     }
                 }
-                if (!(sender instanceof org.bukkit.command.ConsoleCommandSender)) {
-                    messageManager.sendReloadReport(getServer().getConsoleSender(), report);
-                    if (updateChecker != null && updateChecker.isUpdateAvailable()) {
-                        messageManager.sendUpdateNotification(getServer().getConsoleSender(), updateChecker.getCurrentVersion(), updateChecker.getLatestVersion(), updateChecker.getDownloadUrl());
-                    }
-                }
-            }
-        });
+            });
+        } else if (messageManager != null && sender != null) {
+            messageManager.send(sender, "reload-success", "&aAll configurations, items, and lore templates reloaded successfully!");
+        }
     }
 
     private void registerListeners() {
         var pm = getServer().getPluginManager();
-        pm.registerEvents(new CombatListener(statManager, defenseManager), this);
+        pm.registerEvents(new CombatListener(statManager, defenseManager, integrationManager.getMythicMobsHook()), this);
+        pm.registerEvents(new com.github.orenaidaucac.royItems.lore.EnchantmentListener(itemPDCManager, dynamicLoreEngine, platformScheduler), this);
         pm.registerEvents(new PlayerEquipmentListener(statManager, platformScheduler, liveUpdateService, requirementChecker, itemPDCManager, itemRegistry), this);
         pm.registerEvents(new GemSocketListener(gemSocketManager, itemPDCManager, statManager), this);
         pm.registerEvents(new SpecialItemListener(itemPDCManager, itemRegistry, cooldownManager, requirementChecker, integrationManager), this);
-        pm.registerEvents(new ItemProtectionListener(itemPDCManager, itemRegistry), this);
+        this.itemProtectionListener = new ItemProtectionListener(itemPDCManager, itemRegistry, messageManager);
+        this.itemProtectionListener.loadConfig(getConfig());
+        pm.registerEvents(this.itemProtectionListener, this);
+        this.mineRadiusListener = new MineRadiusListener(itemPDCManager, itemRegistry, statManager,
+                integrationManager.getExtraStorageHook(), integrationManager.getAdvancedOreGenHook(), platformScheduler);
+        this.mineRadiusListener.loadConfig(getConfig());
+        pm.registerEvents(this.mineRadiusListener, this);
         pm.registerEvents(expirationManager, this);
         pm.registerEvents(editorGUIManager, this);
         pm.registerEvents(editorGUIManager.getChatInputManager(), this);

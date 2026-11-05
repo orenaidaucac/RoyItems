@@ -1,5 +1,66 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.6] - 2026-11-05
+
+### 🌟 Highlights
+* **Mine Radius & Zero-Lag ExtraStorage Mining:** Added `mine-radius` stat supporting configurable 2D horizontal mining areas (3×3, 5×5, 7×7, 9×9, 11×11+), batching and depositing mined drops directly into ExtraStorage without entity drop lag.
+* **AdvancedOreGen In-Place Regeneration:** Mined generator blocks between water, lava, and fences are directly regenerated in-place using AdvancedOreGen's generation pipeline, preventing liquid flow disruption and generator breakage.
+* **EcoEnchants & Dynamic Enchantments:** Native support for Vanilla and EcoEnchants enchantments inside `#enchantments#` lore placeholders with real-time anvil synchronization and customizable formatting.
+* **Anvil Rename Protection:** Built-in anvil protection blocks unauthorized item renaming while safely preserving repairing, combining, and enchanting operations.
+* **MythicMobs Skill Defense Mitigation:** MMORPG Defense formula now intercepts and mitigates incoming MythicMobs Skill Mechanic damage with zero double-mitigation.
+* **Fine-Grained LiveUpdate Preservation:** Admins can now configure exactly which item properties (gems, durability, custom lore, enchantments, tiers, PDC) are preserved or synchronized on reload.
+
+---
+
+### ➕ Added
+* **Mine Radius System (`mine-radius`):**
+  * New `mine-radius` stat supporting expandable horizontal tiers: Tier 1 (3×3), Tier 2 (5×5), Tier 3 (7×7), Tier 4 (9×9), Tier 5 (11×11), and beyond.
+  * Strict horizontal 2D plane mining ($Y = Y_0$) — never digs into ceilings or floors.
+  * Full configuration in `config.yml`: `allowed-blocks`, `allowed-tools`, `activation-chance`, `cooldown-ms`, and `limits`.
+  * `#mine-radius#` placeholder in `lore-format` with customizable area formatting (`%area%`, `%radius%`, e.g. `3×3`, `5×5`).
+  * Ingame GUI Editor integration: slot 31 on Page 2 with interactive chat prompt.
+  * Direct **ExtraStorage** batch integration: automatically deposits all mined drops directly into player storage, eliminating ground item entities and TPS drops.
+* **AdvancedOreGen Soft-Hook Integration:**
+  * Detects SkyBlock generator blocks (fence-water, cobble, basalt) and triggers in-place regeneration via AdvancedOreGen without converting blocks to AIR.
+  * Keeps water/fence generator setups fully functional during continuous 24/24 mining.
+* **EcoEnchants Integration:**
+  * Full integration with modern EcoEnchants via reflection-safe hook.
+  * Automatically resolves EcoEnchants custom enchantments, localized names, tier styling, and formatting in `#enchantments#`.
+* **Anvil Rename Protection:**
+  * Added `anvil.prevent-rename` in `config.yml` (default `true`) and per-item override `prevent-anvil-rename`.
+  * Blocks unauthorized renaming in Anvils while allowing repairs and enchantments.
+* **Fine-Grained LiveUpdate Preservation:**
+  * Independent preservation toggles for `enchantments`, `gems`, `durability`, `display-name`, `lore`, `tier`, `custom-model-data`, `pdc`, and `attributes`.
+
+---
+
+### ⚡ Improved
+* **MythicMobs Skill Damage Mitigation:**
+  * Intercepts `MythicDamageEvent` from MythicMobs skill mechanics and applies RoyItems defense formulas.
+  * Deduplication guards prevent double-mitigation between skill events and entity damage events.
+* **Dynamic Lore Performance:**
+  * Smart line pruning and batch enchantment formatting with hide-vanilla-tooltip option.
+* **Server Performance & Folia Safety:**
+  * Regionized scheduler thread verification (`Bukkit.isOwnedByCurrentRegion`) ensures complete multi-threaded safety on Folia servers.
+
+---
+
+### 🐛 Fixed
+* **Fixed AdvancedOreGen Generator Block Freezing:**
+  * Resolved an issue where Mine Radius set generator blocks to `Material.AIR, false`, freezing fluid updates and permanently disabling water/fence ore generators.
+* **Fixed Anvil Rename Bypasses:**
+  * Prevented bypasses via color codes, unicode, or shift-clicking output slots.
+* **Fixed Vanilla Enchantment Tooltip Clutter:**
+  * Automatically hides default vanilla grey enchantments when `#enchantments#` is configured, preventing duplicated lore lines.
+
+---
+
+### 🔌 Compatibility
+* **Minecraft / Server Software:** Paper, Purpur, Spigot, and Folia 1.21.4+ (Java 21+).
+* **Soft Dependencies:** Verified and tested with AdvancedOreGen, EcoEnchants, ExtraStorage, MythicMobs 5.x, MMOCore, AuraSkills, Vault, PlaceholderAPI, WorldGuard, Nexo, ItemsAdder, Oraxen, and Citizens/FancyNpcs.
+
+---
+
 ## [2026.1.5] - 2026-11-03
 
 ### 🌟 Highlights

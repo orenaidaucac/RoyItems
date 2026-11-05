@@ -469,8 +469,9 @@ public class ItemDetailEditorGui {
         renderStatIcon(gui, StatType.PVP_DAMAGE, "pvp-damage", 2, 24, Material.GOLDEN_SWORD);
         renderStatIcon(gui, StatType.PVE_DAMAGE, "pve-damage", 2, 25, Material.CROSSBOW);
 
-        // Specialized PvP & PvE Defense
+        // Specialized PvP & PvE Defense & Mining
         renderStatIcon(gui, StatType.PVP_DEFENSE, "pvp-defense", 2, 30, Material.TURTLE_HELMET);
+        renderStatIcon(gui, StatType.MINE_RADIUS, "mine-radius", 2, 31, Material.DIAMOND_PICKAXE);
         renderStatIcon(gui, StatType.PVE_DEFENSE, "pve-defense", 2, 32, Material.CARVED_PUMPKIN);
     }
 

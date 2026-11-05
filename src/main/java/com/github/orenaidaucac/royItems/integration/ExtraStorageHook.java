@@ -18,22 +18,63 @@ public class ExtraStorageHook {
     private boolean available = false;
 
     public boolean setup() {
-        if (Bukkit.getPluginManager().isPluginEnabled("ExtraStorage")) {
-            try {
-                Class.forName("me.hsgamer.extrastorage.api.StorageAPI");
-                available = true;
-                return true;
-            } catch (Throwable t) {
+        try {
+            if (Bukkit.getServer() == null || Bukkit.getPluginManager() == null || !Bukkit.getPluginManager().isPluginEnabled("ExtraStorage")) {
                 available = false;
                 return false;
             }
+            Class.forName("me.hsgamer.extrastorage.api.StorageAPI");
+            available = true;
+            return true;
+        } catch (Throwable t) {
+            available = false;
+            return false;
         }
-        available = false;
-        return false;
     }
 
     public boolean isAvailable() {
-        return available && Bukkit.getPluginManager().isPluginEnabled("ExtraStorage");
+        try {
+            return available && Bukkit.getServer() != null && Bukkit.getPluginManager() != null && Bukkit.getPluginManager().isPluginEnabled("ExtraStorage");
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Directly deposits items into player's ExtraStorage safely.
+     * Respects user storage status, filter rules, and free space limits.
+     *
+     * @param player the player who owns the storage
+     * @param item   the item stack to deposit
+     * @return the number of items successfully stored, or 0 if storage is full/unavailable
+     */
+    public int store(Player player, org.bukkit.inventory.ItemStack item) {
+        if (!isAvailable() || player == null || item == null || item.getAmount() <= 0) return 0;
+        try {
+            StorageAPI api = StorageAPI.getInstance();
+            if (api == null) return 0;
+            User user = api.getUser(player.getUniqueId());
+            if (user == null) return 0;
+            Storage storage = user.getStorage();
+            if (storage == null || !storage.getStatus()) return 0;
+
+            if (!storage.canStore(item)) return 0;
+
+            long freeSpace = storage.getFreeSpace();
+            if (freeSpace == 0) return 0;
+
+            int toStore = item.getAmount();
+            if (freeSpace > 0 && freeSpace < toStore) {
+                toStore = (int) freeSpace;
+            }
+
+            storage.add(item, toStore);
+            try {
+                user.save();
+            } catch (Throwable ignored) {}
+            return toStore;
+        } catch (Throwable ignored) {}
+        return 0;
     }
 
     /**

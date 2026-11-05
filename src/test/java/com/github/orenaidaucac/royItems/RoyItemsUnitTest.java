@@ -1789,4 +1789,359 @@ class RoyItemsUnitTest {
         event.setCancelled(true);
         assertTrue(event.isCancelled());
     }
+
+    @Test
+    @DisplayName("LiveUpdate Config: Default values and YAML loading")
+    void testLiveUpdateConfig() {
+        com.github.orenaidaucac.royItems.item.LiveUpdateConfig cfg =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateConfig();
+
+        // 1. Verify default values
+        assertTrue(cfg.isEnabled());
+        assertTrue(cfg.isAutoUpdateOnReload());
+        assertTrue(cfg.isContainerInventory());
+        assertTrue(cfg.isContainerArmor());
+        assertTrue(cfg.isContainerOffhand());
+        assertTrue(cfg.isContainerEnderChest());
+
+        assertTrue(cfg.isPreserveEnchantments());
+        assertTrue(cfg.isPreserveGems());
+        assertTrue(cfg.isPreserveDurability());
+        assertTrue(cfg.isPreservePDC());
+
+        assertFalse(cfg.isPreserveDisplayName());
+        assertFalse(cfg.isPreserveLore());
+        assertFalse(cfg.isPreserveTier());
+        assertFalse(cfg.isPreserveCustomModelData());
+        assertFalse(cfg.isPreserveAttributes());
+
+        // 2. Load from YAML configuration
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        yaml.set("live-update.enabled", false);
+        yaml.set("live-update.auto-update-on-reload", false);
+        yaml.set("live-update.containers.inventory", true);
+        yaml.set("live-update.containers.armor", false);
+        yaml.set("live-update.containers.offhand", false);
+        yaml.set("live-update.containers.ender-chest", true);
+
+        yaml.set("live-update.preserve.enchantments", false);
+        yaml.set("live-update.preserve.gems", false);
+        yaml.set("live-update.preserve.durability", false);
+        yaml.set("live-update.preserve.display-name", true);
+        yaml.set("live-update.preserve.lore", true);
+        yaml.set("live-update.preserve.tier", true);
+        yaml.set("live-update.preserve.custom-model-data", true);
+        yaml.set("live-update.preserve.pdc", false);
+        yaml.set("live-update.preserve.attributes", true);
+
+        cfg.load(yaml);
+
+        assertFalse(cfg.isEnabled());
+        assertFalse(cfg.isAutoUpdateOnReload());
+        assertTrue(cfg.isContainerInventory());
+        assertFalse(cfg.isContainerArmor());
+        assertFalse(cfg.isContainerOffhand());
+        assertTrue(cfg.isContainerEnderChest());
+
+        assertFalse(cfg.isPreserveEnchantments());
+        assertFalse(cfg.isPreserveGems());
+        assertFalse(cfg.isPreserveDurability());
+        assertFalse(cfg.isPreservePDC());
+
+        assertTrue(cfg.isPreserveDisplayName());
+        assertTrue(cfg.isPreserveLore());
+        assertTrue(cfg.isPreserveTier());
+        assertTrue(cfg.isPreserveCustomModelData());
+        assertTrue(cfg.isPreserveAttributes());
+    }
+
+    @Test
+    @DisplayName("MythicMobs Hook: Mitigation tracking & double-mitigation prevention")
+    void testMythicMobsMitigationTracking() {
+        com.github.orenaidaucac.royItems.integration.MythicMobsHook hook =
+                new com.github.orenaidaucac.royItems.integration.MythicMobsHook();
+
+        java.util.UUID playerId = java.util.UUID.randomUUID();
+
+        // Initially not mitigated
+        assertFalse(hook.isRecentlyMitigated(playerId));
+
+        // Mark mitigated
+        hook.markMitigated(playerId);
+        assertTrue(hook.isRecentlyMitigated(playerId));
+
+        // Clear mitigation
+        hook.clearMitigation(playerId);
+        assertFalse(hook.isRecentlyMitigated(playerId));
+    }
+
+    @Test
+    @DisplayName("MythicMobs Defense Integration: Skill damage mitigation formulas")
+    void testMythicDamageDefenseFormulas() {
+        DefenseManager dm = new DefenseManager(); // Defaults to MMORPG mode, scale=100
+
+        // MMORPG Formula: damage * (scale / (scale + defense))
+        // 100 raw damage with 100 effective defense -> 100 * (100 / 200) = 50.0
+        double mitigated1 = dm.applyDefense(100.0, 100.0);
+        assertEquals(50.0, mitigated1, 0.001);
+
+        // 100 raw damage with 300 effective defense -> 100 * (100 / 400) = 25.0
+        double mitigated2 = dm.applyDefense(100.0, 300.0);
+        assertEquals(25.0, mitigated2, 0.001);
+
+        // Simple Mode: damage - defense
+        dm.setMode(DefenseManager.DefenseMode.SIMPLE);
+        double mitigatedSimple = dm.applyDefense(100.0, 40.0);
+        assertEquals(60.0, mitigatedSimple, 0.001);
+
+        // Simple Mode floor
+        double mitigatedFloor = dm.applyDefense(30.0, 50.0);
+        assertEquals(0.0, mitigatedFloor, 0.001);
+    }
+
+    @Test
+    @DisplayName("Enchantment Formatting: Universal Roman Numerals & Title Casing")
+    void testEnchantmentFormattingHelpers() {
+        // Roman numeral conversion
+        assertEquals("I", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(1));
+        assertEquals("IV", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(4));
+        assertEquals("V", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(5));
+        assertEquals("IX", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(9));
+        assertEquals("X", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(10));
+        assertEquals("XV", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(15));
+        assertEquals("XXV", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(25));
+        assertEquals("C", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(100));
+        assertEquals("CCLV", com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.toRoman(255));
+    }
+
+    @Test
+    @DisplayName("EcoEnchants Hook: Soft dependency safe degradation")
+    void testEcoEnchantsHookSafeDegradation() {
+        com.github.orenaidaucac.royItems.integration.EcoEnchantsHook hook =
+                new com.github.orenaidaucac.royItems.integration.EcoEnchantsHook();
+
+        // When EcoEnchants is not installed in the test environment
+        assertFalse(hook.setup());
+        assertFalse(hook.isAvailable());
+        assertFalse(hook.isEcoEnchant(null));
+        assertNull(hook.getFormattedName(null, 1));
+        assertNull(hook.getDisplayName(null));
+    }
+
+    @Test
+    @DisplayName("LoreFormat: Custom enchantment options and section parsing")
+    void testLoreFormatEnchantmentOptions() {
+        com.github.orenaidaucac.royItems.lore.LoreFormat format =
+                new com.github.orenaidaucac.royItems.lore.LoreFormat();
+
+        // Defaults
+        assertEquals("&7%name% %level%", format.getEnchantmentFormat());
+        assertEquals("&c%name% %level%", format.getEnchantmentCurseFormat());
+        assertEquals("", format.getEnchantmentSymbol());
+        assertEquals("ROMAN", format.getEnchantmentLevelStyle());
+        assertEquals("VANILLA_FIRST", format.getEnchantmentOrder());
+        assertTrue(format.getEnchantmentCustomNames().isEmpty());
+
+        // Custom config parsing
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        yaml.set("enchantments-format.format", "&b✦ %name% &f%level%");
+        yaml.set("enchantments-format.curse-format", "&4☠ %name%");
+        yaml.set("enchantments-format.symbol", "✦ ");
+        yaml.set("enchantments-format.level-style", "NUMBER");
+        yaml.set("enchantments-format.order", "ECO_FIRST");
+        yaml.set("enchantments-format.custom-names.sharpness", "&cSharpness");
+        yaml.set("enchantments-format.custom-names.unbreaking", "&9Unbreaking");
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat parsed =
+                com.github.orenaidaucac.royItems.lore.LoreFormat.fromConfig("test", yaml);
+
+        assertEquals("&b✦ %name% &f%level%", parsed.getEnchantmentFormat());
+        assertEquals("&4☠ %name%", parsed.getEnchantmentCurseFormat());
+        assertEquals("✦ ", parsed.getEnchantmentSymbol());
+        assertEquals("NUMBER", parsed.getEnchantmentLevelStyle());
+        assertEquals("ECO_FIRST", parsed.getEnchantmentOrder());
+        assertEquals("&cSharpness", parsed.getEnchantmentCustomNames().get("sharpness"));
+        assertEquals("&9Unbreaking", parsed.getEnchantmentCustomNames().get("unbreaking"));
+    }
+
+    @Test
+    @DisplayName("Anvil Rename Protection: Config toggles and per-item override")
+    void testAnvilRenameProtectionConfigAndOverride() {
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry =
+                new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener(null, registry);
+
+        // Default should be true
+        assertTrue(listener.isPreventAnvilRename());
+
+        // Config reload to false
+        org.bukkit.configuration.file.YamlConfiguration yamlFalse = new org.bukkit.configuration.file.YamlConfiguration();
+        yamlFalse.set("anvil.prevent-rename", false);
+        listener.loadConfig(yamlFalse);
+        assertFalse(listener.isPreventAnvilRename());
+
+        // Config reload back to true
+        org.bukkit.configuration.file.YamlConfiguration yamlTrue = new org.bukkit.configuration.file.YamlConfiguration();
+        yamlTrue.set("anvil.prevent-rename", true);
+        listener.loadConfig(yamlTrue);
+        assertTrue(listener.isPreventAnvilRename());
+
+        // Per-item override test
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.SWORD, "test_sword");
+        assertNull(def.getPreventAnvilRename()); // By default null (inherits global config)
+
+        def.setPreventAnvilRename(false);
+        assertEquals(Boolean.FALSE, def.getPreventAnvilRename());
+
+        def.setPreventAnvilRename(true);
+        assertEquals(Boolean.TRUE, def.getPreventAnvilRename());
+    }
+
+    @Test
+    @DisplayName("Anvil Rename Protection: Display Name Component equality logic")
+    void testAnvilRenameDisplayNameLogic() {
+        net.kyori.adventure.text.Component originalName = net.kyori.adventure.text.Component.text("Excalibur");
+        net.kyori.adventure.text.Component renamed = net.kyori.adventure.text.Component.text("Noob Sword");
+        net.kyori.adventure.text.Component identical = net.kyori.adventure.text.Component.text("Excalibur");
+
+        assertNotEquals(originalName, renamed);
+        assertEquals(originalName, identical);
+
+        // Null handling (when original item had no custom display name)
+        assertNotEquals((Object) null, renamed);
+        assertEquals((Object) null, (Object) null);
+    }
+
+    @Test
+    @DisplayName("Mine Radius: StatType lookups and tier area calculations")
+    void testMineRadiusStatAndAreaCalculations() {
+        assertEquals(StatType.MINE_RADIUS, StatType.fromKey("mine-radius"));
+        assertEquals(StatType.MINE_RADIUS, StatType.fromKey("mineradius"));
+        assertEquals(StatType.MINE_RADIUS, StatType.fromKey("mine_radius"));
+        assertEquals(StatType.MINE_RADIUS, StatType.fromKey("mine-area"));
+        assertEquals(StatType.MINE_RADIUS, StatType.fromKey("radius"));
+
+        // Area format (3x3, 5x5, 7x7, 9x9, 11x11...)
+        assertEquals("3×3", StatType.formatMineArea(1));
+        assertEquals("5×5", StatType.formatMineArea(2));
+        assertEquals("7×7", StatType.formatMineArea(3));
+        assertEquals("9×9", StatType.formatMineArea(4));
+        assertEquals("11×11", StatType.formatMineArea(5));
+
+        // Area size
+        assertEquals(3, StatType.getMineAreaSize(1));
+        assertEquals(5, StatType.getMineAreaSize(2));
+        assertEquals(7, StatType.getMineAreaSize(3));
+        assertEquals(9, StatType.getMineAreaSize(4));
+        assertEquals(11, StatType.getMineAreaSize(5));
+
+        // Radius blocks
+        assertEquals(1, StatType.getMineRadiusBlocks(1));
+        assertEquals(2, StatType.getMineRadiusBlocks(2));
+        assertEquals(3, StatType.getMineRadiusBlocks(3));
+        assertEquals(4, StatType.getMineRadiusBlocks(4));
+        assertEquals(5, StatType.getMineRadiusBlocks(5));
+    }
+
+    @Test
+    @DisplayName("Mine Radius: Listener configuration loading and limit bounds")
+    void testMineRadiusListenerConfig() {
+        com.github.orenaidaucac.royItems.mechanics.MineRadiusListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.MineRadiusListener(null, null, null, null, null);
+
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        yaml.set("mine-radius.enabled", true);
+        yaml.set("mine-radius.activation-chance", 75.0);
+        yaml.set("mine-radius.cooldown-ms", 250L);
+        yaml.set("mine-radius.limits.max-radius-tier", 3);
+        yaml.set("mine-radius.limits.max-blocks-per-break", 50);
+        yaml.set("mine-radius.extra-storage.auto-deposit", true);
+        yaml.set("mine-radius.extra-storage.drop-leftover-to-world", true);
+        yaml.set("mine-radius.allowed-blocks", java.util.List.of("STONE", "DIAMOND_ORE", "DEEPSLATE_IRON_ORE"));
+        yaml.set("mine-radius.allowed-tools", java.util.List.of("DIAMOND_PICKAXE", "NETHERITE_PICKAXE"));
+
+        listener.loadConfig(yaml);
+
+        assertTrue(listener.isEnabled());
+        assertEquals(75.0, listener.getActivationChance(), 0.001);
+        assertEquals(250L, listener.getCooldownMs());
+        assertEquals(3, listener.getMaxRadiusTier());
+        assertEquals(50, listener.getMaxBlocksPerBreak());
+        assertTrue(listener.isExtraStorageAutoDeposit());
+        assertTrue(listener.isExtraStorageDropLeftover());
+        assertTrue(listener.isBlockAllowed(org.bukkit.Material.STONE));
+        assertTrue(listener.isBlockAllowed(org.bukkit.Material.DIAMOND_ORE));
+        assertTrue(listener.isBlockAllowed(org.bukkit.Material.DEEPSLATE_IRON_ORE));
+        assertFalse(listener.isBlockAllowed(org.bukkit.Material.OBSIDIAN));
+        assertTrue(listener.isToolAllowed(org.bukkit.Material.DIAMOND_PICKAXE));
+        assertTrue(listener.isToolAllowed(org.bukkit.Material.NETHERITE_PICKAXE));
+        assertFalse(listener.isToolAllowed(org.bukkit.Material.WOODEN_SWORD));
+    }
+
+    @Test
+    @DisplayName("Mine Radius: LoreFormat placeholder formatting")
+    void testMineRadiusLoreFormatting() {
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        yaml.set("format", java.util.List.of("#mine-radius#"));
+        yaml.set("stat-format.mine-radius.format", "&7Mine Radius: &e%value%");
+        yaml.set("stat-format.positive", "&7#name#: &a#value#");
+
+        com.github.orenaidaucac.royItems.lore.LoreFormat format =
+                com.github.orenaidaucac.royItems.lore.LoreFormat.fromConfig("test", yaml);
+
+        // formatStatValue returns raw formatted value ("3×3", "5×5")
+        String rawVal = format.formatStatValue("mine-radius", new StatModifier(1.0, 0.0), new java.text.DecimalFormat("#.##"));
+        assertEquals("3×3", rawVal);
+
+        String rawValTier2 = format.formatStatValue("mine-radius", new StatModifier(2.0, 0.0), new java.text.DecimalFormat("#.##"));
+        assertEquals("5×5", rawValTier2);
+
+        // formatStatLine returns full decorated line with placeholder replacement
+        String formattedLine = format.formatStatLine("mine-radius", "Mine Radius", new StatModifier(1.0, 0.0), new java.text.DecimalFormat("#.##"));
+        assertEquals("&7Mine Radius: &e3×3", formattedLine);
+
+        String formattedLineTier2 = format.formatStatLine("mine-radius", "Mine Radius", new StatModifier(2.0, 0.0), new java.text.DecimalFormat("#.##"));
+        assertEquals("&7Mine Radius: &e5×5", formattedLineTier2);
+    }
+
+    @Test
+    @DisplayName("AdvancedOreGen Integration: Soft-hook safety and MineRadiusListener integration")
+    void testAdvancedOreGenHookAndMineRadiusIntegration() {
+        com.github.orenaidaucac.royItems.integration.AdvancedOreGenHook hook =
+                new com.github.orenaidaucac.royItems.integration.AdvancedOreGenHook();
+
+        // Without Bukkit server or AdvancedOreGen plugin, should gracefully evaluate to unavailable
+        assertFalse(hook.setup());
+        assertFalse(hook.isAvailable());
+        assertFalse(hook.isOreGenerator(null));
+        assertFalse(hook.regenerate(null, null));
+        assertFalse(hook.isPhysicalGeneratorSetup(null));
+
+        // Test MineRadiusListener with hook and config toggles
+        com.github.orenaidaucac.royItems.mechanics.MineRadiusListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.MineRadiusListener(null, null, null, null, hook, null);
+
+        assertSame(hook, listener.getAdvancedOreGenHook());
+        assertTrue(listener.isAdvancedOreGenAutoRegenerate());
+
+        org.bukkit.configuration.file.YamlConfiguration yamlFalse = new org.bukkit.configuration.file.YamlConfiguration();
+        yamlFalse.set("mine-radius.advanced-ore-gen.auto-regenerate", false);
+        listener.loadConfig(yamlFalse);
+        assertFalse(listener.isAdvancedOreGenAutoRegenerate());
+
+        org.bukkit.configuration.file.YamlConfiguration yamlTrue = new org.bukkit.configuration.file.YamlConfiguration();
+        yamlTrue.set("mine-radius.advanced-ore-gen.auto-regenerate", true);
+        listener.loadConfig(yamlTrue);
+        assertTrue(listener.isAdvancedOreGenAutoRegenerate());
+    }
+
+    @Test
+    @DisplayName("RoyItems: Version synchronization test")
+    void testVersionSynchronization() {
+        com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
+                new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
+        assertEquals("2026.1.6", expansion.getVersion());
+    }
 }

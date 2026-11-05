@@ -101,7 +101,7 @@ public class GemSocketManager {
         // Rebuild lore
         ItemMeta meta = targetItem.getItemMeta();
         long expire = pdcManager.getExpireTime(targetItem);
-        List<String> newLore = loreEngine.buildLore(targetDef, slotted, expire);
+        List<String> newLore = loreEngine.buildLore(targetDef, slotted, expire, meta != null ? meta.getEnchants() : null);
         meta.lore(TextUtility.formatLore(newLore));
         targetItem.setItemMeta(meta);
 

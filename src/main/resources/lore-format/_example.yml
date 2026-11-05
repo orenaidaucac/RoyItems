@@ -52,7 +52,7 @@
 # - Automatically formats raw numbers (e.g., 15) or percentages (e.g., 15%)
 #   depending on how the stat modifier is defined in the item configuration.
 #
-# A. 16 CUSTOM MMORPG STATS:
+# A. 17 CUSTOM MMORPG STATS:
 #   #attack-damage#       - Base physical attack damage
 #   #defense#             - Defense points (mitigates incoming damage via MMORPG formula)
 #   #pve-defense#         - Defense against PvE monster attacks
@@ -69,6 +69,7 @@
 #   #cooldown-reduction#  - Skill and ability cooldown reduction (%)
 #   #mana#                - Maximum mana pool increase (supports MMOCore, AuraSkills)
 #   #mana-regeneration#   - Mana regeneration rate (%)
+#   #mine-radius#         - Wide-area mining radius / formatted area (3×3, 5×5, 7×7...)
 #
 # B. VANILLA MINECRAFT ATTRIBUTES:
 #   #vanilla-attack-damage#        - minecraft:generic.attack_damage
@@ -125,6 +126,7 @@ format:
   - "#cooldown-reduction#"
   - "#mana#"
   - "#mana-regeneration#"
+  - "#mine-radius#"
   - "#vanilla-attack-damage#"
   - "#vanilla-armor#"
   - "#bar#"
@@ -159,6 +161,11 @@ stat-format:
     symbol: "🩸"
     format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"
     percent-format: "<gray>%symbol% %name%: <#EF476F>+%value%%</#EF476F></gray>"
+  mine-radius:
+    display-name: "Mine Radius"
+    symbol: "⛏"
+    format: "<gray>%symbol% %name%: <#FFD166>%value%</#FFD166></gray>"
+    percent-format: "<gray>%symbol% %name%: <#FFD166>%value%</#FFD166></gray>"
 
 # ==============================================================================
 # 4. CUSTOMIZABLE SECTIONS (NO HARDCODED TEXT)
@@ -175,7 +182,20 @@ requirements-format:
   auraskill: "&cAuraSkill: &f%skill% Lv.%level%"
 
 enchantments-format:
+  # Line format for standard enchantments (%name%, %level%, %raw-level%, %symbol%)
   format: "&7%name% %level%"
+  # Line format for curse enchantments (Curse of Binding, Curse of Vanishing)
+  curse-format: "&c%name% %level%"
+  # Optional prefix symbol (e.g. "✦ " or "")
+  symbol: ""
+  # Numbering style for enchantment levels: ROMAN (I, II, III, IV, V) or NUMBER (1, 2, 3, 4, 5)
+  level-style: "ROMAN"
+  # Display ordering: VANILLA_FIRST, ECO_FIRST, ALPHABETICAL, LEVEL_DESC, LEVEL_ASC
+  order: "VANILLA_FIRST"
+  # Custom display name overrides for specific enchantments (e.g. translations or custom colors)
+  custom-names:
+    sharpness: "Sharpness"
+    unbreaking: "Unbreaking"
 
 durability-format:
   unbreakable: "&aUnbreakable"

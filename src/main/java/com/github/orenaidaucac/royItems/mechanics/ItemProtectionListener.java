@@ -1,9 +1,11 @@
 package com.github.orenaidaucac.royItems.mechanics;
 
+import com.github.orenaidaucac.royItems.core.message.MessageManager;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.item.ItemPDCManager;
 import com.github.orenaidaucac.royItems.item.ItemRegistry;
 import com.github.orenaidaucac.royItems.item.ItemType;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -18,6 +20,9 @@ import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.*;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.Objects;
 
 /**
  * Handles security restrictions and item protections:
@@ -25,15 +30,41 @@ import org.bukkit.inventory.*;
  * 2. disable-on-enchantment: Blocks vanilla enchanting, anvil combination, grindstone, smithing table.
  * 3. disable-on-crafting: Blocks usage as crafting ingredient in workbench, stonecutter, furnace, brewing stand, etc.
  * 4. disable-on-drop: Prevents dropping from inventory or containers outside.
+ * 5. prevent-anvil-rename: Blocks renaming RoyItems in Anvils while safely preserving repair, combine, and enchanting.
  */
 public class ItemProtectionListener implements Listener {
 
     private final ItemPDCManager pdcManager;
     private final ItemRegistry registry;
+    private final MessageManager messageManager;
+    private boolean preventAnvilRename = true;
 
     public ItemProtectionListener(ItemPDCManager pdcManager, ItemRegistry registry) {
+        this(pdcManager, registry, null);
+    }
+
+    public ItemProtectionListener(ItemPDCManager pdcManager, ItemRegistry registry, MessageManager messageManager) {
         this.pdcManager = pdcManager;
         this.registry = registry;
+        this.messageManager = messageManager;
+    }
+
+    public void loadConfig(FileConfiguration config) {
+        if (config != null) {
+            this.preventAnvilRename = config.getBoolean("anvil.prevent-rename", true);
+        }
+    }
+
+    public boolean isPreventAnvilRename() {
+        return preventAnvilRename;
+    }
+
+    public boolean isPreventAnvilRename(ItemStack item) {
+        ItemDefinition def = getDefinition(item);
+        if (def != null && def.getPreventAnvilRename() != null) {
+            return def.getPreventAnvilRename();
+        }
+        return preventAnvilRename;
     }
 
     public ItemDefinition getDefinition(ItemStack item) {
@@ -192,11 +223,60 @@ public class ItemProtectionListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.LOW)
+    @EventHandler(priority = EventPriority.HIGH)
     public void onPrepareAnvil(PrepareAnvilEvent event) {
         AnvilInventory inv = event.getInventory();
-        if (isDisableOnEnchantment(inv.getFirstItem()) || isDisableOnEnchantment(inv.getSecondItem())) {
+        ItemStack first = inv.getFirstItem();
+        ItemStack second = inv.getSecondItem();
+
+        // 1. Existing disable-on-enchantment protection
+        if (isDisableOnEnchantment(first) || isDisableOnEnchantment(second)) {
             event.setResult(null);
+            return;
+        }
+
+        // 2. Anvil Rename Protection for RoyItems
+        if (first == null || first.getType().isAir() || !pdcManager.isRoyItem(first)) {
+            return;
+        }
+
+        if (!isPreventAnvilRename(first)) {
+            return;
+        }
+
+        // Case A: Slot 1 is empty -> only renaming could be occurring
+        if (second == null || second.getType().isAir()) {
+            event.setResult(null);
+            inv.setRepairCost(0);
+            return;
+        }
+
+        // Case B: Slot 1 is NOT empty -> repair, combination, or enchanting
+        ItemStack result = event.getResult();
+        if (result == null || result.getType().isAir()) {
+            return;
+        }
+
+        ItemMeta firstMeta = first.getItemMeta();
+        ItemMeta resultMeta = result.getItemMeta();
+        net.kyori.adventure.text.Component originalName = (firstMeta != null && firstMeta.hasDisplayName())
+                ? firstMeta.displayName()
+                : null;
+        net.kyori.adventure.text.Component resultName = (resultMeta != null && resultMeta.hasDisplayName())
+                ? resultMeta.displayName()
+                : null;
+
+        if (!Objects.equals(originalName, resultName)) {
+            // Player attempted to rename while repairing/combining/enchanting.
+            // Enforce original display name:
+            resultMeta.displayName(originalName);
+            result.setItemMeta(resultMeta);
+
+            // Refund the 1 extra level Vanilla added for renaming so player is not overcharged:
+            if (inv.getRepairCost() > 1) {
+                inv.setRepairCost(inv.getRepairCost() - 1);
+            }
+            event.setResult(result);
         }
     }
 
@@ -320,10 +400,52 @@ public class ItemProtectionListener implements Listener {
         Inventory inv = event.getInventory();
         if (inv instanceof AnvilInventory anvil) {
             if (event.getRawSlot() == 2) {
-                if (isDisableOnEnchantment(anvil.getFirstItem()) || isDisableOnEnchantment(anvil.getSecondItem())) {
+                ItemStack first = anvil.getFirstItem();
+                ItemStack second = anvil.getSecondItem();
+                if (isDisableOnEnchantment(first) || isDisableOnEnchantment(second)) {
                     event.setCancelled(true);
                     if (event.getWhoClicked() instanceof Player p) p.updateInventory();
                     return;
+                }
+
+                if (first != null && !first.getType().isAir() && pdcManager.isRoyItem(first) && isPreventAnvilRename(first)) {
+                    // 1. If slot 1 is empty, only rename could have occurred: cancel immediately
+                    if (second == null || second.getType().isAir()) {
+                        event.setCancelled(true);
+                        anvil.setItem(2, null);
+                        if (event.getWhoClicked() instanceof Player p) {
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "anvil-rename-blocked", "&cYou cannot rename RoyItems items using an anvil.");
+                            }
+                        }
+                        return;
+                    }
+
+                    // 2. If slot 1 is present (repair / enchant), ensure the result item has not been renamed
+                    ItemStack result = event.getCurrentItem();
+                    if (result == null || result.getType().isAir()) {
+                        result = anvil.getItem(2);
+                    }
+                    if (result != null && !result.getType().isAir()) {
+                        ItemMeta firstMeta = first.getItemMeta();
+                        ItemMeta resultMeta = result.getItemMeta();
+                        net.kyori.adventure.text.Component originalName = (firstMeta != null && firstMeta.hasDisplayName())
+                                ? firstMeta.displayName()
+                                : null;
+                        net.kyori.adventure.text.Component resultName = (resultMeta != null && resultMeta.hasDisplayName())
+                                ? resultMeta.displayName()
+                                : null;
+
+                        if (!Objects.equals(originalName, resultName)) {
+                            resultMeta.displayName(originalName);
+                            result.setItemMeta(resultMeta);
+                            anvil.setItem(2, result);
+                            if (event.getCurrentItem() != null && !event.getCurrentItem().getType().isAir()) {
+                                event.getCurrentItem().setItemMeta(resultMeta);
+                            }
+                        }
+                    }
                 }
             }
         } else if (inv instanceof GrindstoneInventory grindstone) {

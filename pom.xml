@@ -5,7 +5,7 @@
 
     <groupId>com.github.orenaidaucac</groupId>
     <artifactId>royitems</artifactId>
-    <version>2026.1.5</version>
+    <version>2026.1.6</version>
     <packaging>jar</packaging>
 
     <name>RoyItems</name>

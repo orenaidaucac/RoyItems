@@ -23,6 +23,7 @@ messages:
   requirement-failed: "&cYou do not meet the requirements to wield this item!"
   cooldown-active: "&cThis item is currently on cooldown! (&f#time#s&c remaining)"
   editor-locked: "&cThis item is currently being edited by another administrator!"
+  anvil-rename-blocked: "&cYou cannot rename RoyItems items using an anvil."
 
   # Update notifications (Admin on join and on reload)
   update-available:

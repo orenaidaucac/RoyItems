@@ -1,7 +1,10 @@
 package com.github.orenaidaucac.royItems.lore;
 
 import com.github.orenaidaucac.royItems.RoyItems;
+import com.github.orenaidaucac.royItems.core.text.TextUtility;
+import com.github.orenaidaucac.royItems.item.ItemBuilder;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
+import com.github.orenaidaucac.royItems.item.ItemType;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
 import com.github.orenaidaucac.royItems.tier_set.ItemSet;
@@ -13,6 +16,9 @@ import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
@@ -36,6 +42,9 @@ public class DynamicLoreEngine {
     private final Plugin plugin;
     private ItemTierManager itemTierManager;
     private ItemSetManager itemSetManager;
+    private com.github.orenaidaucac.royItems.integration.EcoEnchantsHook ecoEnchantsHook;
+    private com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager;
+    private com.github.orenaidaucac.royItems.item.ItemRegistry registry;
     private final Map<String, LoreFormat> formats = new ConcurrentHashMap<>();
     private final DecimalFormat df = new DecimalFormat("#,##0.##");
 
@@ -55,6 +64,18 @@ public class DynamicLoreEngine {
 
     public void setItemSetManager(ItemSetManager itemSetManager) {
         this.itemSetManager = itemSetManager;
+    }
+
+    public void setEcoEnchantsHook(com.github.orenaidaucac.royItems.integration.EcoEnchantsHook ecoEnchantsHook) {
+        this.ecoEnchantsHook = ecoEnchantsHook;
+    }
+
+    public void setPdcManager(com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager) {
+        this.pdcManager = pdcManager;
+    }
+
+    public void setItemRegistry(com.github.orenaidaucac.royItems.item.ItemRegistry registry) {
+        this.registry = registry;
     }
 
     public void loadFormats() {
@@ -113,6 +134,14 @@ public class DynamicLoreEngine {
      * Builds dynamic lore for an item according to its definition and active runtime data.
      */
     public List<String> buildLore(ItemDefinition def, List<String> slottedSockets, long expireTimestamp) {
+        return buildLore(def, slottedSockets, expireTimestamp, null);
+    }
+
+    /**
+     * Builds dynamic lore for an item according to its definition, active runtime data,
+     * and actual runtime enchantments (Vanilla and EcoEnchants).
+     */
+    public List<String> buildLore(ItemDefinition def, List<String> slottedSockets, long expireTimestamp, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
         if (def == null) return new ArrayList<>();
 
         // If an item purposefully attempts to use the reserved wiki file, suppress its lore completely
@@ -132,7 +161,7 @@ public class DynamicLoreEngine {
 
         List<String> socketLines = generateSocketLines(def, slottedSockets, format);
         List<String> reqLines = generateRequirementLines(def, format);
-        List<String> enchLines = generateEnchantmentLines(def, format);
+        List<String> enchLines = generateEnchantmentLines(def, format, activeEnchants);
 
         List<String> processed = new ArrayList<>();
         String barString = format.getBar() != null ? format.getBar() : "&8&m------------------------";
@@ -196,7 +225,7 @@ public class DynamicLoreEngine {
                     String line = rawLine;
                     for (String key : statKeysInLine) {
                         StatModifier mod = findStatModifier(def, key);
-                        String val = format.formatStatValue(mod, df);
+                        String val = format.formatStatValue(key, mod, df);
                         line = line.replace("#" + key + "#", val != null ? val : "");
                         line = line.replace("#" + key.toUpperCase() + "#", val != null ? val : "");
                         line = line.replace("%" + key + "%", val != null ? val : "");
@@ -610,29 +639,175 @@ public class DynamicLoreEngine {
         return lines;
     }
 
-    private List<String> generateEnchantmentLines(ItemDefinition def, LoreFormat format) {
+    public List<String> generateEnchantmentLines(ItemDefinition def, LoreFormat format) {
+        return generateEnchantmentLines(def, format, null);
+    }
+
+    public List<String> generateEnchantmentLines(ItemDefinition def, LoreFormat format, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
         List<String> lines = new ArrayList<>();
-        if (def == null || def.isHideEnchantments() || def.getEnchantments() == null || def.getEnchantments().isEmpty()) {
+        if (def == null || def.isHideEnchantments()) {
             return lines;
         }
-        String tpl = format != null && format.getEnchantmentFormat() != null ? format.getEnchantmentFormat() : "&7%name% %level%";
-        for (Map.Entry<org.bukkit.enchantments.Enchantment, Integer> entry : def.getEnchantments().entrySet()) {
-            org.bukkit.enchantments.Enchantment ench = entry.getKey();
-            int level = entry.getValue();
-            String name = formatEnchantmentName(ench);
-            String levelStr = toRoman(level);
-            lines.add(tpl.replace("%name%", name).replace("#name#", name)
-                    .replace("%level%", levelStr).replace("#level#", levelStr)
-                    .replace("%raw-level%", String.valueOf(level)).replace("#raw-level#", String.valueOf(level)));
+
+        Map<org.bukkit.enchantments.Enchantment, Integer> enchants = new LinkedHashMap<>();
+        if (activeEnchants != null && !activeEnchants.isEmpty()) {
+            enchants.putAll(activeEnchants);
+        } else if (def.getEnchantments() != null) {
+            enchants.putAll(def.getEnchantments());
         }
+
+        if (enchants.isEmpty()) {
+            return lines;
+        }
+
+        List<Map.Entry<org.bukkit.enchantments.Enchantment, Integer>> sorted = sortEnchantments(enchants, format);
+
+        String tpl = format != null && format.getEnchantmentFormat() != null ? format.getEnchantmentFormat() : "&7%name% %level%";
+        String curseTpl = format != null && format.getEnchantmentCurseFormat() != null ? format.getEnchantmentCurseFormat() : "&c%name% %level%";
+        String symbol = format != null && format.getEnchantmentSymbol() != null ? format.getEnchantmentSymbol() : "";
+        String levelStyle = format != null && format.getEnchantmentLevelStyle() != null ? format.getEnchantmentLevelStyle() : "ROMAN";
+        Map<String, String> customNames = format != null ? format.getEnchantmentCustomNames() : Collections.emptyMap();
+
+        for (Map.Entry<org.bukkit.enchantments.Enchantment, Integer> entry : sorted) {
+            org.bukkit.enchantments.Enchantment ench = entry.getKey();
+            if (ench == null) continue;
+            int level = entry.getValue();
+
+            // Filter out dummy glow enchantment (LUCK_OF_THE_SEA level 1) if item is set to glow
+            if (def.isGlow() && ench.equals(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA)
+                    && (def.getEnchantments() == null || !def.getEnchantments().containsKey(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA))) {
+                continue;
+            }
+
+            // 1. EcoEnchants integration: check if EcoEnchant
+            if (ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(ench)) {
+                String ecoFormatted = ecoEnchantsHook.getFormattedName(ench, level);
+                if (ecoFormatted != null && !ecoFormatted.isEmpty()) {
+                    String line = ecoFormatted;
+                    if (!symbol.isEmpty() && !line.startsWith(symbol)) {
+                        line = symbol + line;
+                    }
+                    lines.add(line);
+                    continue;
+                }
+            }
+
+            // 2. Curse enchantment check
+            boolean isCurse = isCurseEnchantment(ench);
+            String selectedTpl = isCurse ? curseTpl : tpl;
+
+            // 3. Name resolution
+            String keyName = ench.getKey().getKey().toLowerCase().replace('-', '_');
+            String name;
+            if (customNames != null && customNames.containsKey(keyName)) {
+                name = customNames.get(keyName);
+            } else {
+                name = formatEnchantmentName(ench);
+            }
+
+            // 4. Level resolution
+            String levelStr;
+            if (ench.getMaxLevel() == 1 && level == 1) {
+                // Vanilla standard: single-level enchantments (e.g. Mending, Silk Touch) do not display "I"
+                levelStr = "";
+            } else if ("NUMBER".equalsIgnoreCase(levelStyle)) {
+                levelStr = String.valueOf(level);
+            } else {
+                levelStr = toRoman(level);
+            }
+
+            // 5. Line formatting
+            String line = selectedTpl
+                    .replace("%name%", name).replace("#name#", name)
+                    .replace("%level%", levelStr).replace("#level#", levelStr)
+                    .replace("%raw-level%", String.valueOf(level)).replace("#raw-level#", String.valueOf(level))
+                    .replace("%symbol%", symbol).replace("#symbol#", symbol);
+
+            // Clean up trailing space if levelStr was empty
+            line = line.replaceAll("\\s+$", "");
+            lines.add(line);
+        }
+
         return lines;
     }
 
-    private static final String[] ROMAN = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
+    private List<Map.Entry<org.bukkit.enchantments.Enchantment, Integer>> sortEnchantments(
+            Map<org.bukkit.enchantments.Enchantment, Integer> enchants, LoreFormat format) {
+        List<Map.Entry<org.bukkit.enchantments.Enchantment, Integer>> list = new ArrayList<>(enchants.entrySet());
+        String order = format != null && format.getEnchantmentOrder() != null
+                ? format.getEnchantmentOrder().toUpperCase() : "VANILLA_FIRST";
+
+        Comparator<Map.Entry<org.bukkit.enchantments.Enchantment, Integer>> comparator;
+        switch (order) {
+            case "ECO_FIRST":
+                comparator = (e1, e2) -> {
+                    boolean eco1 = ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(e1.getKey());
+                    boolean eco2 = ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(e2.getKey());
+                    if (eco1 != eco2) return eco1 ? -1 : 1;
+                    return e1.getKey().getKey().toString().compareToIgnoreCase(e2.getKey().getKey().toString());
+                };
+                break;
+            case "ALPHABETICAL":
+                comparator = (e1, e2) -> e1.getKey().getKey().toString().compareToIgnoreCase(e2.getKey().getKey().toString());
+                break;
+            case "LEVEL_DESC":
+                comparator = (e1, e2) -> {
+                    int c = Integer.compare(e2.getValue(), e1.getValue());
+                    if (c != 0) return c;
+                    return e1.getKey().getKey().toString().compareToIgnoreCase(e2.getKey().getKey().toString());
+                };
+                break;
+            case "LEVEL_ASC":
+                comparator = (e1, e2) -> {
+                    int c = Integer.compare(e1.getValue(), e2.getValue());
+                    if (c != 0) return c;
+                    return e1.getKey().getKey().toString().compareToIgnoreCase(e2.getKey().getKey().toString());
+                };
+                break;
+            case "VANILLA_FIRST":
+            default:
+                comparator = (e1, e2) -> {
+                    boolean eco1 = ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(e1.getKey());
+                    boolean eco2 = ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(e2.getKey());
+                    if (eco1 != eco2) return eco1 ? 1 : -1;
+                    boolean curse1 = isCurseEnchantment(e1.getKey());
+                    boolean curse2 = isCurseEnchantment(e2.getKey());
+                    if (curse1 != curse2) return curse1 ? 1 : -1;
+                    return e1.getKey().getKey().toString().compareToIgnoreCase(e2.getKey().getKey().toString());
+                };
+                break;
+        }
+
+        list.sort(comparator);
+        return list;
+    }
+
+    public static boolean isCurseEnchantment(org.bukkit.enchantments.Enchantment ench) {
+        if (ench == null) return false;
+        try {
+            return ench.isCursed();
+        } catch (Throwable ignored) {
+            String key = ench.getKey().getKey().toLowerCase();
+            return key.startsWith("curse_") || key.contains("curse");
+        }
+    }
+
+    private static final int[] ROMAN_VALUES = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
+    private static final String[] ROMAN_SYMBOLS = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
 
     public static String toRoman(int level) {
-        if (level > 0 && level < ROMAN.length) return ROMAN[level];
-        return String.valueOf(level);
+        if (level <= 0) return String.valueOf(level);
+        if (level > 3999) return String.valueOf(level);
+
+        StringBuilder sb = new StringBuilder();
+        int num = level;
+        for (int i = 0; i < ROMAN_VALUES.length; i++) {
+            while (num >= ROMAN_VALUES[i]) {
+                sb.append(ROMAN_SYMBOLS[i]);
+                num -= ROMAN_VALUES[i];
+            }
+        }
+        return sb.toString();
     }
 
     public static String formatEnchantmentName(org.bukkit.enchantments.Enchantment ench) {
@@ -640,12 +815,84 @@ public class DynamicLoreEngine {
         String key = ench.getKey().getKey();
         String[] words = key.replace('_', ' ').split("\\s+");
         StringBuilder sb = new StringBuilder();
-        for (String w : words) {
+        for (int i = 0; i < words.length; i++) {
+            String w = words[i];
             if (w.isEmpty()) continue;
             if (sb.length() > 0) sb.append(" ");
-            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1).toLowerCase());
+            if (i > 0 && (w.equalsIgnoreCase("of") || w.equalsIgnoreCase("the"))) {
+                sb.append(w.toLowerCase());
+            } else {
+                sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1).toLowerCase());
+            }
         }
         return sb.toString();
+    }
+
+    public boolean hasEnchantmentsPlaceholder(ItemDefinition def) {
+        if (def == null) return false;
+        String formatId = def.getLoreFormat() != null ? def.getLoreFormat().toLowerCase() : "default";
+        LoreFormat format = formats.getOrDefault(formatId, formats.get("default"));
+        if (format == null || format.getFormat() == null) return false;
+        for (String line : format.getFormat()) {
+            if (line == null) continue;
+            String trimmed = line.trim();
+            if (trimmed.equalsIgnoreCase("#enchantments#") || trimmed.equalsIgnoreCase("%enchantments%")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean synchronizeItemEnchantments(ItemStack item) {
+        if (item == null || item.getType().isAir()) return false;
+        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
+        if (registry == null) return false;
+
+        ItemType type = pdcManager.getType(item);
+        String id = pdcManager.getId(item);
+        ItemDefinition def = registry.get(type, id);
+        if (def == null) return false;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+
+        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = new LinkedHashMap<>(meta.getEnchants());
+        if (meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storageMeta) {
+            activeEnchants.putAll(storageMeta.getStoredEnchants());
+        }
+
+        String socketsRaw = pdcManager.getSocketsData(item);
+        List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
+        long expire = pdcManager.getExpireTime(item);
+
+        List<String> rawLore = buildLore(def, sockets, expire, activeEnchants);
+        meta.lore(TextUtility.formatLore(rawLore));
+
+        // When lore displays enchantments, suppress vanilla client tooltip so client does not duplicate
+        if (hasEnchantmentsPlaceholder(def)) {
+            meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
+        }
+
+        pdcManager.setEnchantHash(meta, activeEnchants.hashCode());
+        item.setItemMeta(meta);
+        return true;
+    }
+
+    public boolean checkAndSynchronizeEnchantments(ItemStack item) {
+        if (item == null || item.getType().isAir()) return false;
+        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+
+        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = meta.getEnchants();
+        int currentHash = activeEnchants.hashCode();
+        int storedHash = pdcManager.getEnchantHash(meta);
+
+        if (currentHash != storedHash) {
+            return synchronizeItemEnchantments(item);
+        }
+        return false;
     }
 
     /**

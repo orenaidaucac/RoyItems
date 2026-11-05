@@ -176,6 +176,10 @@ public class MessageManager {
         send(sender, key, "", Collections.emptyMap());
     }
 
+    public void send(CommandSender sender, String key, String def) {
+        send(sender, key, def, Collections.emptyMap());
+    }
+
     public void send(CommandSender sender, String key, Map<String, String> placeholders) {
         send(sender, key, "", placeholders);
     }

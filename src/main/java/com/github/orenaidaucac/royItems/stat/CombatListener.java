@@ -1,5 +1,6 @@
 package com.github.orenaidaucac.royItems.stat;
 
+import com.github.orenaidaucac.royItems.integration.MythicMobsHook;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -12,15 +13,22 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 /**
  * Handles real-time combat calculations: attack damage, arrow damage, critical hits,
  * custom defense modes (SIMPLE, MMORPG, CUSTOM_LIMIT), damage reduction, and PvP/PvE scaling.
+ * Integrates with MythicMobs to ensure consistent defense calculation with zero double-mitigation.
  */
 public class CombatListener implements Listener {
 
     private final StatManager statManager;
     private final DefenseManager defenseManager;
+    private final MythicMobsHook mythicMobsHook;
 
     public CombatListener(StatManager statManager, DefenseManager defenseManager) {
+        this(statManager, defenseManager, null);
+    }
+
+    public CombatListener(StatManager statManager, DefenseManager defenseManager, MythicMobsHook mythicMobsHook) {
         this.statManager = statManager;
         this.defenseManager = defenseManager;
+        this.mythicMobsHook = mythicMobsHook;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -86,8 +94,23 @@ public class CombatListener implements Listener {
 
         // 2. Process Victim Modifiers (Custom Defense & Mitigation)
         if (victimEntity instanceof Player victim) {
+            // Check if this damage hit was already mitigated in MythicDamageEvent
+            // to prevent double mitigation
+            if (mythicMobsHook != null && mythicMobsHook.isRecentlyMitigated(victim.getUniqueId())) {
+                mythicMobsHook.clearMitigation(victim.getUniqueId());
+                if (Double.isNaN(damage) || Double.isInfinite(damage) || damage < 0) {
+                    damage = 0.0;
+                }
+                event.setDamage(damage);
+                return;
+            }
+
             boolean isPvP = (trueSource instanceof Player);
             boolean isPvE = (trueSource instanceof LivingEntity && !isPvP);
+            if (mythicMobsHook != null && mythicMobsHook.isMythicMob(trueSource)) {
+                isPvE = true;
+                isPvP = false;
+            }
 
             // Effective Defense = Base Defense + (PvP/PvE Defense)
             double effectiveDefense = defenseManager.calculateEffectiveDefense(victim, isPvP, isPvE);

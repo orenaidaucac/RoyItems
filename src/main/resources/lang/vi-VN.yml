@@ -23,6 +23,7 @@ messages:
   requirement-failed: "&cBạn không đủ điều kiện để sử dụng vật phẩm này!"
   cooldown-active: "&cVật phẩm này đang trong thời gian hồi chiêu! (Còn &f#time#s&c)"
   editor-locked: "&cVật phẩm này hiện đang được chỉnh sửa bởi một quản trị viên khác!"
+  anvil-rename-blocked: "&cBạn không thể đổi tên vật phẩm RoyItems thông qua đe!"
 
   # Thông báo update (Admin khi vào server và khi reload)
   update-available:

@@ -21,6 +21,7 @@ public class ItemPDCManager {
     private final NamespacedKey KEY_EXPIRE;
     private final NamespacedKey KEY_SOCKETS;
     private final NamespacedKey KEY_TIER;
+    private final NamespacedKey KEY_ENCHANT_HASH;
 
     public ItemPDCManager(Plugin plugin) {
         this.KEY_TYPE = new NamespacedKey(plugin, "item_type");
@@ -30,6 +31,32 @@ public class ItemPDCManager {
         this.KEY_EXPIRE = new NamespacedKey(plugin, "item_expire");
         this.KEY_SOCKETS = new NamespacedKey(plugin, "item_sockets");
         this.KEY_TIER = new NamespacedKey(plugin, "item_tier");
+        this.KEY_ENCHANT_HASH = new NamespacedKey(plugin, "item_enchant_hash");
+    }
+
+    public NamespacedKey getKeyType() { return KEY_TYPE; }
+    public NamespacedKey getKeyId() { return KEY_ID; }
+    public NamespacedKey getKeyUuid() { return KEY_UUID; }
+    public NamespacedKey getKeyVersion() { return KEY_VERSION; }
+    public NamespacedKey getKeyExpire() { return KEY_EXPIRE; }
+    public NamespacedKey getKeySockets() { return KEY_SOCKETS; }
+    public NamespacedKey getKeyTier() { return KEY_TIER; }
+    public NamespacedKey getKeyEnchantHash() { return KEY_ENCHANT_HASH; }
+
+    public int getEnchantHash(ItemStack item) {
+        if (!isRoyItem(item)) return 0;
+        return getEnchantHash(item.getItemMeta());
+    }
+
+    public int getEnchantHash(ItemMeta meta) {
+        if (meta == null) return 0;
+        Integer hash = meta.getPersistentDataContainer().get(KEY_ENCHANT_HASH, PersistentDataType.INTEGER);
+        return hash != null ? hash : 0;
+    }
+
+    public void setEnchantHash(ItemMeta meta, int hash) {
+        if (meta == null) return;
+        meta.getPersistentDataContainer().set(KEY_ENCHANT_HASH, PersistentDataType.INTEGER, hash);
     }
 
     public boolean isRoyItem(ItemStack item) {

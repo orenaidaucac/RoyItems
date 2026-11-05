@@ -1,5 +1,5 @@
 name: RoyItems
-version: '2026.1.5'
+version: '2026.1.6'
 main: com.github.orenaidaucac.royItems.RoyItems
 api-version: '1.21'
 folia-supported: true
@@ -26,6 +26,7 @@ softdepend:
   - PlayerPoints
   - ExcellentEconomy
   - ExtraStorage
+  - EcoEnchants
 
 commands:
   royitems:

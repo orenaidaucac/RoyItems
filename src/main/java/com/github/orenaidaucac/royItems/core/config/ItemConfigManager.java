@@ -233,6 +233,11 @@ public class ItemConfigManager {
         def.setDisableOnEnchantment(sec.getBoolean("disable-on-enchantment", false));
         def.setDisableOnCrafting(sec.getBoolean("disable-on-crafting", false));
         def.setDisableOnDrop(sec.getBoolean("disable-on-drop", false));
+        if (sec.contains("prevent-anvil-rename")) {
+            def.setPreventAnvilRename(sec.getBoolean("prevent-anvil-rename"));
+        } else if (sec.contains("prevent-rename")) {
+            def.setPreventAnvilRename(sec.getBoolean("prevent-rename"));
+        }
 
         def.setVersion(sec.getInt("version", 1));
 
@@ -425,6 +430,7 @@ public class ItemConfigManager {
         config.set(path + ".disable-on-enchantment", def.isDisableOnEnchantment() ? true : null);
         config.set(path + ".disable-on-crafting", def.isDisableOnCrafting() ? true : null);
         config.set(path + ".disable-on-drop", def.isDisableOnDrop() ? true : null);
+        config.set(path + ".prevent-anvil-rename", def.getPreventAnvilRename());
 
         // Bump version for LiveUpdate
         int newVersion = def.getVersion() + 1;

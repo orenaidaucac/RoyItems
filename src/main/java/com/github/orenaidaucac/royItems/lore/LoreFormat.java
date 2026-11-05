@@ -36,6 +36,11 @@ public class LoreFormat {
 
     // Enchantments formatting
     private String enchantmentFormat = "&7%name% %level%";
+    private String enchantmentCurseFormat = "&c%name% %level%";
+    private String enchantmentSymbol = "";
+    private String enchantmentLevelStyle = "ROMAN";
+    private String enchantmentOrder = "VANILLA_FIRST";
+    private Map<String, String> enchantmentCustomNames = new HashMap<>();
 
     // Durability formatting
     private String durabilityUnbreakable = "&aUnbreakable";
@@ -128,6 +133,21 @@ public class LoreFormat {
 
     public String getEnchantmentFormat() { return enchantmentFormat; }
     public void setEnchantmentFormat(String enchantmentFormat) { this.enchantmentFormat = enchantmentFormat; }
+
+    public String getEnchantmentCurseFormat() { return enchantmentCurseFormat; }
+    public void setEnchantmentCurseFormat(String enchantmentCurseFormat) { this.enchantmentCurseFormat = enchantmentCurseFormat; }
+
+    public String getEnchantmentSymbol() { return enchantmentSymbol; }
+    public void setEnchantmentSymbol(String enchantmentSymbol) { this.enchantmentSymbol = enchantmentSymbol; }
+
+    public String getEnchantmentLevelStyle() { return enchantmentLevelStyle; }
+    public void setEnchantmentLevelStyle(String enchantmentLevelStyle) { this.enchantmentLevelStyle = enchantmentLevelStyle; }
+
+    public String getEnchantmentOrder() { return enchantmentOrder; }
+    public void setEnchantmentOrder(String enchantmentOrder) { this.enchantmentOrder = enchantmentOrder; }
+
+    public Map<String, String> getEnchantmentCustomNames() { return enchantmentCustomNames; }
+    public void setEnchantmentCustomNames(Map<String, String> enchantmentCustomNames) { this.enchantmentCustomNames = enchantmentCustomNames; }
 
     public String getDurabilityUnbreakable() { return durabilityUnbreakable; }
     public void setDurabilityUnbreakable(String durabilityUnbreakable) { this.durabilityUnbreakable = durabilityUnbreakable; }
@@ -273,7 +293,15 @@ public class LoreFormat {
      * Formats just the raw stat value with % if percentage (e.g. "15", "20%", "0.5%").
      */
     public String formatStatValue(StatModifier mod, DecimalFormat df) {
+        return formatStatValue(null, mod, df);
+    }
+
+    public String formatStatValue(String key, StatModifier mod, DecimalFormat df) {
         if (mod == null || mod.isEmpty()) return null;
+
+        if (key != null && (key.equalsIgnoreCase("mine-radius") || key.equalsIgnoreCase("mine_radius") || key.equalsIgnoreCase("mineradius"))) {
+            return StatType.formatMineArea(mod.getFlat());
+        }
 
         boolean hasFlat = Math.abs(mod.getFlat()) > 0.00001;
         boolean hasPct = Math.abs(mod.getPercent()) > 0.00001;
@@ -292,6 +320,13 @@ public class LoreFormat {
         if (template == null) return "";
         String s = template;
 
+        String areaStr = StatType.formatMineArea(rawVal);
+        int radiusVal = StatType.getMineRadiusBlocks(rawVal);
+        String finalVal = formattedVal;
+        if (key != null && (key.equalsIgnoreCase("mine-radius") || key.equalsIgnoreCase("mine_radius") || key.equalsIgnoreCase("mineradius"))) {
+            finalVal = areaStr;
+        }
+
         if (symbol == null || symbol.isEmpty()) {
             s = s.replace("%symbol% ", "").replace("#symbol# ", "").replace("%symbol%", "").replace("#symbol#", "");
         } else {
@@ -300,8 +335,12 @@ public class LoreFormat {
 
         s = s.replace("%name%", name != null ? name : "")
                 .replace("#name#", name != null ? name : "")
-                .replace("%value%", formattedVal)
-                .replace("#value#", formattedVal)
+                .replace("%value%", finalVal)
+                .replace("#value#", finalVal)
+                .replace("%area%", areaStr)
+                .replace("#area#", areaStr)
+                .replace("%radius%", String.valueOf(radiusVal))
+                .replace("#radius#", String.valueOf(radiusVal))
                 .replace("%raw-value%", String.valueOf(rawVal))
                 .replace("#raw-value#", String.valueOf(rawVal))
                 .replace("%key%", key != null ? key : "")
@@ -389,6 +428,19 @@ public class LoreFormat {
         ConfigurationSection enchSec = config.getConfigurationSection("enchantments-format");
         if (enchSec != null) {
             lf.setEnchantmentFormat(enchSec.getString("format", "&7%name% %level%"));
+            lf.setEnchantmentCurseFormat(enchSec.getString("curse-format", "&c%name% %level%"));
+            lf.setEnchantmentSymbol(enchSec.getString("symbol", ""));
+            lf.setEnchantmentLevelStyle(enchSec.getString("level-style", "ROMAN"));
+            lf.setEnchantmentOrder(enchSec.getString("order", "VANILLA_FIRST"));
+
+            ConfigurationSection customNamesSec = enchSec.getConfigurationSection("custom-names");
+            if (customNamesSec != null) {
+                Map<String, String> customNames = new HashMap<>();
+                for (String key : customNamesSec.getKeys(false)) {
+                    customNames.put(key.toLowerCase().replace('-', '_'), customNamesSec.getString(key));
+                }
+                lf.setEnchantmentCustomNames(customNames);
+            }
         }
 
         // Durability format

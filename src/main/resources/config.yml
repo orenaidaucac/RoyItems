@@ -89,3 +89,202 @@ combat:
       max-damage:
         enabled: false
         value: 100.0
+
+# ==============================================================================
+# LIVE UPDATE SYSTEM
+# Automatically updates existing custom items across online player inventories,
+# equipment, off-hand, and ender chests when an administrator reloads the plugin
+# (/royitems reload) or saves item modifications in the Ingame GUI Editor.
+# Players never need to reconnect or drop items for stat/lore changes to take effect.
+# ==============================================================================
+live-update:
+  # Enable or disable the entire LiveUpdate mechanism
+  enabled: true
+
+  # Automatically trigger LiveUpdate across all online players upon /royitems reload
+  auto-update-on-reload: true
+
+  # Containers to scan and synchronize
+  containers:
+    inventory: true      # Player storage slots (0-35)
+    armor: true          # Helmet, chestplate, leggings, and boots equipment slots
+    offhand: true        # Off-hand shield/item slot
+    ender-chest: true    # Player Ender Chest storage contents
+
+  # Data preservation settings during LiveUpdate:
+  # - Set to true: preserves the item's current in-game state (prevents overwrite)
+  # - Set to false: updates/refreshes the property according to the latest item definition
+  preserve:
+    # Preserve enchantments applied by players via anvil, enchanting table, or custom plugins
+    enchantments: true
+
+    # Preserve slotted gem stones and socket state (true = keep slotted gems)
+    gems: true
+
+    # Preserve current item durability / damage state (true = keep current wear)
+    durability: true
+
+    # Preserve custom display name if renamed via anvil by the player
+    # (false = reset/update to the latest display name configured in item YAML)
+    display-name: false
+
+    # Preserve custom lore lines (false = rebuild lore dynamically with latest stats and formats)
+    lore: false
+
+    # Preserve item tier assigned in game (false = synchronize with latest definition tier)
+    tier: false
+
+    # Preserve custom model data (false = synchronize with latest definition model)
+    custom-model-data: false
+
+    # Preserve third-party PersistentDataContainer (PDC) and custom NBT tags from other plugins
+    pdc: true
+
+    # Preserve existing attribute modifiers
+    # (false = update stats and vanilla attributes to match the new configuration immediately)
+    attributes: false
+
+# ==============================================================================
+# ENCHANTMENT SYSTEM & ECOENCHANTS INTEGRATION
+# Controls dynamic enchantment recognition, formatting in #enchantments#,
+# and instant synchronization when items are enchanted.
+# ==============================================================================
+enchantments:
+  # Automatically synchronize #enchantments# dynamic lore upon Anvil combination,
+  # Enchanting Table, Enchanted Books, /enchant commands, or EcoEnchants scrolls
+  auto-sync-lore: true
+
+  # Hide the default vanilla grey enchantment tooltip so enchantments are only
+  # rendered cleanly via RoyItems' #enchantments# lore placeholder (no duplicate lines)
+  hide-vanilla-tooltip: true
+
+  # Default enchantment line format when not specified in individual lore-format file
+  default-format: "&7%name% %level%"
+
+  # Format for curse enchantments (Curse of Binding, Curse of Vanishing)
+  curse-format: "&c%name% %level%"
+
+  # Optional prefix symbol (e.g. "✦ " or "")
+  symbol: ""
+
+  # Numbering style for enchantment levels: ROMAN (I, II, III, IV, V) or NUMBER (1, 2, 3, 4, 5)
+  level-style: "ROMAN"
+
+  # Display sorting order: VANILLA_FIRST, ECO_FIRST, ALPHABETICAL, LEVEL_DESC, LEVEL_ASC
+  order: "VANILLA_FIRST"
+
+# ==============================================================================
+# ANVIL MECHANICS & RESTRICTIONS
+# ==============================================================================
+anvil:
+  # Prevent players from renaming RoyItems items using an anvil.
+  # When true (default):
+  #   - Renaming is strictly blocked (including color codes, unicode, and special characters).
+  #   - Repairing, combining, and applying Vanilla / EcoEnchants enchantments still work normally.
+  # When false:
+  #   - Allows players to rename RoyItems items according to vanilla anvil mechanics.
+  prevent-rename: true
+
+# ==============================================================================
+# MINE RADIUS MECHANICS & EXECUTOR
+# Controls wide-area horizontal plane mining for items with type: TOOL
+# and the mine-radius stat (3x3, 5x5, 7x7, 9x9, 11x11...).
+# ==============================================================================
+mine-radius:
+  # Enable or disable the entire mine radius feature
+  enabled: true
+
+  # Activation chance percentage (0.0 - 100.0)
+  activation-chance: 100.0
+
+  # Cooldown between mine radius triggers in milliseconds (0 = no cooldown)
+  cooldown-ms: 0
+
+  # Performance limits and safety bounds
+  limits:
+    # Maximum allowed radius tier (1 = 3x3, 2 = 5x5, 3 = 7x7, 4 = 9x9, 5 = 11x11)
+    max-radius-tier: 5
+    # Absolute ceiling on blocks broken per single hit to ensure 20 TPS server stability
+    max-blocks-per-break: 150
+
+  # ExtraStorage hook settings: seamlessly transfer mined drops to player storage
+  extra-storage:
+    # Automatically deposit mined radius drops into ExtraStorage if available
+    auto-deposit: true
+    # If storage is full or reaches capacity, drop leftover items safely into the world
+    drop-leftover-to-world: true
+
+  # AdvancedOreGen integration: seamlessly regenerate cobblestone/ore generator blocks
+  # in place without turning them to AIR, keeping water/fence/lava generator machines 100% stable
+  advanced-ore-gen:
+    # Automatically regenerate generator blocks in-place using AdvancedOreGen's generation pipeline
+    auto-regenerate: true
+
+  # Whitelist of materials that can trigger and be mined by Mine Radius.
+  # Other block types (e.g. Bedrock, Chests, Spawners, Obsidian) are completely protected.
+  allowed-blocks:
+    # Vanilla Stones & Deepslate
+    - STONE
+    - GRANITE
+    - DIORITE
+    - ANDESITE
+    - DEEPSLATE
+    - TUFF
+    - CALCITE
+    - COBBLESTONE
+    - COBBLED_DEEPSLATE
+    - NETHERRACK
+    - BASALT
+    - BLACKSTONE
+    - END_STONE
+    - SANDSTONE
+    - RED_SANDSTONE
+    # Regular Ores
+    - COAL_ORE
+    - IRON_ORE
+    - COPPER_ORE
+    - GOLD_ORE
+    - REDSTONE_ORE
+    - EMERALD_ORE
+    - LAPIS_ORE
+    - DIAMOND_ORE
+    - NETHER_QUARTZ_ORE
+    - NETHER_GOLD_ORE
+    - ANCIENT_DEBRIS
+    # Deepslate Ore Variants
+    - DEEPSLATE_COAL_ORE
+    - DEEPSLATE_IRON_ORE
+    - DEEPSLATE_COPPER_ORE
+    - DEEPSLATE_GOLD_ORE
+    - DEEPSLATE_REDSTONE_ORE
+    - DEEPSLATE_EMERALD_ORE
+    - DEEPSLATE_LAPIS_ORE
+    - DEEPSLATE_DIAMOND_ORE
+
+  # Whitelist of tools allowed to trigger Mine Radius
+  allowed-tools:
+    - WOODEN_PICKAXE
+    - STONE_PICKAXE
+    - IRON_PICKAXE
+    - GOLDEN_PICKAXE
+    - DIAMOND_PICKAXE
+    - NETHERITE_PICKAXE
+    - WOODEN_SHOVEL
+    - STONE_SHOVEL
+    - IRON_SHOVEL
+    - GOLDEN_SHOVEL
+    - DIAMOND_SHOVEL
+    - NETHERITE_SHOVEL
+    - WOODEN_AXE
+    - STONE_AXE
+    - IRON_AXE
+    - GOLDEN_AXE
+    - DIAMOND_AXE
+    - NETHERITE_AXE
+    - WOODEN_HOE
+    - STONE_HOE
+    - IRON_HOE
+    - GOLDEN_HOE
+    - DIAMOND_HOE
+    - NETHERITE_HOE
+
