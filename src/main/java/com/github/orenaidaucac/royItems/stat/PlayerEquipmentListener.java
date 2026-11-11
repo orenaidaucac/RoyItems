@@ -102,6 +102,29 @@ public class PlayerEquipmentListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
+        if (statManager.getPermissionStatManager() != null) {
+            statManager.getPermissionStatManager().invalidate(player.getUniqueId());
+        }
+        if (statManager.getNotificationManager() != null) {
+            statManager.getNotificationManager().markPlayerRespawning(player.getUniqueId());
+        }
+        scheduler.runEntityDelayed(player, () -> statManager.recalculate(player), 1L);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        if (statManager.getNotificationManager() != null) {
+            statManager.getNotificationManager().markPlayerRespawning(player.getUniqueId());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onChangedWorld(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        if (statManager.getPermissionStatManager() != null) {
+            statManager.getPermissionStatManager().invalidate(player.getUniqueId());
+        }
         scheduler.runEntityDelayed(player, () -> statManager.recalculate(player), 1L);
     }
 
@@ -121,6 +144,12 @@ public class PlayerEquipmentListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        if (statManager.getPermissionStatManager() != null) {
+            statManager.getPermissionStatManager().invalidate(player.getUniqueId());
+        }
+        if (statManager.getNotificationManager() != null) {
+            statManager.getNotificationManager().markPlayerJoining(player.getUniqueId());
+        }
         scheduler.runEntityDelayed(player, () -> {
             liveUpdateService.updatePlayer(player);
             statManager.recalculate(player);

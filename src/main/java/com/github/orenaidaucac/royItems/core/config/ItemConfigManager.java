@@ -6,6 +6,7 @@ import com.github.orenaidaucac.royItems.item.ItemType;
 import com.github.orenaidaucac.royItems.mechanics.PotionEffectData;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
+import com.github.orenaidaucac.royItems.voucher.VoucherCurrencyReward;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
@@ -239,6 +240,39 @@ public class ItemConfigManager {
             def.setPreventAnvilRename(sec.getBoolean("prevent-rename"));
         }
 
+        // Voucher / Consumable Commands
+        if (sec.contains("commands")) {
+            if (sec.isList("commands")) {
+                def.setCommands(sec.getStringList("commands"));
+            } else if (sec.isString("commands")) {
+                def.setCommands(Collections.singletonList(sec.getString("commands")));
+            }
+        }
+
+        // Voucher Currency Reward
+        if (sec.contains("currency")) {
+            ConfigurationSection currSec = sec.getConfigurationSection("currency");
+            if (currSec != null) {
+                String currType = currSec.getString("type", "VAULT");
+                VoucherCurrencyReward reward = new VoucherCurrencyReward(currType);
+                if (currSec.isConfigurationSection("value")) {
+                    ConfigurationSection valSec = currSec.getConfigurationSection("value");
+                    double min = valSec.getDouble("min", 0.0);
+                    double max = valSec.getDouble("max", 0.0);
+                    reward.setRange(min, max);
+                } else if (currSec.contains("min") && currSec.contains("max")) {
+                    double min = currSec.getDouble("min", 0.0);
+                    double max = currSec.getDouble("max", 0.0);
+                    reward.setRange(min, max);
+                } else if (currSec.contains("value")) {
+                    reward.setFixedValue(currSec.getDouble("value", 0.0));
+                }
+                if (reward.isValid()) {
+                    def.setCurrencyReward(reward);
+                }
+            }
+        }
+
         def.setVersion(sec.getInt("version", 1));
 
         return def;
@@ -431,6 +465,27 @@ public class ItemConfigManager {
         config.set(path + ".disable-on-crafting", def.isDisableOnCrafting() ? true : null);
         config.set(path + ".disable-on-drop", def.isDisableOnDrop() ? true : null);
         config.set(path + ".prevent-anvil-rename", def.getPreventAnvilRename());
+
+        // Commands
+        if (def.getCommands() != null && !def.getCommands().isEmpty()) {
+            config.set(path + ".commands", def.getCommands());
+        } else {
+            config.set(path + ".commands", null);
+        }
+
+        // Currency Reward
+        if (def.getCurrencyReward() != null && def.getCurrencyReward().isValid()) {
+            VoucherCurrencyReward reward = def.getCurrencyReward();
+            config.set(path + ".currency.type", reward.getType());
+            if (reward.isRandom()) {
+                config.set(path + ".currency.value.min", reward.getMin());
+                config.set(path + ".currency.value.max", reward.getMax());
+            } else {
+                config.set(path + ".currency.value", reward.getFixedValue());
+            }
+        } else {
+            config.set(path + ".currency", null);
+        }
 
         // Bump version for LiveUpdate
         int newVersion = def.getVersion() + 1;

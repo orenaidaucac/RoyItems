@@ -161,6 +161,43 @@ public class PlatformScheduler {
         }
     }
 
+    public interface TaskHandle {
+        void cancel();
+    }
+
+    /**
+     * Run a recurring task on an entity's scheduler with self-cancellation support.
+     */
+    public TaskHandle runEntityTimer(Entity entity, Consumer<TaskHandle> consumer, long initialDelayTicks, long periodTicks) {
+        if (entity == null) return () -> {};
+        if (isFolia) {
+            TaskHandle[] handleRef = new TaskHandle[1];
+            io.papermc.paper.threadedregions.scheduler.ScheduledTask st = entity.getScheduler().runAtFixedRate(
+                    plugin,
+                    task -> consumer.accept(handleRef[0]),
+                    null,
+                    initialDelayTicks,
+                    periodTicks
+            );
+            handleRef[0] = () -> {
+                if (st != null) st.cancel();
+            };
+            return handleRef[0];
+        } else {
+            TaskHandle[] handleRef = new TaskHandle[1];
+            org.bukkit.scheduler.BukkitTask bt = Bukkit.getScheduler().runTaskTimer(
+                    plugin,
+                    () -> consumer.accept(handleRef[0]),
+                    initialDelayTicks,
+                    periodTicks
+            );
+            handleRef[0] = () -> {
+                if (bt != null) bt.cancel();
+            };
+            return handleRef[0];
+        }
+    }
+
     /**
      * Cancel all tasks for this plugin when disabling or reloading.
      */

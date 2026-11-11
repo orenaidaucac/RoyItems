@@ -13,13 +13,27 @@ public class VaultHook {
     private Economy economy;
 
     public boolean setup() {
-        if (Bukkit.getPluginManager().getPlugin("Vault") == null) {
+        if (Bukkit.getPluginManager().getPlugin("Vault") == null && Bukkit.getPluginManager().getPlugin("VaultUnlocked") == null) {
             return false;
         }
         RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager().getRegistration(Economy.class);
         if (rsp == null) return false;
         economy = rsp.getProvider();
         return economy != null;
+    }
+
+    public boolean isAvailable() {
+        return economy != null;
+    }
+
+    public String getCurrencyName() {
+        if (economy == null) return "Money";
+        try {
+            String name = economy.currencyNamePlural();
+            return (name != null && !name.isBlank()) ? name : "Money";
+        } catch (Throwable e) {
+            return "Money";
+        }
     }
 
     public boolean hasMoney(Player player, double amount) {

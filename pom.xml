@@ -5,7 +5,7 @@
 
     <groupId>com.github.orenaidaucac</groupId>
     <artifactId>royitems</artifactId>
-    <version>2026.1.6</version>
+    <version>2026.1.7</version>
     <packaging>jar</packaging>
 
     <name>RoyItems</name>
@@ -186,6 +186,14 @@
             <artifactId>bstats-bukkit</artifactId>
             <version>3.2.1</version>
             <scope>compile</scope>
+        </dependency>
+
+        <!-- LuckPerms API (provided) -->
+        <dependency>
+            <groupId>net.luckperms</groupId>
+            <artifactId>api</artifactId>
+            <version>5.4</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- JUnit 5 for Unit Tests -->

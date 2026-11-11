@@ -6,6 +6,7 @@ import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.item.ItemPDCManager;
 import com.github.orenaidaucac.royItems.item.ItemRegistry;
 import com.github.orenaidaucac.royItems.item.ItemType;
+import com.github.orenaidaucac.royItems.voucher.VoucherManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -30,15 +31,23 @@ public class SpecialItemListener implements Listener {
     private final CooldownManager cooldownManager;
     private final RequirementChecker requirementChecker;
     private final IntegrationManager integrationManager;
+    private final VoucherManager voucherManager;
 
     public SpecialItemListener(ItemPDCManager pdcManager, ItemRegistry registry,
                                CooldownManager cooldownManager, RequirementChecker requirementChecker,
                                IntegrationManager integrationManager) {
+        this(pdcManager, registry, cooldownManager, requirementChecker, integrationManager, null);
+    }
+
+    public SpecialItemListener(ItemPDCManager pdcManager, ItemRegistry registry,
+                               CooldownManager cooldownManager, RequirementChecker requirementChecker,
+                               IntegrationManager integrationManager, VoucherManager voucherManager) {
         this.pdcManager = pdcManager;
         this.registry = registry;
         this.cooldownManager = cooldownManager;
         this.requirementChecker = requirementChecker;
         this.integrationManager = integrationManager;
+        this.voucherManager = voucherManager;
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -72,7 +81,11 @@ public class SpecialItemListener implements Listener {
 
         // 1. VOUCHER Handling
         if (type == ItemType.VOUCHER && isRightClick) {
-            handleVoucher(player, item, def);
+            if (voucherManager != null) {
+                voucherManager.handleVoucher(player, item, def, event.getHand());
+            } else {
+                handleVoucher(player, item, def);
+            }
             event.setCancelled(true);
             return;
         }

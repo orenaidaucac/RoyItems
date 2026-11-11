@@ -22,6 +22,7 @@ public class ItemPDCManager {
     private final NamespacedKey KEY_SOCKETS;
     private final NamespacedKey KEY_TIER;
     private final NamespacedKey KEY_ENCHANT_HASH;
+    private final NamespacedKey KEY_SET_STATE;
 
     public ItemPDCManager(Plugin plugin) {
         this.KEY_TYPE = new NamespacedKey(plugin, "item_type");
@@ -32,6 +33,7 @@ public class ItemPDCManager {
         this.KEY_SOCKETS = new NamespacedKey(plugin, "item_sockets");
         this.KEY_TIER = new NamespacedKey(plugin, "item_tier");
         this.KEY_ENCHANT_HASH = new NamespacedKey(plugin, "item_enchant_hash");
+        this.KEY_SET_STATE = new NamespacedKey(plugin, "item_set_state");
     }
 
     public NamespacedKey getKeyType() { return KEY_TYPE; }
@@ -42,6 +44,7 @@ public class ItemPDCManager {
     public NamespacedKey getKeySockets() { return KEY_SOCKETS; }
     public NamespacedKey getKeyTier() { return KEY_TIER; }
     public NamespacedKey getKeyEnchantHash() { return KEY_ENCHANT_HASH; }
+    public NamespacedKey getKeySetState() { return KEY_SET_STATE; }
 
     public int getEnchantHash(ItemStack item) {
         if (!isRoyItem(item)) return 0;
@@ -108,6 +111,25 @@ public class ItemPDCManager {
     public String getTier(ItemStack item) {
         if (!isRoyItem(item)) return null;
         return item.getItemMeta().getPersistentDataContainer().get(KEY_TIER, PersistentDataType.STRING);
+    }
+
+    public String getSetState(ItemStack item) {
+        if (!isRoyItem(item)) return null;
+        return getSetState(item.getItemMeta());
+    }
+
+    public String getSetState(ItemMeta meta) {
+        if (meta == null) return null;
+        return meta.getPersistentDataContainer().get(KEY_SET_STATE, PersistentDataType.STRING);
+    }
+
+    public void setSetState(ItemMeta meta, String state) {
+        if (meta == null) return;
+        if (state != null && !state.isEmpty()) {
+            meta.getPersistentDataContainer().set(KEY_SET_STATE, PersistentDataType.STRING, state.toLowerCase());
+        } else {
+            meta.getPersistentDataContainer().remove(KEY_SET_STATE);
+        }
     }
 
     public void tagTier(ItemMeta meta, String tier) {

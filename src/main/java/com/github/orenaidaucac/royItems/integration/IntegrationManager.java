@@ -4,14 +4,22 @@ import com.github.orenaidaucac.royItems.item.ItemPDCManager;
 import com.github.orenaidaucac.royItems.item.ItemRegistry;
 import com.github.orenaidaucac.royItems.stat.StatManager;
 import org.bukkit.Bukkit;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.PluginDisableEvent;
+import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.plugin.Plugin;
 
 import java.util.logging.Logger;
 
 /**
  * Manages detection and initialization of third-party plugin integrations.
+ * Implements dynamic event-driven lifecycle synchronization to detect plugins
+ * regardless of cold start order, circular soft-dependencies, or late loading.
  */
-public class IntegrationManager {
+public class IntegrationManager implements Listener {
 
     private final Plugin plugin;
     private final Logger logger;
@@ -28,10 +36,11 @@ public class IntegrationManager {
     private ExtraStorageHook extraStorageHook;
     private EcoEnchantsHook ecoEnchantsHook;
     private AdvancedOreGenHook advancedOreGenHook;
+    private LuckPermsHook luckPermsHook;
 
     public IntegrationManager(Plugin plugin) {
         this.plugin = plugin;
-        this.logger = plugin.getLogger();
+        this.logger = plugin != null ? plugin.getLogger() : java.util.logging.Logger.getLogger("RoyItems");
     }
 
     public void initialize(StatManager statManager, ItemPDCManager pdcManager, ItemRegistry registry) {
@@ -114,11 +123,67 @@ public class IntegrationManager {
             logger.info("Hooked into AdvancedOreGen successfully.");
         }
 
+        // LuckPerms
+        luckPermsHook = new LuckPermsHook();
+        com.github.orenaidaucac.royItems.core.platform.PlatformScheduler sched = null;
+        if (plugin instanceof com.github.orenaidaucac.royItems.RoyItems ri) {
+            sched = ri.getPlatformScheduler();
+        }
+        if (luckPermsHook.setup(plugin, statManager, statManager.getPermissionStatManager(), sched)) {
+            logger.info("Hooked into LuckPerms event bus successfully.");
+        }
+
         // PlaceholderAPI
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new RoyPlaceholderExpansion(statManager, pdcManager, registry).register();
             logger.info("Registered PlaceholderAPI expansion for RoyItems.");
         }
+
+        // Register dynamic plugin lifecycle listener to safely detect plugins enabled late
+        try {
+            if (plugin != null) {
+                Bukkit.getPluginManager().registerEvents(this, plugin);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPluginEnable(PluginEnableEvent event) {
+        String name = event.getPlugin().getName();
+        if (name.equalsIgnoreCase("ExtraStorage")) {
+            if (extraStorageHook != null && extraStorageHook.setup()) {
+                logger.info("Detected ExtraStorage enabled dynamically. Hooked into ExtraStorage successfully!");
+            }
+        } else if (name.equalsIgnoreCase("EcoEnchants")) {
+            if (ecoEnchantsHook != null && ecoEnchantsHook.setup()) {
+                logger.info("Detected EcoEnchants enabled dynamically. Hooked into EcoEnchants successfully!");
+            }
+        } else if (name.equalsIgnoreCase("AdvancedOreGen")) {
+            if (advancedOreGenHook != null && advancedOreGenHook.setup()) {
+                logger.info("Detected AdvancedOreGen enabled dynamically. Hooked into AdvancedOreGen successfully!");
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPluginDisable(PluginDisableEvent event) {
+        String name = event.getPlugin().getName();
+        if (name.equalsIgnoreCase("ExtraStorage")) {
+            if (extraStorageHook != null) {
+                extraStorageHook.setAvailable(false);
+                logger.info("ExtraStorage disabled. Storage hook unlinked.");
+            }
+        }
+    }
+
+    /**
+     * Re-checks and refreshes all soft-dependencies on demand (e.g. during /ri reload).
+     */
+    public void recheckHooks() {
+        if (extraStorageHook != null) extraStorageHook.setup();
+        if (ecoEnchantsHook != null) ecoEnchantsHook.setup();
+        if (advancedOreGenHook != null) advancedOreGenHook.setup();
+        if (mythicMobsHook != null) mythicMobsHook.setup();
     }
 
     public boolean hasVault() {
@@ -219,5 +284,22 @@ public class IntegrationManager {
 
     public AdvancedOreGenHook getAdvancedOreGenHook() {
         return advancedOreGenHook;
+    }
+
+    public boolean hasLuckPerms() {
+        return luckPermsHook != null && luckPermsHook.isAvailable();
+    }
+
+    public LuckPermsHook getLuckPermsHook() {
+        return luckPermsHook;
+    }
+
+    public void cleanup() {
+        try {
+            HandlerList.unregisterAll(this);
+        } catch (Throwable ignored) {}
+        if (luckPermsHook != null) {
+            luckPermsHook.cleanup();
+        }
     }
 }

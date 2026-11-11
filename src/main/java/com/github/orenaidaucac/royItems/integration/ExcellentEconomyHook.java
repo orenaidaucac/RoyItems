@@ -55,6 +55,64 @@ public class ExcellentEconomyHook {
         }
     }
 
+    public boolean hasCurrency(String currencyId) {
+        if (api == null || currencyId == null) return false;
+        try {
+            Method hasMethod = api.getClass().getMethod("hasCurrency", String.class);
+            return (boolean) hasMethod.invoke(api, currencyId);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    public String getCurrencyDisplayName(String currencyId) {
+        if (api == null || currencyId == null) return currencyId;
+        try {
+            Method getCurrencyMethod = api.getClass().getMethod("getCurrency", String.class);
+            Object curr = getCurrencyMethod.invoke(api, currencyId);
+            if (curr != null) {
+                Method getNameMethod = curr.getClass().getMethod("getName");
+                Object nameObj = getNameMethod.invoke(curr);
+                if (nameObj instanceof String str && !str.isBlank()) {
+                    return str;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return currencyId;
+    }
+
+    public String getCurrencySymbol(String currencyId) {
+        if (api == null || currencyId == null) return "";
+        try {
+            Method getCurrencyMethod = api.getClass().getMethod("getCurrency", String.class);
+            Object curr = getCurrencyMethod.invoke(api, currencyId);
+            if (curr != null) {
+                Method getSymbolMethod = curr.getClass().getMethod("getSymbol");
+                Object symObj = getSymbolMethod.invoke(curr);
+                if (symObj instanceof String str) {
+                    return str;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return "";
+    }
+
+    public String format(String currencyId, double amount) {
+        if (api == null || currencyId == null) return String.valueOf(amount);
+        try {
+            Method getCurrencyMethod = api.getClass().getMethod("getCurrency", String.class);
+            Object curr = getCurrencyMethod.invoke(api, currencyId);
+            if (curr != null) {
+                Method formatMethod = curr.getClass().getMethod("format", double.class);
+                Object formatted = formatMethod.invoke(curr, amount);
+                if (formatted instanceof String str) {
+                    return str;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return String.valueOf(amount);
+    }
+
     public boolean deposit(Player player, String currencyId, double amount) {
         if (api == null || player == null || currencyId == null || amount <= 0) return true;
         try {

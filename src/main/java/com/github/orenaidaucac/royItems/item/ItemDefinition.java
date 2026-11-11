@@ -3,6 +3,7 @@ package com.github.orenaidaucac.royItems.item;
 import com.github.orenaidaucac.royItems.mechanics.PotionEffectData;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
+import com.github.orenaidaucac.royItems.voucher.VoucherCurrencyReward;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.enchantments.Enchantment;
 
@@ -80,6 +81,10 @@ public class ItemDefinition {
     private boolean disableOnCrafting = false;
     private boolean disableOnDrop = false;
     private Boolean preventAnvilRename = null; // null = follow global config in config.yml
+
+    // Voucher / Consumable commands & Currency rewards
+    private List<String> commands = new ArrayList<>();
+    private VoucherCurrencyReward currencyReward = null;
 
     public ItemDefinition(ItemType type, String id) {
         this.type = type;
@@ -244,4 +249,12 @@ public class ItemDefinition {
 
     public Boolean getPreventAnvilRename() { return preventAnvilRename; }
     public void setPreventAnvilRename(Boolean preventAnvilRename) { this.preventAnvilRename = preventAnvilRename; }
+
+    public List<String> getCommands() { return commands; }
+    public void setCommands(List<String> commands) {
+        this.commands = (commands != null) ? new ArrayList<>(commands) : new ArrayList<>();
+    }
+
+    public VoucherCurrencyReward getCurrencyReward() { return currencyReward; }
+    public void setCurrencyReward(VoucherCurrencyReward currencyReward) { this.currencyReward = currencyReward; }
 }

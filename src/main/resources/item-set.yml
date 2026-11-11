@@ -1,5 +1,40 @@
+# ==============================================================================
+#                      ROYITEMS — ITEM SET CONFIGURATION
+# ==============================================================================
+# Each set defines equipment sets, multi-piece bonuses, and dynamic lore.
+#
+# Options:
+#   display-name: Official display name of the set (used in #set-name#, notifications, etc.)
+#   required-pieces: (Optional) Number of equipped pieces required to activate the set bonus.
+#                    Defaults to the lowest bonus threshold (e.g. 2).
+#   lore:
+#     active:
+#       - Lore lines shown on items when the player has the set bonus ACTIVE.
+#     inactive:
+#       - Lore lines shown on items when the player does NOT have the set bonus active.
+#
+# Supported Placeholders in Set Lore:
+#   #set# / %set%                   - Set display name (e.g. &6Dragon Slayer Set)
+#   #set-name# / %set-name%         - Set display name
+#   #set-id# / %set-id%             - Raw set identifier
+#   #pieces# / %pieces% / %count%   - Number of pieces currently equipped
+#   #required# / %required%         - Number of pieces required to activate
+#   PlaceholderAPI (e.g. %player_name%)
+#   MiniMessage, Hex colors (&#RRGGBB, <#RRGGBB>), Legacy '&' colors
+# ==============================================================================
+
 dragon_slayer:
   display-name: "&6Dragon Slayer Set"
+  required-pieces: 2
+  lore:
+    active:
+      - "&6Set: Dragon Slayer &a[Active]"
+      - "&7(2) &a+15 Attack Damage, +10% Crit Rate"
+      - "&7(4) &a+35 Attack Damage, +50% Crit Damage, +20 PvP Damage"
+    inactive:
+      - "&8Set: Dragon Slayer &c[Inactive]"
+      - "&7(2) &8+15 Attack Damage, +10% Crit Rate"
+      - "&7(4) &8+35 Attack Damage, +50% Crit Damage, +20 PvP Damage"
   bonuses:
     2:
       attack-damage: 15
@@ -11,6 +46,16 @@ dragon_slayer:
 
 shadow_assassin:
   display-name: "&8Shadow Assassin Set"
+  required-pieces: 2
+  lore:
+    active:
+      - "&8Set: Shadow Assassin &a[Active]"
+      - "&7(2) &a+15% Movement Speed, +15% Crit Rate"
+      - "&7(4) &a+75% Crit Damage, +10% Damage Reduction"
+    inactive:
+      - "&8Set: Shadow Assassin &c[Inactive]"
+      - "&7(2) &8+15% Movement Speed, +15% Crit Rate"
+      - "&7(4) &8+75% Crit Damage, +10% Damage Reduction"
   bonuses:
     2:
       movement-speed: 15%

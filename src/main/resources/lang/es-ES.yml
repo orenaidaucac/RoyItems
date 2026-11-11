@@ -65,3 +65,16 @@ messages:
   craft-failed: "&c¡La fabricación falló por falta de materiales!"
   craft-in-progress: "&c¡Ya estás fabricando un objeto, espera a que termine!"
   craft-cancelled: "&c¡Fabricación cancelada porque se cerró el menú!"
+
+  # Notificaciones de Bonificación de Conjunto
+  set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Has activado la bonificación de conjunto para &e#set#&a!"
+  set-bonus-deactivated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡La bonificación de conjunto para &e#set# &cha sido desactivada!"
+
+  # Recompensas de Vales
+  voucher-redeemed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Has canjeado &e#item#&a!"
+  voucher-redeemed-currency: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Canjeaste &e#item# &ay recibiste &e#symbol##amount# #currency#&a!"
+  voucher-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Ya estás tirando un vale! Por favor espera a que finalice la animación."
+  voucher-cooldown: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Por favor espera &f#time#s &cpara volver a usar este vale!"
+  voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cError al depositar la recompensa. La transacción se canceló de forma segura."
+  voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cConfiguración del vale no válida. Por favor contacta a un administrador."
+  voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEl proveedor de economía para #currency# no está disponible actualmente."

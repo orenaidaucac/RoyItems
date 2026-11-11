@@ -27,8 +27,10 @@
 #   #tier#               - Tier display name (e.g. &aUncommon, &5Epic, &6Legendary)
 #   #tier-id#            - Raw tier identifier (common, rare, epic, etc.)
 #   #tier-color#         - Tier color or gradient code
-#   #set#                - Set display name (e.g. &6Dragon Slayer Set)
-#   #set-id#             - Raw set identifier
+#   #set#                - Dynamic Item Set Lore (Active or Inactive state configured in item-set.yml)
+#   #set-name#           - Official set display name (e.g. &6Dragon Slayer Set)
+#   #set-display#        - Alias for #set-name#
+#   #set-id#             - Raw set identifier (e.g. dragon_slayer)
 #   #lore# / #description#- Description lines configured under the item's lore section
 #   #enchantments#       - Formatted list of item enchantments
 #   #requirements#       - Equipped requirements (Level, Class, Permissions)

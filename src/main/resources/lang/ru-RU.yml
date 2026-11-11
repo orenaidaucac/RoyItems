@@ -65,3 +65,16 @@ messages:
   craft-failed: "&cСоздание не удалось из-за нехватки ингредиентов!"
   craft-in-progress: "&cВы уже крафтите предмет, дождитесь окончания!"
   craft-cancelled: "&cСоздание отменено из-за закрытия меню станции!"
+
+  # Уведомления о бонусе комплекта
+  set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aВы активировали бонус комплекта &e#set#&a!"
+  set-bonus-deactivated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cБонус комплекта &e#set# &cдеактивирован!"
+
+  # Награды ваучера
+  voucher-redeemed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aВы использовали &e#item#&a!"
+  voucher-redeemed-currency: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aВы использовали &e#item# &aи получили &e#symbol##amount# #currency#&a!"
+  voucher-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cВы уже открываете ваучер! Пожалуйста, дождитесь окончания анимации."
+  voucher-cooldown: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cПодождите &f#time#с &cперед повторным использованием ваучера!"
+  voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНе удалось выдать награду. Транзакция была безопасно отменена."
+  voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНекорректная конфигурация ваучера. Обратитесь к администратору."
+  voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЭкономическая система для #currency# в данный момент недоступна."

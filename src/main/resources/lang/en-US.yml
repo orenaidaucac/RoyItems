@@ -66,3 +66,16 @@ messages:
   craft-failed: "&cCrafting failed due to missing ingredients!"
   craft-in-progress: "&cYou are already crafting an item, please wait for it to complete!"
   craft-cancelled: "&cCrafting cancelled because the station menu was closed!"
+
+  # Set Bonus Notifications
+  set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aYou have activated the set bonus for &e#set#&a!"
+  set-bonus-deactivated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cThe set bonus for &e#set# &chas been deactivated!"
+
+  # Voucher Rewards
+  voucher-redeemed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aYou have redeemed &e#item#&a!"
+  voucher-redeemed-currency: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aYou redeemed &e#item# &aand received &e#symbol##amount# #currency#&a!"
+  voucher-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cYou are currently rolling a voucher! Please wait for it to finish."
+  voucher-cooldown: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cPlease wait &f#time#s &cto use this voucher!"
+  voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cFailed to deposit reward. The transaction was cancelled safely."
+  voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cThis voucher has an invalid configuration. Please contact an administrator."
+  voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cThe economy provider for #currency# is currently unavailable."

@@ -1,5 +1,27 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.7] - 2026-11-11
+
+### ✨ New Features
+* **Animated Title Gacha for Vouchers:** Random currency vouchers now trigger an exciting rolling title animation with dynamic sounds and fireworks upon opening.
+* **Multi-Economy Voucher Support:** Vouchers now seamlessly grant Vault money, PlayerPoints, and custom server economy currencies alongside custom console and player commands.
+* **Permission-Based Player Stats:** Server owners can grant permanent or temporary stat bonuses (such as extra health, damage, or speed) directly through permissions without requiring players to hold or wear items.
+* **Dynamic Item Set Lore:** Armor set items now automatically switch between active and inactive set bonus descriptions in real-time as pieces are equipped or unequipped.
+* **Custom Currency Display:** Full control over friendly currency names, symbols, and number formatting to keep technical IDs hidden from players.
+
+### ⚡ Improvements
+* **Reliable Voucher Commands:** Vouchers now execute multiple commands in sequence as either the server console or the player with full placeholder support.
+* **Safe Voucher Transactions:** Protected voucher redemption with anti-spam safeguards and automatic item protection so players never lose rewards if a transaction fails.
+* **Set Bonus Equip Notifications:** Optional chat messages inform players whenever they activate or lose an item set bonus.
+* **Instant Stat Recalculations:** Player stats granted via permissions update instantly upon rank changes, player logins, and configuration reloads.
+
+### 🐛 Bug Fixes
+* **Fixed Voucher Commands Not Running:** Resolved an issue where commands configured on voucher items were not executed when redeemed.
+* **Fixed Storage Sync in Crafting Stations:** Fixed an issue where crafting stations showed zero ingredients from player storage after a server restart until reloaded.
+* **Fixed Item Duplication on Fast Voucher Clicks:** Prevented players from rapidly clicking vouchers during opening animations to avoid duplicate reward payouts.
+
+---
+
 ## [2026.1.6] - 2026-11-05
 
 ### 🌟 Highlights

@@ -1,5 +1,7 @@
 package com.github.orenaidaucac.royItems;
 
+import java.util.*;
+import java.util.UUID;
 import com.github.orenaidaucac.royItems.command.RoyItemsCommand;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.orenaidaucac.royItems.dummy.DummyManager;
@@ -12,6 +14,9 @@ import com.github.orenaidaucac.royItems.stat.DefenseManager;
 import com.github.orenaidaucac.royItems.stat.PlayerStatCache;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
+import com.github.orenaidaucac.royItems.voucher.CurrencyDisplayInfo;
+import com.github.orenaidaucac.royItems.voucher.VoucherCurrencyReward;
+import com.github.orenaidaucac.royItems.voucher.VoucherManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.junit.jupiter.api.DisplayName;
@@ -2142,6 +2147,379 @@ class RoyItemsUnitTest {
     void testVersionSynchronization() {
         com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
                 new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
-        assertEquals("2026.1.6", expansion.getVersion());
+        assertEquals("2026.1.7", expansion.getVersion());
+    }
+
+    @Test
+    @DisplayName("Permission Stats: Flat value permission parsing")
+    void testPermissionParsingFlat() {
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node1 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.attack-damage.10");
+        assertNotNull(node1);
+        assertEquals(StatType.ATTACK_DAMAGE, node1.getStatType());
+        assertEquals(10.0, node1.getValue(), 0.0001);
+        assertFalse(node1.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node2 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.defense.25");
+        assertNotNull(node2);
+        assertEquals(StatType.DEFENSE, node2.getStatType());
+        assertEquals(25.0, node2.getValue(), 0.0001);
+        assertFalse(node2.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node3 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.movement-speed.0.05");
+        assertNotNull(node3);
+        assertEquals(StatType.MOVEMENT_SPEED, node3.getStatType());
+        assertEquals(0.05, node3.getValue(), 0.0001);
+        assertFalse(node3.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node4 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.crit-rate.20");
+        assertNotNull(node4);
+        assertEquals(StatType.CRIT_RATE, node4.getStatType());
+        assertEquals(20.0, node4.getValue(), 0.0001);
+        assertFalse(node4.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node5 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.movement-speed.-0.02");
+        assertNotNull(node5);
+        assertEquals(StatType.MOVEMENT_SPEED, node5.getStatType());
+        assertEquals(-0.02, node5.getValue(), 0.0001);
+        assertFalse(node5.isPercent());
+    }
+
+    @Test
+    @DisplayName("Permission Stats: Percentage value permission parsing")
+    void testPermissionParsingPercentage() {
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node1 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.crit-rate.15%");
+        assertNotNull(node1);
+        assertEquals(StatType.CRIT_RATE, node1.getStatType());
+        assertEquals(0.15, node1.getValue(), 0.0001);
+        assertTrue(node1.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node2 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.attack-damage.25%");
+        assertNotNull(node2);
+        assertEquals(StatType.ATTACK_DAMAGE, node2.getStatType());
+        assertEquals(0.25, node2.getValue(), 0.0001);
+        assertTrue(node2.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node3 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.movement-speed.10%");
+        assertNotNull(node3);
+        assertEquals(StatType.MOVEMENT_SPEED, node3.getStatType());
+        assertEquals(0.10, node3.getValue(), 0.0001);
+        assertTrue(node3.isPercent());
+
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager.ParsedNode node4 =
+                com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.defense.20.5%");
+        assertNotNull(node4);
+        assertEquals(StatType.DEFENSE, node4.getStatType());
+        assertEquals(0.205, node4.getValue(), 0.0001);
+        assertTrue(node4.isPercent());
+    }
+
+    @Test
+    @DisplayName("Permission Stats: Invalid and edge cases")
+    void testPermissionParsingInvalid() {
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode(null));
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode(""));
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.admin"));
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats."));
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.attack-damage"));
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.attack-damage.abc"));
+        assertNull(com.github.orenaidaucac.royItems.stat.PermissionStatManager.parsePermissionNode("royitems.player.stats.non_existent_fake_stat_xyz.10"));
+    }
+
+    @Test
+    @DisplayName("Permission Stats: Conflict Resolution HIGHEST vs SUM")
+    void testPermissionConflictResolution() {
+        com.github.orenaidaucac.royItems.stat.PermissionStatManager manager =
+                new com.github.orenaidaucac.royItems.stat.PermissionStatManager();
+
+        // Test configuration loading
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        yaml.set("permission-stats.enabled", true);
+        yaml.set("permission-stats.conflict-resolution", "HIGHEST");
+        yaml.set("permission-stats.caps.defense", 50.0);
+        manager.loadConfig(yaml);
+
+        assertTrue(manager.isEnabled());
+        assertEquals(com.github.orenaidaucac.royItems.stat.PermissionStatManager.ConflictResolution.HIGHEST, manager.getConflictResolution());
+        assertEquals(50.0, manager.getStatCaps().get("defense"), 0.001);
+
+        // Switch to SUM
+        yaml.set("permission-stats.conflict-resolution", "SUM");
+        manager.loadConfig(yaml);
+        assertEquals(com.github.orenaidaucac.royItems.stat.PermissionStatManager.ConflictResolution.SUM, manager.getConflictResolution());
+    }
+
+    @Test
+    @DisplayName("Permission Stats: Mathematical stacking with PlayerStatCache and no items")
+    void testPermissionStackingFormula() {
+        PlayerStatCache cache = new PlayerStatCache();
+
+        // 1. Player with NO items, only permissions:
+        // Flat +10 attack damage, Percent +50% attack damage
+        cache.addStat(StatType.ATTACK_DAMAGE, new StatModifier(10.0, 0.50));
+        // Base damage 1.0 (vanilla player fist) -> (1.0 + 10.0) * (1 + 0.50) = 11.0 * 1.5 = 16.5
+        double totalNoItem = cache.calculateTotal(StatType.ATTACK_DAMAGE, 1.0);
+        assertEquals(16.5, totalNoItem, 0.001);
+
+        // 2. Player now equips a weapon with Base 15 Attack Damage and 20% extra
+        cache.addStat(StatType.ATTACK_DAMAGE, new StatModifier(15.0, 0.20));
+        // Combined: Flat = 10 + 15 = 25.0, Percent = 0.50 + 0.20 = 0.70
+        // Total = (1.0 + 25.0) * (1 + 0.70) = 26.0 * 1.70 = 44.2
+        double totalWithWeapon = cache.calculateTotal(StatType.ATTACK_DAMAGE, 1.0);
+        assertEquals(44.2, totalWithWeapon, 0.001);
+
+        // 3. Crit rate calculation:
+        cache.addStat(StatType.CRIT_RATE, new StatModifier(10.0, 0.25));
+        // Base 0.0, Flat 10.0, Percent 0.25 -> (0 + 10) * 1.25 = 12.5%
+        double critTotal = cache.calculateTotal(StatType.CRIT_RATE, 0.0);
+        assertEquals(12.5, critTotal, 0.001);
+    }
+
+    @Test
+    @DisplayName("LuckPerms Hook: Soft-dependency safety when plugin is not loaded")
+    void testLuckPermsHookSafety() {
+        com.github.orenaidaucac.royItems.integration.LuckPermsHook hook =
+                new com.github.orenaidaucac.royItems.integration.LuckPermsHook();
+
+        assertFalse(hook.setup(null, null, null, null));
+        assertFalse(hook.isAvailable());
+        assertDoesNotThrow(hook::cleanup);
+    }
+
+    @Test
+    @DisplayName("ExtraStorage Hook: Dynamic self-healing lifecycle and multi-key fallback")
+    void testExtraStorageHookLifecycleAndMultiKey() {
+        com.github.orenaidaucac.royItems.integration.ExtraStorageHook hook =
+                new com.github.orenaidaucac.royItems.integration.ExtraStorageHook();
+
+        // 1. Initial headless state without Bukkit server
+        assertFalse(hook.setup());
+        assertFalse(hook.isAvailable());
+
+        // 2. Set availability directly
+        hook.setAvailable(true);
+        // isAvailable will verify Bukkit server presence; in headless JUnit it returns false safely
+        assertFalse(hook.isAvailable());
+        hook.setAvailable(false);
+        assertFalse(hook.isAvailable());
+
+        // 3. Null safety on all API methods
+        assertNull(hook.getUser(null));
+        assertTrue(hook.findItem(null, null).isEmpty());
+        assertTrue(hook.findItem(null, "DIAMOND").isEmpty());
+        assertTrue(hook.findItem(null, org.bukkit.Material.GOLD_BLOCK).isEmpty());
+
+        assertEquals(0, hook.getAmount(null, "GOLD_BLOCK"));
+        assertFalse(hook.take(null, "GOLD_BLOCK", 5));
+        assertTrue(hook.take(null, "GOLD_BLOCK", 0)); // 0 amount returns true
+        assertDoesNotThrow(() -> hook.give(null, "GOLD_BLOCK", 5));
+        assertEquals(0, hook.store(null, null));
+    }
+
+    @Test
+    @DisplayName("IntegrationManager: Dynamic plugin enable/disable and recheck hooks")
+    void testIntegrationManagerLifecycle() {
+        com.github.orenaidaucac.royItems.integration.IntegrationManager im =
+                new com.github.orenaidaucac.royItems.integration.IntegrationManager(null);
+
+        // Verify recheckHooks does not throw when hooks are null/empty
+        assertDoesNotThrow(im::recheckHooks);
+        assertDoesNotThrow(im::cleanup);
+    }
+
+    @Test
+    @DisplayName("ItemSet: Dynamic Lore and activation threshold")
+    void testItemSetDynamicLoreAndThreshold() {
+        com.github.orenaidaucac.royItems.tier_set.ItemSet set =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSet();
+        set.setId("dragon_slayer");
+        set.setDisplayName("&6Dragon Slayer Set");
+        set.setRequiredPieces(4);
+        set.setActiveLore(List.of("&6Set: Dragon Slayer &a[Active]", "&7Full set bonus active!"));
+        set.setInactiveLore(List.of("&8Set: Dragon Slayer &c[Inactive]", "&7Wear 4 pieces to activate!"));
+
+        assertEquals(4, set.getRequiredPieces());
+        assertFalse(set.isBonusActive(0));
+        assertFalse(set.isBonusActive(3));
+        assertTrue(set.isBonusActive(4));
+        assertTrue(set.isBonusActive(5));
+
+        List<String> activeLore = set.getLore(true);
+        assertEquals(2, activeLore.size());
+        assertEquals("&6Set: Dragon Slayer &a[Active]", activeLore.get(0));
+
+        List<String> inactiveLore = set.getLore(false);
+        assertEquals(2, inactiveLore.size());
+        assertEquals("&8Set: Dragon Slayer &c[Inactive]", inactiveLore.get(0));
+
+        // Fallback when lore is empty
+        com.github.orenaidaucac.royItems.tier_set.ItemSet fallbackSet =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSet();
+        fallbackSet.setId("basic_set");
+        fallbackSet.setDisplayName("&bBasic Set");
+        assertEquals(List.of("&bBasic Set"), fallbackSet.getLore(true));
+        assertEquals(List.of("&bBasic Set"), fallbackSet.getLore(false));
+    }
+
+    @Test
+    @DisplayName("DynamicLoreEngine: #set# switching between Active and Inactive states")
+    void testDynamicLoreEngineSetLoreSwitching() {
+        com.github.orenaidaucac.royItems.tier_set.ItemSetManager setManager =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSetManager(null);
+        com.github.orenaidaucac.royItems.tier_set.ItemSet set =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSet();
+        set.setId("shadow_assassin");
+        set.setDisplayName("&8Shadow Assassin Set");
+        set.setRequiredPieces(2);
+        set.setActiveLore(List.of("&8Set: Shadow Assassin &a[Active]", "&a+15% Speed, +15% Crit"));
+        set.setInactiveLore(List.of("&8Set: Shadow Assassin &c[Inactive]", "&8+15% Speed, +15% Crit"));
+        setManager.registerSet(set);
+
+        com.github.orenaidaucac.royItems.lore.DynamicLoreEngine engine =
+                new com.github.orenaidaucac.royItems.lore.DynamicLoreEngine(null, null, setManager);
+
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "shadow_boots");
+        def.setItemSet("shadow_assassin");
+        def.setName("&8Shadow Boots");
+        def.setLore(List.of("#set#"));
+
+        // 1. Inactive lore test
+        List<String> inactiveLore = engine.buildLore(def, List.of(), 0L, null, false, null);
+        assertFalse(inactiveLore.isEmpty(), "Inactive lore should not be empty");
+        boolean foundInactiveHeader = inactiveLore.stream().anyMatch(l -> l.contains("[Inactive]"));
+        assertTrue(foundInactiveHeader, "Expected inactive lore to contain [Inactive]");
+
+        // 2. Active lore test
+        List<String> activeLore = engine.buildLore(def, List.of(), 0L, null, true, null);
+        assertFalse(activeLore.isEmpty(), "Active lore should not be empty");
+        boolean foundActiveHeader = activeLore.stream().anyMatch(l -> l.contains("[Active]"));
+        assertTrue(foundActiveHeader, "Expected active lore to contain [Active]");
+
+        // 3. Official set display name preserved
+        assertEquals("&8Shadow Assassin Set", engine.resolveSetDisplayName(def));
+    }
+
+    @Test
+    @DisplayName("SetBonusNotificationManager: State tracking, debounce, and suppression")
+    void testSetBonusNotificationManager() {
+        com.github.orenaidaucac.royItems.tier_set.ItemSetManager setManager =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSetManager(null);
+        com.github.orenaidaucac.royItems.tier_set.ItemSet setA =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSet("set_a", "&aSet A", Map.of());
+        com.github.orenaidaucac.royItems.tier_set.ItemSet setB =
+                new com.github.orenaidaucac.royItems.tier_set.ItemSet("set_b", "&bSet B", Map.of());
+        setManager.registerSet(setA);
+        setManager.registerSet(setB);
+
+        com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager notifManager =
+                new com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager(null, setManager, null, null);
+        notifManager.setDebounceTicks(0); // Synchronous dispatch for testing
+
+        UUID uuid = UUID.randomUUID();
+
+        // 1. Suppression during Join
+        notifManager.markPlayerJoining(uuid);
+        // On join with set_a active, no notification should be sent
+        notifManager.initializePlayer(null, Set.of("set_a"));
+        notifManager.getLastNotifiedActiveSets().put(uuid, Set.of("set_a"));
+        assertEquals(Set.of("set_a"), notifManager.getLastNotifiedActiveSets().get(uuid));
+
+        // 2. Cleanup
+        notifManager.cleanupPlayer(uuid);
+        assertNull(notifManager.getLastNotifiedActiveSets().get(uuid));
+    }
+
+    @Test
+    @DisplayName("ItemPDCManager: Item Set State tagging")
+    void testItemPDCManagerSetState() {
+        org.bukkit.plugin.Plugin mockPlugin = (org.bukkit.plugin.Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.plugin.Plugin.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.plugin.Plugin.class},
+                (proxy, method, args) -> {
+                    if ("getName".equals(method.getName())) return "RoyItems";
+                    return null;
+                }
+        );
+
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdc =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(mockPlugin);
+
+        assertNotNull(pdc.getKeySetState());
+        assertEquals("item_set_state", pdc.getKeySetState().getKey());
+    }
+
+    @Test
+    @DisplayName("VoucherCurrencyReward: Fixed and Random Bounds")
+    void testVoucherCurrencyReward() {
+        // 1. Fixed
+        VoucherCurrencyReward fixed = new VoucherCurrencyReward("VAULT", 5000.0);
+        assertTrue(fixed.isValid());
+        assertFalse(fixed.isRandom());
+        assertEquals("VAULT", fixed.getType());
+        assertEquals(5000.0, fixed.getFixedValue());
+        assertEquals(5000.0, fixed.calculateReward());
+
+        // 2. Random range
+        VoucherCurrencyReward random = new VoucherCurrencyReward("EXCELLENTECONOMY_coins", 1000.0, 5000.0);
+        assertTrue(random.isValid());
+        assertTrue(random.isRandom());
+        assertEquals(1000.0, random.getMin());
+        assertEquals(5000.0, random.getMax());
+
+        for (int i = 0; i < 50; i++) {
+            double roll = random.calculateReward();
+            assertTrue(roll >= 1000.0 && roll <= 5000.0, "Roll out of bounds: " + roll);
+        }
+
+        // 3. Reversed bounds correction
+        VoucherCurrencyReward reversed = new VoucherCurrencyReward("PLAYERPOINTS", 10000.0, 500.0);
+        assertTrue(reversed.isValid());
+        assertTrue(reversed.isRandom());
+        assertEquals(500.0, reversed.getMin());
+        assertEquals(10000.0, reversed.getMax());
+
+        // 4. Invalid
+        VoucherCurrencyReward invalid = new VoucherCurrencyReward("   ");
+        assertFalse(invalid.isValid());
+    }
+
+    @Test
+    @DisplayName("CurrencyDisplayInfo: Formatting and Decimal Patterns")
+    void testCurrencyDisplayInfo() {
+        CurrencyDisplayInfo vault = new CurrencyDisplayInfo("VAULT", "Money", "$", "#,##0.##");
+        assertEquals("VAULT", vault.getId());
+        assertEquals("Money", vault.getDisplayName());
+        assertEquals("$", vault.getSymbol());
+        assertEquals("1,250", vault.format(1250.0));
+        assertEquals("1,250.5", vault.format(1250.5));
+
+        CurrencyDisplayInfo points = new CurrencyDisplayInfo("PLAYERPOINTS", "Points", "✪", "#,##0");
+        assertEquals("10,000", points.format(10000.0));
+    }
+
+    @Test
+    @DisplayName("ItemDefinition: Commands & Currency Rewards")
+    void testItemDefinitionVoucherProperties() {
+        com.github.orenaidaucac.royItems.item.ItemDefinition def =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.VOUCHER, "vip_scroll");
+
+        assertTrue(def.getCommands().isEmpty());
+        assertNull(def.getCurrencyReward());
+
+        def.setCommands(List.of("[console] give %player% diamond 5", "[player] me yay"));
+        assertEquals(2, def.getCommands().size());
+
+        VoucherCurrencyReward rew = new VoucherCurrencyReward("VAULT", 1000.0);
+        def.setCurrencyReward(rew);
+        assertNotNull(def.getCurrencyReward());
+        assertEquals(1000.0, def.getCurrencyReward().getFixedValue());
     }
 }

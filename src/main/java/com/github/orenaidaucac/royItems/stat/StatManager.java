@@ -29,8 +29,13 @@ public class StatManager {
     private final ItemPDCManager pdcManager;
     private final ItemSetManager setManager;
     private RequirementChecker requirementChecker;
+    private PermissionStatManager permissionStatManager;
+    private com.github.orenaidaucac.royItems.lore.DynamicLoreEngine dynamicLoreEngine;
+    private com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager notificationManager;
     private final Map<UUID, PlayerStatCache> playerCaches = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Attribute>> playerAppliedVanillaAttrs = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<String, Integer>> playerSetCounts = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<String>> playerActiveSets = new ConcurrentHashMap<>();
 
     // NamespacedKeys for standard StatType attributes
     private static final NamespacedKey KEY_HEALTH_FLAT = new NamespacedKey("royitems", "stat_max_health_flat");
@@ -64,6 +69,48 @@ public class StatManager {
         this.requirementChecker = requirementChecker;
     }
 
+    public void setPermissionStatManager(PermissionStatManager permissionStatManager) {
+        this.permissionStatManager = permissionStatManager;
+    }
+
+    public PermissionStatManager getPermissionStatManager() {
+        return permissionStatManager;
+    }
+
+    public void setDynamicLoreEngine(com.github.orenaidaucac.royItems.lore.DynamicLoreEngine dynamicLoreEngine) {
+        this.dynamicLoreEngine = dynamicLoreEngine;
+    }
+
+    public com.github.orenaidaucac.royItems.lore.DynamicLoreEngine getDynamicLoreEngine() {
+        return dynamicLoreEngine;
+    }
+
+    public void setNotificationManager(com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager notificationManager) {
+        this.notificationManager = notificationManager;
+    }
+
+    public com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager getNotificationManager() {
+        return notificationManager;
+    }
+
+    public int getEquippedSetPieceCount(Player player, String setId) {
+        if (player == null || setId == null) return 0;
+        Map<String, Integer> counts = playerSetCounts.get(player.getUniqueId());
+        return counts != null ? counts.getOrDefault(setId.toLowerCase(), 0) : 0;
+    }
+
+    public boolean isSetBonusActive(Player player, String setId) {
+        if (player == null || setId == null) return false;
+        Set<String> active = playerActiveSets.get(player.getUniqueId());
+        return active != null && active.contains(setId.toLowerCase());
+    }
+
+    public Set<String> getActiveItemSets(Player player) {
+        if (player == null) return Collections.emptySet();
+        Set<String> active = playerActiveSets.get(player.getUniqueId());
+        return active != null ? active : Collections.emptySet();
+    }
+
     public PlayerStatCache getCache(Player player) {
         if (player == null) return new PlayerStatCache();
         return playerCaches.computeIfAbsent(player.getUniqueId(), k -> new PlayerStatCache());
@@ -72,6 +119,14 @@ public class StatManager {
     public void removePlayer(UUID uuid) {
         playerCaches.remove(uuid);
         playerAppliedVanillaAttrs.remove(uuid);
+        playerSetCounts.remove(uuid);
+        playerActiveSets.remove(uuid);
+        if (permissionStatManager != null) {
+            permissionStatManager.invalidate(uuid);
+        }
+        if (notificationManager != null) {
+            notificationManager.cleanupPlayer(uuid);
+        }
     }
 
     /**
@@ -109,8 +164,29 @@ public class StatManager {
         }
 
         // 5. Apply Item Set Bonuses
+        Set<String> newActiveSets = new HashSet<>();
         if (setManager != null) {
             setManager.applySetBonuses(setCounts, cache);
+            for (Map.Entry<String, Integer> entry : setCounts.entrySet()) {
+                if (setManager.isSetBonusActive(entry.getKey(), entry.getValue())) {
+                    newActiveSets.add(entry.getKey().toLowerCase());
+                }
+            }
+        }
+        playerSetCounts.put(player.getUniqueId(), Collections.unmodifiableMap(new HashMap<>(setCounts)));
+        playerActiveSets.put(player.getUniqueId(), Collections.unmodifiableSet(newActiveSets));
+
+        // 5.2. Synchronize dynamic item set lore across player's inventory & equipment
+        synchronizePlayerSetLore(player, newActiveSets);
+
+        // 5.3. Handle set bonus activation / deactivation notifications (debounced)
+        if (notificationManager != null) {
+            notificationManager.handleActiveSetsChanged(player, newActiveSets, this);
+        }
+
+        // 5.5. Apply Permission Stats (independent of equipment)
+        if (permissionStatManager != null && permissionStatManager.isEnabled()) {
+            permissionStatManager.applyToCache(player, cache);
         }
 
         // 6. Apply attributes directly to Player entity
@@ -170,6 +246,70 @@ public class StatManager {
         if (def.getItemSet() != null && !def.getItemSet().isEmpty()) {
             setCounts.put(def.getItemSet(), setCounts.getOrDefault(def.getItemSet(), 0) + 1);
         }
+    }
+
+    /**
+     * Scans and updates dynamic lore for set items in the player's equipment and inventory
+     * whenever their active set bonus status changes.
+     */
+    public void synchronizePlayerSetLore(Player player, Set<String> activeSets) {
+        if (player == null || dynamicLoreEngine == null) return;
+        PlayerInventory inv = player.getInventory();
+
+        // 1. Armor contents
+        ItemStack[] armor = inv.getArmorContents();
+        if (checkAndSyncSetLore(armor, activeSets, player)) {
+            inv.setArmorContents(armor);
+        }
+
+        // 2. Main hand
+        ItemStack mainHand = inv.getItemInMainHand();
+        if (syncSingleItemSetLore(mainHand, activeSets, player)) {
+            inv.setItemInMainHand(mainHand);
+        }
+
+        // 3. Off hand
+        ItemStack offHand = inv.getItemInOffHand();
+        if (syncSingleItemSetLore(offHand, activeSets, player)) {
+            inv.setItemInOffHand(offHand);
+        }
+
+        // 4. Storage contents
+        ItemStack[] storage = inv.getStorageContents();
+        if (checkAndSyncSetLore(storage, activeSets, player)) {
+            inv.setStorageContents(storage);
+        }
+    }
+
+    private boolean checkAndSyncSetLore(ItemStack[] items, Set<String> activeSets, Player player) {
+        if (items == null) return false;
+        boolean anyChanged = false;
+        for (ItemStack item : items) {
+            if (syncSingleItemSetLore(item, activeSets, player)) {
+                anyChanged = true;
+            }
+        }
+        return anyChanged;
+    }
+
+    private boolean syncSingleItemSetLore(ItemStack item, Set<String> activeSets, Player player) {
+        if (item == null || item.getType().isAir()) return false;
+        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
+
+        ItemType type = pdcManager.getType(item);
+        String id = pdcManager.getId(item);
+        ItemDefinition def = registry.get(type, id);
+        if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) return false;
+
+        String setId = def.getItemSet().toLowerCase();
+        boolean shouldBeActive = activeSets.contains(setId);
+        String targetState = shouldBeActive ? "active" : "inactive";
+        String currentState = pdcManager.getSetState(item);
+
+        if (!targetState.equalsIgnoreCase(currentState)) {
+            return dynamicLoreEngine.synchronizeItemSetLore(item, shouldBeActive, player);
+        }
+        return false;
     }
 
     /**
@@ -338,6 +478,9 @@ public class StatManager {
         if (player == null) return;
         UUID uuid = player.getUniqueId();
         playerCaches.remove(uuid);
+        if (permissionStatManager != null) {
+            permissionStatManager.invalidate(uuid);
+        }
 
         try {
             cleanAttribute(player, StatType.MAX_HEALTH.getVanillaAttribute(), KEY_HEALTH_FLAT, KEY_HEALTH_PERCENT);

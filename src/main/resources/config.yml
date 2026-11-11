@@ -91,6 +91,32 @@ combat:
         value: 100.0
 
 # ==============================================================================
+# PERMISSION STATS SYSTEM
+# Dynamically grants custom MMORPG stats and Vanilla attributes to players
+# based on LuckPerms groups, user permissions, inheritance, and temporary nodes.
+# Does NOT require equipping or holding any RoyItems custom items.
+#
+# Formats:
+#   - Flat Value:       royitems.player.stats.<stat>.<value>    (e.g. .attack-damage.10, .defense.15)
+#   - Percentage Value: royitems.player.stats.<stat>.<value>%   (e.g. .crit-rate.15%, .movement-speed.10%)
+# ==============================================================================
+permission-stats:
+  # Enable or disable player stat bonuses from permissions
+  enabled: true
+
+  # Conflict resolution mode when a player has multiple permissions for the same stat:
+  #   - HIGHEST (default): Selects the highest flat value and highest percentage value independently.
+  #   - SUM: Adds together all flat values and all percentage values.
+  conflict-resolution: "HIGHEST"
+
+  # Optional caps on maximum bonus values granted via permissions (0 = unlimited / no cap)
+  caps:
+    max-health: 0.0
+    movement-speed: 0.0
+    attack-damage: 0.0
+    defense: 0.0
+
+# ==============================================================================
 # LIVE UPDATE SYSTEM
 # Automatically updates existing custom items across online player inventories,
 # equipment, off-hand, and ender chests when an administrator reloads the plugin
@@ -287,4 +313,73 @@ mine-radius:
     - GOLDEN_HOE
     - DIAMOND_HOE
     - NETHERITE_HOE
+
+# ==============================================================================
+# ITEM SET BONUS & NOTIFICATIONS
+# Controls automated notifications when a player activates or deactivates an Item Set bonus.
+# ==============================================================================
+set-bonus:
+  notifications:
+    # Send notification when a player equips enough pieces to activate the set bonus
+    activated: true
+    # Send notification when a player unequips pieces and loses the set bonus
+    deactivated: true
+    # Debounce delay in ticks to prevent notification spam during rapid inventory clicks
+    debounce-ticks: 2
+
+# ==============================================================================
+# VOUCHER & TITLE GACHA ANIMATION
+# Advanced currency rewards, random reward gacha rolling, and anti-dupe safety.
+# ==============================================================================
+voucher:
+  gacha:
+    # Enable animated rolling title for random voucher rewards (min-max)
+    # Note: Fixed amount vouchers will never roll gacha; they are awarded instantly.
+    enabled: true
+    # Duration of the rolling animation in ticks (30 ticks = 1.5 seconds)
+    duration-ticks: 30
+    # Interval between number changes in ticks (2 ticks = 10 rolls/second)
+    interval-ticks: 2
+    # Rolling sound effect
+    sound-roll: "BLOCK_NOTE_BLOCK_PLING"
+    sound-roll-pitch-min: 1.0
+    sound-roll-pitch-max: 1.8
+    # Finished / reward granted sound effect
+    sound-finish: "UI_TOAST_CHALLENGE_COMPLETE"
+    sound-finish-volume: 1.0
+    sound-finish-pitch: 1.2
+    # Particle effect when the reward is finalized
+    particle: "FIREWORK"
+    particle-count: 35
+    # Title display format during rolling
+    title-rolling: "<gold><bold>GACHA ROLLING...</bold></gold>"
+    subtitle-rolling: "<yellow>#symbol##amount# <gray>(#currency#)</gray></yellow>"
+    # Title display format upon final reward
+    title-finish: "<green><bold>REWARD UNLOCKED!</bold></green>"
+    subtitle-finish: "<yellow>+ #symbol##amount# <gold>#currency#</gold></yellow>"
+
+# ==============================================================================
+# CURRENCIES DISPLAY & FORMATTING
+# Friendly display names, symbols, and formatting for all supported economy engines.
+# Prevents raw identifiers (e.g. EXCELLENTECONOMY_gems, VAULT) from ever showing to players.
+# ==============================================================================
+currencies:
+  vault:
+    name: "Money"
+    symbol: "$"
+    format: "#,##0.##"
+  playerpoints:
+    name: "Points"
+    symbol: "✪"
+    format: "#,##0"
+  coins:
+    name: "Coins"
+    symbol: "⛁"
+    format: "#,##0.##"
+  gems:
+    name: "Gems"
+    symbol: "♦"
+    format: "#,##0"
+
+
 

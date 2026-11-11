@@ -65,3 +65,16 @@ messages:
   craft-failed: "&c素材が不足しているため作成に失敗しました！"
   craft-in-progress: "&c現在アイテムをクラフト中です。完了するまでお待ちください！"
   craft-cancelled: "&cメニューが閉じられたため作成をキャンセルしました！"
+
+  # セット効果の通知
+  set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aセット効果 &e#set# &aが発動しました！"
+  set-bonus-deactivated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cセット効果 &e#set# &cが無効になりました。"
+
+  # バウチャー報酬
+  voucher-redeemed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e#item# &aを使用しました！"
+  voucher-redeemed-currency: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e#item# &aを使用し、&e#symbol##amount# #currency# &aを獲得しました！"
+  voucher-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c現在ガチャ抽選中です！終了するまでお待ちください。"
+  voucher-cooldown: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのバウチャーを使用するにはあと &f#time#秒 &cお待ちください！"
+  voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c報酬の付与に失敗しました。アイテム保護のため処理は安全に中止されました。"
+  voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのバウチャーの設定が無効です。管理者に連絡してください。"
+  voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c#currency# の経済システムは現在利用できません。"

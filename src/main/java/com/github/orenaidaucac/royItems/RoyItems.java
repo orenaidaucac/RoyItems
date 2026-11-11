@@ -12,6 +12,7 @@ import com.github.orenaidaucac.royItems.integration.IntegrationManager;
 import com.github.orenaidaucac.royItems.item.*;
 import com.github.orenaidaucac.royItems.lore.DynamicLoreEngine;
 import com.github.orenaidaucac.royItems.mechanics.*;
+import com.github.orenaidaucac.royItems.voucher.VoucherManager;
 import com.github.orenaidaucac.royItems.metrics.RoyMetricsManager;
 import com.github.orenaidaucac.royItems.socket.GemSocketListener;
 import com.github.orenaidaucac.royItems.socket.GemSocketManager;
@@ -47,8 +48,10 @@ public final class RoyItems extends JavaPlugin {
 
     private ItemTierManager itemTierManager;
     private ItemSetManager itemSetManager;
+    private com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager setBonusNotificationManager;
     private StatManager statManager;
     private DefenseManager defenseManager;
+    private com.github.orenaidaucac.royItems.stat.PermissionStatManager permissionStatManager;
 
     private RequirementChecker requirementChecker;
     private ExpirationManager expirationManager;
@@ -66,6 +69,7 @@ public final class RoyItems extends JavaPlugin {
     private DamageParticleFilterManager particleFilterManager;
     private ItemProtectionListener itemProtectionListener;
     private MineRadiusListener mineRadiusListener;
+    private VoucherManager voucherManager;
     private com.github.orenaidaucac.royItems.station.CraftingStationManager craftingStationManager;
     private com.github.orenaidaucac.royItems.dummy.DummyManager dummyManager;
 
@@ -83,7 +87,9 @@ public final class RoyItems extends JavaPlugin {
     public LiveUpdateService getLiveUpdateService() { return liveUpdateService; }
     public ItemTierManager getItemTierManager() { return itemTierManager; }
     public ItemSetManager getItemSetManager() { return itemSetManager; }
+    public com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager getSetBonusNotificationManager() { return setBonusNotificationManager; }
     public StatManager getStatManager() { return statManager; }
+    public com.github.orenaidaucac.royItems.stat.PermissionStatManager getPermissionStatManager() { return permissionStatManager; }
     public DefenseManager getDefenseManager() { return defenseManager; }
     public RequirementChecker getRequirementChecker() { return requirementChecker; }
     public ExpirationManager getExpirationManager() { return expirationManager; }
@@ -101,6 +107,7 @@ public final class RoyItems extends JavaPlugin {
     public DamageParticleFilterManager getParticleFilterManager() { return particleFilterManager; }
     public ItemProtectionListener getItemProtectionListener() { return itemProtectionListener; }
     public MineRadiusListener getMineRadiusListener() { return mineRadiusListener; }
+    public VoucherManager getVoucherManager() { return voucherManager; }
 
     @Override
     public void onEnable() {
@@ -150,7 +157,16 @@ public final class RoyItems extends JavaPlugin {
         this.liveUpdateService.loadConfig(getConfig());
 
         // 7. Stat & Combat Engines
+        this.permissionStatManager = new com.github.orenaidaucac.royItems.stat.PermissionStatManager(getLogger());
+        this.permissionStatManager.loadConfig(getConfig());
+
         this.statManager = new StatManager(itemRegistry, itemPDCManager, itemSetManager);
+        this.statManager.setPermissionStatManager(this.permissionStatManager);
+        this.setBonusNotificationManager = new com.github.orenaidaucac.royItems.tier_set.SetBonusNotificationManager(
+                this, itemSetManager, messageManager, platformScheduler);
+        this.statManager.setNotificationManager(this.setBonusNotificationManager);
+        this.statManager.setDynamicLoreEngine(this.dynamicLoreEngine);
+        this.dynamicLoreEngine.setStatManager(this.statManager);
         this.liveUpdateService.setStatManager(this.statManager);
         this.defenseManager = new DefenseManager(this, statManager);
 
@@ -167,6 +183,7 @@ public final class RoyItems extends JavaPlugin {
         this.expirationManager = new ExpirationManager(itemPDCManager, platformScheduler);
         this.cooldownManager = new CooldownManager();
         this.potionEffectManager = new PotionEffectManager(itemRegistry, itemPDCManager, platformScheduler);
+        this.voucherManager = new VoucherManager(this, platformScheduler, cooldownManager, requirementChecker, integrationManager, messageManager);
 
         this.gemSocketManager = new GemSocketManager(itemRegistry, itemPDCManager, dynamicLoreEngine);
 
@@ -234,11 +251,24 @@ public final class RoyItems extends JavaPlugin {
             dummyManager.cleanup();
         }
 
+        // 4.5. Cleanup Integrations (LuckPerms EventBus, etc.)
+        if (integrationManager != null) {
+            integrationManager.cleanup();
+        }
+
+        // 4.6. Cleanup Voucher Manager
+        if (voucherManager != null) {
+            voucherManager.cleanup();
+        }
+
         // 5. Cleanup Player Stat Attribute Modifiers
         if (statManager != null) {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 statManager.cleanupPlayer(player);
             }
+        }
+        if (permissionStatManager != null) {
+            permissionStatManager.clearCache();
         }
 
         // 6. Cancel all scheduled platform tasks
@@ -300,6 +330,12 @@ public final class RoyItems extends JavaPlugin {
 
         // 2. Reload main config, combat defense engine, and update checker
         reloadConfig();
+        if (integrationManager != null) {
+            integrationManager.recheckHooks();
+        }
+        if (permissionStatManager != null) {
+            permissionStatManager.loadConfig(getConfig());
+        }
         if (defenseManager != null) {
             defenseManager.loadConfig();
         }
@@ -308,6 +344,9 @@ public final class RoyItems extends JavaPlugin {
         }
         if (mineRadiusListener != null) {
             mineRadiusListener.loadConfig(getConfig());
+        }
+        if (voucherManager != null) {
+            voucherManager.loadConfig(getConfig());
         }
         if (liveUpdateService != null) {
             liveUpdateService.loadConfig(getConfig());
@@ -331,6 +370,9 @@ public final class RoyItems extends JavaPlugin {
         // 5. Reload Tiers and Sets
         itemTierManager.loadTiers();
         itemSetManager.loadSets();
+        if (setBonusNotificationManager != null) {
+            setBonusNotificationManager.loadConfig();
+        }
         if (tierDropGlowListener != null) {
             tierDropGlowListener.applyToAllGroundItems();
         }
@@ -342,6 +384,15 @@ public final class RoyItems extends JavaPlugin {
         if (dummyManager != null) {
             dummyManager.cleanup();
             dummyManager.initialize();
+        }
+
+        // 7.5. Recalculate stats for all online players immediately (permissions & config reload)
+        if (statManager != null) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p != null && p.isValid()) {
+                    statManager.recalculate(p);
+                }
+            }
         }
 
         // 8. Trigger LiveUpdate across all online players and report statistics
@@ -373,7 +424,8 @@ public final class RoyItems extends JavaPlugin {
         pm.registerEvents(new com.github.orenaidaucac.royItems.lore.EnchantmentListener(itemPDCManager, dynamicLoreEngine, platformScheduler), this);
         pm.registerEvents(new PlayerEquipmentListener(statManager, platformScheduler, liveUpdateService, requirementChecker, itemPDCManager, itemRegistry), this);
         pm.registerEvents(new GemSocketListener(gemSocketManager, itemPDCManager, statManager), this);
-        pm.registerEvents(new SpecialItemListener(itemPDCManager, itemRegistry, cooldownManager, requirementChecker, integrationManager), this);
+        pm.registerEvents(voucherManager, this);
+        pm.registerEvents(new SpecialItemListener(itemPDCManager, itemRegistry, cooldownManager, requirementChecker, integrationManager, voucherManager), this);
         this.itemProtectionListener = new ItemProtectionListener(itemPDCManager, itemRegistry, messageManager);
         this.itemProtectionListener.loadConfig(getConfig());
         pm.registerEvents(this.itemProtectionListener, this);

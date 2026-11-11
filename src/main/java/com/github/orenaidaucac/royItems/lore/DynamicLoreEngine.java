@@ -16,6 +16,7 @@ import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -42,6 +43,7 @@ public class DynamicLoreEngine {
     private final Plugin plugin;
     private ItemTierManager itemTierManager;
     private ItemSetManager itemSetManager;
+    private com.github.orenaidaucac.royItems.stat.StatManager statManager;
     private com.github.orenaidaucac.royItems.integration.EcoEnchantsHook ecoEnchantsHook;
     private com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager;
     private com.github.orenaidaucac.royItems.item.ItemRegistry registry;
@@ -64,6 +66,14 @@ public class DynamicLoreEngine {
 
     public void setItemSetManager(ItemSetManager itemSetManager) {
         this.itemSetManager = itemSetManager;
+    }
+
+    public void setStatManager(com.github.orenaidaucac.royItems.stat.StatManager statManager) {
+        this.statManager = statManager;
+    }
+
+    public com.github.orenaidaucac.royItems.stat.StatManager getStatManager() {
+        return statManager;
     }
 
     public void setEcoEnchantsHook(com.github.orenaidaucac.royItems.integration.EcoEnchantsHook ecoEnchantsHook) {
@@ -134,7 +144,7 @@ public class DynamicLoreEngine {
      * Builds dynamic lore for an item according to its definition and active runtime data.
      */
     public List<String> buildLore(ItemDefinition def, List<String> slottedSockets, long expireTimestamp) {
-        return buildLore(def, slottedSockets, expireTimestamp, null);
+        return buildLore(def, slottedSockets, expireTimestamp, null, false, null);
     }
 
     /**
@@ -142,6 +152,16 @@ public class DynamicLoreEngine {
      * and actual runtime enchantments (Vanilla and EcoEnchants).
      */
     public List<String> buildLore(ItemDefinition def, List<String> slottedSockets, long expireTimestamp, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
+        return buildLore(def, slottedSockets, expireTimestamp, activeEnchants, false, null);
+    }
+
+    /**
+     * Builds dynamic lore for an item according to its definition, runtime data,
+     * active enchantments, and active set bonus state.
+     */
+    public List<String> buildLore(ItemDefinition def, List<String> slottedSockets, long expireTimestamp,
+                                  Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants,
+                                  boolean isSetBonusActive, Player player) {
         if (def == null) return new ArrayList<>();
 
         // If an item purposefully attempts to use the reserved wiki file, suppress its lore completely
@@ -162,6 +182,7 @@ public class DynamicLoreEngine {
         List<String> socketLines = generateSocketLines(def, slottedSockets, format);
         List<String> reqLines = generateRequirementLines(def, format);
         List<String> enchLines = generateEnchantmentLines(def, format, activeEnchants);
+        List<String> setLines = generateSetLoreLines(def, isSetBonusActive, player);
 
         List<String> processed = new ArrayList<>();
         String barString = format.getBar() != null ? format.getBar() : "&8&m------------------------";
@@ -184,6 +205,20 @@ public class DynamicLoreEngine {
                 processed.addAll(reqLines);
             } else if (trimmed.equalsIgnoreCase("#enchantments#") || trimmed.equalsIgnoreCase("%enchantments%")) {
                 processed.addAll(enchLines);
+            } else if (trimmed.equalsIgnoreCase("#set#") || trimmed.equalsIgnoreCase("%set%")) {
+                if (def.getItemSet() != null && !def.getItemSet().isEmpty() && !setLines.isEmpty()) {
+                    processed.addAll(setLines);
+                }
+            } else if (trimmed.equalsIgnoreCase("#set-name#") || trimmed.equalsIgnoreCase("%set-name%")
+                    || trimmed.equalsIgnoreCase("#set-display#") || trimmed.equalsIgnoreCase("%set-display%")) {
+                String setDisplay = resolveSetDisplayName(def);
+                if (!setDisplay.isEmpty()) {
+                    processed.add(setDisplay);
+                }
+            } else if (trimmed.equalsIgnoreCase("#set-id#") || trimmed.equalsIgnoreCase("%set-id%")) {
+                if (def.getItemSet() != null && !def.getItemSet().isEmpty()) {
+                    processed.add(def.getItemSet());
+                }
             } else if (trimmed.equalsIgnoreCase("#description#") || trimmed.equalsIgnoreCase("%description%")
                     || trimmed.equalsIgnoreCase("#lore#") || trimmed.equalsIgnoreCase("%lore%")) {
                 if (def.getLore() != null) {
@@ -239,10 +274,22 @@ public class DynamicLoreEngine {
                         line = line.replace("#symbol#", sym).replace("%symbol%", sym);
                     }
 
-                    processed.add(replaceGeneralPlaceholders(line, def, expireTimestamp, format));
+                    boolean containsSet = rawLine.contains("#set#") || rawLine.contains("%set%");
+                    processed.add(replaceGeneralPlaceholders(line, def, expireTimestamp, format, isSetBonusActive, player));
+                    if (containsSet && def.getItemSet() != null && !def.getItemSet().isEmpty() && setLines.size() > 1) {
+                        for (int i = 1; i < setLines.size(); i++) {
+                            processed.add(setLines.get(i));
+                        }
+                    }
                 } else {
                     // Standard line
-                    processed.add(replaceGeneralPlaceholders(rawLine, def, expireTimestamp, format));
+                    boolean containsSet = rawLine.contains("#set#") || rawLine.contains("%set%");
+                    processed.add(replaceGeneralPlaceholders(rawLine, def, expireTimestamp, format, isSetBonusActive, player));
+                    if (containsSet && def.getItemSet() != null && !def.getItemSet().isEmpty() && setLines.size() > 1) {
+                        for (int i = 1; i < setLines.size(); i++) {
+                            processed.add(setLines.get(i));
+                        }
+                    }
                 }
             }
         }
@@ -251,12 +298,22 @@ public class DynamicLoreEngine {
         return pruneBars(processed, barString);
     }
 
+    public String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp) {
+        return replaceGeneralPlaceholders(input, def, expireTimestamp, null, false, null);
+    }
+
     public String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp, LoreFormat format) {
+        return replaceGeneralPlaceholders(input, def, expireTimestamp, format, false, null);
+    }
+
+    public String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp, LoreFormat format,
+                                            boolean isSetBonusActive, Player player) {
         if (input == null) return "";
 
         String tierDisplay = resolveTierDisplayName(def);
         String tierColor = resolveTierColor(def);
-        String setDisplay = resolveSetDisplayName(def);
+        String setDisplayLore = resolveSetString(def, isSetBonusActive, player);
+        String setOfficialName = resolveSetDisplayName(def);
         String typeDesc = def.getType() != null ? def.getType().getDescription() : "";
         String tierId = def.getItemTier() != null ? def.getItemTier() : "";
         String setId = def.getItemSet() != null ? def.getItemSet() : "";
@@ -282,13 +339,15 @@ public class DynamicLoreEngine {
                 .replace("%tier-color%", tierColor)
                 .replace("#tier_color#", tierColor)
                 .replace("%tier_color%", tierColor)
-                // Set
-                .replace("#set#", setDisplay)
-                .replace("%set%", setDisplay)
-                .replace("#set-name#", setDisplay)
-                .replace("%set-name%", setDisplay)
-                .replace("#set-display#", setDisplay)
-                .replace("%set-display%", setDisplay)
+                // Set Lore (Dynamic active/inactive)
+                .replace("#set#", setDisplayLore)
+                .replace("%set%", setDisplayLore)
+                // Set Official Display Name
+                .replace("#set-name#", setOfficialName)
+                .replace("%set-name%", setOfficialName)
+                .replace("#set-display#", setOfficialName)
+                .replace("%set-display%", setOfficialName)
+                // Set ID
                 .replace("#set-id#", setId)
                 .replace("%set-id%", setId);
 
@@ -321,10 +380,6 @@ public class DynamicLoreEngine {
         }
 
         return s;
-    }
-
-    public String replaceGeneralPlaceholders(String input, ItemDefinition def, long expireTimestamp) {
-        return replaceGeneralPlaceholders(input, def, expireTimestamp, null);
     }
 
     public String resolveTierDisplayName(ItemDefinition def) {
@@ -379,6 +434,87 @@ public class DynamicLoreEngine {
             }
         }
         return setId;
+    }
+
+    /**
+     * Resolves the primary string representation of the set for inline placement.
+     * Uses the first line of active/inactive lore if configured, otherwise falls back to display name.
+     */
+    public String resolveSetString(ItemDefinition def, boolean isSetBonusActive, Player player) {
+        if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) {
+            return "";
+        }
+        List<String> setLines = generateSetLoreLines(def, isSetBonusActive, player);
+        if (!setLines.isEmpty()) {
+            return setLines.get(0);
+        }
+        return resolveSetDisplayName(def);
+    }
+
+    /**
+     * Generates active or inactive lore lines for an item belonging to an Item Set.
+     */
+    public List<String> generateSetLoreLines(ItemDefinition def, boolean isSetBonusActive, Player player) {
+        if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String setId = def.getItemSet();
+        ItemSetManager manager = this.itemSetManager;
+        if (manager == null && plugin instanceof RoyItems royItems) {
+            manager = royItems.getItemSetManager();
+        }
+        if (manager == null) return Collections.emptyList();
+
+        ItemSet set = manager.get(setId);
+        if (set == null) return Collections.emptyList();
+
+        List<String> rawLines = set.getLore(isSetBonusActive);
+        if (rawLines == null || rawLines.isEmpty()) {
+            if (set.getDisplayName() != null && !set.getDisplayName().isEmpty()) {
+                return List.of(set.getDisplayName());
+            }
+            return List.of(setId);
+        }
+
+        int pieces = 0;
+        if (player != null && statManager != null) {
+            pieces = statManager.getEquippedSetPieceCount(player, setId);
+        } else if (isSetBonusActive) {
+            pieces = set.getRequiredPieces();
+        }
+        int required = set.getRequiredPieces();
+
+        List<String> result = new ArrayList<>(rawLines.size());
+        for (String raw : rawLines) {
+            if (raw == null) continue;
+            String line = raw
+                    .replace("#set#", set.getDisplayName())
+                    .replace("%set%", set.getDisplayName())
+                    .replace("#set-name#", set.getDisplayName())
+                    .replace("%set-name%", set.getDisplayName())
+                    .replace("#set-display#", set.getDisplayName())
+                    .replace("%set-display%", set.getDisplayName())
+                    .replace("#set-id#", set.getId())
+                    .replace("%set-id%", set.getId())
+                    .replace("#pieces#", String.valueOf(pieces))
+                    .replace("%pieces%", String.valueOf(pieces))
+                    .replace("#count#", String.valueOf(pieces))
+                    .replace("%count%", String.valueOf(pieces))
+                    .replace("#required#", String.valueOf(required))
+                    .replace("%required%", String.valueOf(required))
+                    .replace("#required-pieces#", String.valueOf(required))
+                    .replace("%required-pieces%", String.valueOf(required));
+
+            if (player != null) {
+                try {
+                    if (org.bukkit.Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+                        line = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, line);
+                    }
+                } catch (Throwable ignored) {}
+            }
+            result.add(line);
+        }
+        return result;
     }
 
     private List<String> extractStatPlaceholdersInLine(String line, LoreFormat format) {
@@ -893,6 +1029,44 @@ public class DynamicLoreEngine {
             return synchronizeItemEnchantments(item);
         }
         return false;
+    }
+
+    /**
+     * Synchronizes dynamic lore for a set item according to the player's active set bonus status.
+     * Updates active/inactive lore lines, tags new state in PDC, and applies changes.
+     */
+    public boolean synchronizeItemSetLore(ItemStack item, boolean isBonusActive, Player player) {
+        if (item == null || item.getType().isAir()) return false;
+        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
+        if (registry == null) return false;
+
+        ItemType type = pdcManager.getType(item);
+        String id = pdcManager.getId(item);
+        ItemDefinition def = registry.get(type, id);
+        if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) return false;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+
+        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = new LinkedHashMap<>(meta.getEnchants());
+        if (meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storageMeta) {
+            activeEnchants.putAll(storageMeta.getStoredEnchants());
+        }
+
+        String socketsRaw = pdcManager.getSocketsData(item);
+        List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
+        long expire = pdcManager.getExpireTime(item);
+
+        List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, player);
+        meta.lore(TextUtility.formatLore(rawLore));
+
+        if (hasEnchantmentsPlaceholder(def)) {
+            meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
+        }
+
+        pdcManager.setSetState(meta, isBonusActive ? "active" : "inactive");
+        item.setItemMeta(meta);
+        return true;
     }
 
     /**

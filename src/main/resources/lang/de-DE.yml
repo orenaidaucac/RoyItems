@@ -65,3 +65,16 @@ messages:
   craft-failed: "&cHerstellung fehlgeschlagen wegen fehlender Materialien!"
   craft-in-progress: "&cDu stellst bereits einen Gegenstand her, bitte warte auf den Abschluss!"
   craft-cancelled: "&cHerstellung abgebrochen, da das Menü geschlossen wurde!"
+
+  # Set-Bonus Benachrichtigungen
+  set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aDu hast den Set-Bonus für &e#set# &aaktiviert!"
+  set-bonus-deactivated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDer Set-Bonus für &e#set# &cwurde deaktiviert!"
+
+  # Gutschein-Belohnungen
+  voucher-redeemed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aDu hast &e#item# &aeingelöst!"
+  voucher-redeemed-currency: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aDu hast &e#item# &aeingelöst und &e#symbol##amount# #currency# &aerhalten!"
+  voucher-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDu löst bereits einen Gutschein ein! Bitte warte, bis die Ziehung abgeschlossen ist."
+  voucher-cooldown: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cBitte warte &f#time#s&c, bevor du diesen Gutschein erneut verwendest!"
+  voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cTransaktion fehlgeschlagen. Der Vorgang wurde sicher abgebrochen."
+  voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cUngültige Gutschein-Konfiguration. Bitte kontaktiere einen Administrator."
+  voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDas Wirtschaftssystem für #currency# ist derzeit nicht verfügbar."

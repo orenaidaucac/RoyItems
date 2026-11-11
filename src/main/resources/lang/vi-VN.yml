@@ -66,3 +66,16 @@ messages:
   craft-failed: "&cChế tạo thất bại do thiếu nguyên liệu!"
   craft-in-progress: "&cBạn đang trong tiến trình chế tạo, vui lòng chờ hoàn tất!"
   craft-cancelled: "&cHủy chế tạo do giao diện trạm chế tạo đã bị đóng!"
+
+  # Thông báo Set Bonus
+  set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aBạn đã kích hoạt hiệu ứng bộ trang bị &e#set#&a!"
+  set-bonus-deactivated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cHiệu ứng bộ trang bị &e#set# &cđã mất hiệu lực do tháo trang bị!"
+
+  # Phần thưởng Voucher
+  voucher-redeemed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aBạn đã sử dụng thành công &e#item#&a!"
+  voucher-redeemed-currency: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aBạn đã sử dụng &e#item# &avà nhận được &e#symbol##amount# #currency#&a!"
+  voucher-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cBạn đang mở một Voucher khác! Vui lòng chờ hiệu ứng quay thưởng hoàn tất."
+  voucher-cooldown: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cVui lòng chờ &f#time#s &cđể tiếp tục sử dụng Voucher này!"
+  voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cGiao dịch phần thưởng thất bại. Thao tác đã được hủy an toàn để bảo vệ vật phẩm của bạn."
+  voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cCấu hình Voucher này không hợp lệ. Vui lòng liên hệ Quản trị viên."
+  voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cHệ thống tiền tệ cho #currency# hiện đang tạm ngưng hoặc không khả dụng."
