@@ -58,21 +58,43 @@ public class PotionEffectManager {
     }
 
     private void checkAndApply(Player player, ItemStack item, String expectedSlot) {
-        if (item == null || !pdcManager.isRoyItem(item)) return;
+        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
 
         ItemType type = pdcManager.getType(item);
+        if (type == null) return;
+
+        boolean isInventorySlot = "INV".equalsIgnoreCase(expectedSlot);
+        if (isInventorySlot) {
+            if (!type.isInventoryPassive()) return;
+        } else {
+            org.bukkit.inventory.EquipmentSlot equipmentSlot = resolveEquipmentSlot(expectedSlot);
+            if (equipmentSlot == null || !type.isValidEquipmentSlot(equipmentSlot, item.getType())) return;
+        }
+
         String id = pdcManager.getId(item);
         ItemDefinition def = registry.get(type, id);
         if (def == null || def.getEffects() == null || def.getEffects().isEmpty()) return;
 
         for (PotionEffectData effectData : def.getEffects()) {
             if (effectData == null || effectData.getType() == null) continue;
-            if (effectData.getSlot() == null || effectData.getSlot().equalsIgnoreCase(expectedSlot)
-                    || (expectedSlot.equalsIgnoreCase("INV") && effectData.getSlot().equalsIgnoreCase("INV"))) {
+            if (effectData.getSlot() == null || effectData.getSlot().equalsIgnoreCase(expectedSlot)) {
                 // Apply potion effect with 100 ticks (5 seconds) duration
                 PotionEffect effect = new PotionEffect(effectData.getType(), 100, effectData.getAmplifier(), false, false, true);
                 player.addPotionEffect(effect);
             }
         }
+    }
+
+    private org.bukkit.inventory.EquipmentSlot resolveEquipmentSlot(String expectedSlot) {
+        if (expectedSlot == null) return null;
+        return switch (expectedSlot.toUpperCase(java.util.Locale.ROOT)) {
+            case "MAIN_HAND" -> org.bukkit.inventory.EquipmentSlot.HAND;
+            case "OFF_HAND" -> org.bukkit.inventory.EquipmentSlot.OFF_HAND;
+            case "HEAD" -> org.bukkit.inventory.EquipmentSlot.HEAD;
+            case "CHEST" -> org.bukkit.inventory.EquipmentSlot.CHEST;
+            case "LEGS" -> org.bukkit.inventory.EquipmentSlot.LEGS;
+            case "FEET" -> org.bukkit.inventory.EquipmentSlot.FEET;
+            default -> null;
+        };
     }
 }

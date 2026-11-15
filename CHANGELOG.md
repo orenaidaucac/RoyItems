@@ -1,5 +1,24 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.8] - 2026-11-15
+
+### 🐛 Bug Fixes
+* **Fixed Ghost Blocks in AdvancedOreGen Mine Radius:** Completely eliminated invisible/ghost blocks appearing after using `mine-radius` tools on cobblestone and ore generators. Mined generator blocks now regenerate immediately with authoritative client-server block synchronization and a 1-tick verification pass.
+* **Fixed Voucher Air Right-Click:** Resolved an issue where `type: VOUCHER` items could only be redeemed when right-clicking a block. Vouchers can now be freely used in both mid-air and on blocks using either the Main Hand or Off Hand.
+* **Fixed Client Inventory Sync on Voucher Consumption:** Player hand stacks now decrement and synchronize with the server immediately upon voucher use, preventing ghost items from visually remaining in inventory.
+* **Prevented Mining Race Conditions & Item Duplication:** Added concurrent block-locking during multi-block mining passes, preventing multiple players from exploiting overlapping radius breaks or causing fluid flow desyncs.
+
+### ⚡ Improvements
+* **Real-Time Multi-Client Block Updates:** Broadcasts authoritative block changes to all nearby tracking players within 48 blocks whenever wide-area mining modifies block states.
+* **Folia & Leaf Multi-Threading Safety:** Hardened region boundary checks and chunk loading validations to guarantee zero asynchronous block access or server stalls across Paper, Purpur, Folia, and Leaf.
+* **Expanded bStats Telemetry:** Added custom metrics tracking for all 15 active server integrations, including PhoenixNPCs, ExtraStorage, LuckPerms, and Economy providers.
+
+### 🔌 Integrations
+* **PhoenixNPCs Support:** Fully integrated with PhoenixNPCs, allowing players to open custom Crafting Stations by interacting with configured NPC IDs (alongside Citizens and FancyNPCs).
+* **Hardened AdvancedOreGen Hook:** Optimized generator recognition and direct in-place block replacement to preserve water and lava mechanics during continuous generator mining.
+
+---
+
 ## [2026.1.7] - 2026-11-11
 
 ### ✨ New Features

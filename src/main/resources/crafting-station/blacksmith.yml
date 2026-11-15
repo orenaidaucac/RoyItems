@@ -15,6 +15,8 @@ fancynpcs:
   - "blacksmith_npc"
 citizen:
   - 10
+phoenixnpcs:
+  - "blacksmith_npc"
 
 # Navigation controls for pagination and closing
 navigation:

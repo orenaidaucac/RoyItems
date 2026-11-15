@@ -50,24 +50,54 @@ public class SpecialItemListener implements Listener {
         this.voucherManager = voucherManager;
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
+        EquipmentSlot hand = event.getHand();
+        if (hand != EquipmentSlot.HAND && hand != EquipmentSlot.OFF_HAND) return;
 
-        ItemStack item = event.getItem();
-        if (item == null || !pdcManager.isRoyItem(item)) return;
+        Action action = event.getAction();
+        boolean isRightClick = (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK);
+        if (!isRightClick) return;
 
         Player player = event.getPlayer();
+        if (player == null || !player.isOnline()) return;
+
+        // Authoritative item lookup: try event.getItem() first, fallback to player inventory slot
+        ItemStack item = event.getItem();
+        if (item == null || item.getType().isAir()) {
+            item = player.getInventory().getItem(hand);
+        }
+        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
+
         ItemType type = pdcManager.getType(item);
         String id = pdcManager.getId(item);
-        ItemDefinition def = registry.get(type, id);
+        ItemDefinition def = (registry != null) ? registry.get(type, id) : null;
         if (def == null) return;
 
-        // Check if disabled on use or already cancelled
-        if (event.isCancelled() || def.isDisableOnUse()) {
+        if (def.isDisableOnUse()) {
             event.setCancelled(true);
+            event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+            event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
             return;
         }
+
+        // 1. VOUCHER Handling (supports both MAIN_HAND and OFF_HAND, Air and Block clicks)
+        // Does not require aiming at a block; immune to external plugin cancellation on air clicks
+        if (type == ItemType.VOUCHER) {
+            redeemVoucher(player, item, def, hand);
+            event.setCancelled(true);
+            event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+            event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+            return;
+        }
+
+        // For non-voucher items (CONSUMABLE, STAFF), respect external cancellations
+        if (event.useItemInHand() == org.bukkit.event.Event.Result.DENY) {
+            return;
+        }
+
+        // Preserve main-hand restriction for CONSUMABLE and STAFF
+        if (hand != EquipmentSlot.HAND) return;
 
         // Check requirements
         if (!requirementChecker.canUse(player, def)) {
@@ -76,32 +106,54 @@ public class SpecialItemListener implements Listener {
             return;
         }
 
-        Action action = event.getAction();
-        boolean isRightClick = (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK);
-
-        // 1. VOUCHER Handling
-        if (type == ItemType.VOUCHER && isRightClick) {
-            if (voucherManager != null) {
-                voucherManager.handleVoucher(player, item, def, event.getHand());
-            } else {
-                handleVoucher(player, item, def);
-            }
-            event.setCancelled(true);
-            return;
-        }
-
         // 2. CONSUMABLE Handling
-        if (type == ItemType.CONSUMABLE && isRightClick) {
+        if (type == ItemType.CONSUMABLE) {
             handleConsumable(player, item, def);
             event.setCancelled(true);
             return;
         }
 
         // 3. STAFF Handling
-        if (type == ItemType.STAFF && isRightClick) {
+        if (type == ItemType.STAFF) {
             handleStaff(player, def);
             event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onInteractEntity(org.bukkit.event.player.PlayerInteractEntityEvent event) {
+        EquipmentSlot hand = event.getHand();
+        if (hand != EquipmentSlot.HAND && hand != EquipmentSlot.OFF_HAND) return;
+
+        Player player = event.getPlayer();
+        if (player == null || !player.isOnline()) return;
+
+        ItemStack item = player.getInventory().getItem(hand);
+        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
+
+        ItemType type = pdcManager.getType(item);
+        if (type != ItemType.VOUCHER) return;
+
+        String id = pdcManager.getId(item);
+        ItemDefinition def = (registry != null) ? registry.get(type, id) : null;
+        if (def == null || def.isDisableOnUse()) {
+            event.setCancelled(true);
             return;
+        }
+
+        redeemVoucher(player, item, def, hand);
+        event.setCancelled(true);
+    }
+
+    private void redeemVoucher(Player player, ItemStack item, ItemDefinition def, EquipmentSlot hand) {
+        if (!requirementChecker.canUse(player, def)) {
+            requirementChecker.sendRequirementFailureMessage(player, def);
+            return;
+        }
+        if (voucherManager != null) {
+            voucherManager.handleVoucher(player, item, def, hand);
+        } else {
+            handleVoucher(player, item, def);
         }
     }
 
@@ -114,6 +166,7 @@ public class SpecialItemListener implements Listener {
 
         // Consume 1 item
         item.setAmount(item.getAmount() - 1);
+        player.updateInventory();
 
         // Sound & Particle
         Location loc = player.getLocation().add(0, 1, 0);
@@ -152,6 +205,7 @@ public class SpecialItemListener implements Listener {
 
         // Consume 1 item
         item.setAmount(item.getAmount() - 1);
+        player.updateInventory();
 
         if (def.getCooldown() > 0) {
             cooldownManager.setCooldown(player, def.getId(), def.getCooldown());

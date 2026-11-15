@@ -14,6 +14,7 @@ import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
@@ -21,6 +22,7 @@ import org.bukkit.inventory.meta.ArmorMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.inventory.meta.components.EquippableComponent;
 import org.bukkit.inventory.meta.trim.ArmorTrim;
 import org.bukkit.inventory.meta.trim.TrimMaterial;
 import org.bukkit.inventory.meta.trim.TrimPattern;
@@ -111,6 +113,9 @@ public class ItemBuilder {
         if (def.getItemModel() != null && !def.getItemModel().isEmpty()) {
             applyItemModel(meta, def.getItemModel());
         }
+
+        // 6.5. Equippable Equipment Model (Minecraft 1.21.2+ / Leaf 26.2+ 2D Custom Armor)
+        applyEquipmentModel(meta, item.getType(), def);
 
         // 7. Armor Trim
         if (meta instanceof ArmorMeta armorMeta) {
@@ -214,6 +219,63 @@ public class ItemBuilder {
         return head;
     }
 
+    /**
+     * Parses a resource pack asset key (`namespace:key` or `key`, defaulting to `minecraft:`).
+     */
+    public static NamespacedKey parseNamespacedKey(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) return null;
+        try {
+            return NamespacedKey.fromString(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Resolves the armor {@link EquipmentSlot} for an item's {@link EquippableComponent}.
+     * Prefers an explicit config override (`HEAD`, `CHEST`, `LEGS`, `FEET`), otherwise infers
+     * from the Bukkit material (`_HELMET`, `_CHESTPLATE`, `_LEGGINGS`, `_BOOTS`).
+     */
+    public static EquipmentSlot resolveEquipmentSlot(Material material, String configuredSlot) {
+        if (configuredSlot != null && !configuredSlot.trim().isEmpty()) {
+            switch (configuredSlot.trim().toUpperCase(Locale.ROOT)) {
+                case "HEAD", "HELMET" -> { return EquipmentSlot.HEAD; }
+                case "CHEST", "CHESTPLATE" -> { return EquipmentSlot.CHEST; }
+                case "LEGS", "LEGGINGS" -> { return EquipmentSlot.LEGS; }
+                case "FEET", "BOOTS" -> { return EquipmentSlot.FEET; }
+                default -> {}
+            }
+        }
+        return ItemType.resolveArmorMaterialSlot(material);
+    }
+
+    /**
+     * Applies Minecraft's Equippable component (`asset_id` + `slot`) so custom 2D armor textures
+     * render directly on the player body while remaining independent from `item-model`.
+     */
+    public static void applyEquipmentModel(ItemMeta meta, Material material, ItemDefinition def) {
+        if (meta == null || def == null) return;
+        String eqModel = def.getEquipmentModel();
+        if (eqModel == null || eqModel.trim().isEmpty()) return;
+
+        EquipmentSlot slot = resolveEquipmentSlot(material, def.getEquipmentSlot());
+        NamespacedKey assetKey = parseNamespacedKey(eqModel);
+        if (slot == null || assetKey == null) return;
+
+        try {
+            EquippableComponent equippable = meta.getEquippable();
+            if (equippable == null) return;
+            equippable.setSlot(slot);
+            equippable.setModel(assetKey);
+            if (ItemType.resolveArmorMaterialSlot(material) == null) {
+                equippable.setSwappable(true);
+            }
+            meta.setEquippable(equippable);
+        } catch (Throwable ignored) {}
+    }
+
     private void applyItemModel(ItemMeta meta, String model) {
         try {
             // Check if numeric -> CustomModelData
@@ -222,7 +284,7 @@ public class ItemBuilder {
         } catch (NumberFormatException e) {
             // NamespacedKey Item Model in Minecraft 1.21.4+
             try {
-                NamespacedKey key = model.contains(":") ? NamespacedKey.fromString(model) : NamespacedKey.minecraft(model);
+                NamespacedKey key = parseNamespacedKey(model);
                 if (key != null) {
                     meta.setItemModel(key);
                 }

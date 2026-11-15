@@ -1303,6 +1303,7 @@ class RoyItemsUnitTest {
         assertTrue(station.getCommands().contains("thoren"));
         assertTrue(station.getFancyNpcs().contains("blacksmith_npc"));
         assertTrue(station.getCitizenNpcs().contains(10));
+        assertTrue(station.getPhoenixNpcs().contains("blacksmith_npc"));
 
         // Verify recipes
         assertEquals(2, station.getRecipes().size());
@@ -2147,7 +2148,7 @@ class RoyItemsUnitTest {
     void testVersionSynchronization() {
         com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
                 new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
-        assertEquals("2026.1.7", expansion.getVersion());
+        assertEquals("2026.1.8", expansion.getVersion());
     }
 
     @Test
@@ -2521,5 +2522,564 @@ class RoyItemsUnitTest {
         def.setCurrencyReward(rew);
         assertNotNull(def.getCurrencyReward());
         assertEquals(1000.0, def.getCurrencyReward().getFixedValue());
+    }
+
+    @Test
+    @DisplayName("Equipment Slot Validation: SWORD, ARMOR, OFF_HAND, WING, TALISMAN, and Non-Gear")
+    void testEquipmentSlotValidation() {
+        org.bukkit.inventory.EquipmentSlot[] allSlots = {
+                org.bukkit.inventory.EquipmentSlot.HAND,
+                org.bukkit.inventory.EquipmentSlot.OFF_HAND,
+                org.bukkit.inventory.EquipmentSlot.HEAD,
+                org.bukkit.inventory.EquipmentSlot.CHEST,
+                org.bukkit.inventory.EquipmentSlot.LEGS,
+                org.bukkit.inventory.EquipmentSlot.FEET
+        };
+
+        // 1. Weapons & Tools -> Strictly MAIN_HAND (HAND)
+        for (com.github.orenaidaucac.royItems.item.ItemType mainHandType : List.of(
+                com.github.orenaidaucac.royItems.item.ItemType.SWORD,
+                com.github.orenaidaucac.royItems.item.ItemType.BOW,
+                com.github.orenaidaucac.royItems.item.ItemType.CROSSBOW,
+                com.github.orenaidaucac.royItems.item.ItemType.STAFF,
+                com.github.orenaidaucac.royItems.item.ItemType.TOOL)) {
+            assertTrue(mainHandType.isValidEquipmentSlot(org.bukkit.inventory.EquipmentSlot.HAND, org.bukkit.Material.DIAMOND_SWORD));
+            assertFalse(mainHandType.isValidEquipmentSlot(org.bukkit.inventory.EquipmentSlot.OFF_HAND, org.bukkit.Material.DIAMOND_SWORD));
+            assertFalse(mainHandType.isValidEquipmentSlot(org.bukkit.inventory.EquipmentSlot.HEAD, org.bukkit.Material.DIAMOND_SWORD));
+            assertFalse(mainHandType.isValidEquipmentSlot(org.bukkit.inventory.EquipmentSlot.CHEST, org.bukkit.Material.DIAMOND_SWORD));
+            assertFalse(mainHandType.isInventoryPassive());
+        }
+
+        // 2. OFF_HAND -> Strictly OFF_HAND (never MAIN_HAND)
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.OFF_HAND.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.OFF_HAND, org.bukkit.Material.SHIELD));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.OFF_HAND.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HAND, org.bukkit.Material.SHIELD));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.OFF_HAND.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.CHEST, org.bukkit.Material.SHIELD));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.OFF_HAND.isInventoryPassive());
+
+        // 3. WING -> Strictly CHEST
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.WING.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.CHEST, org.bukkit.Material.ELYTRA));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.WING.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HAND, org.bukkit.Material.ELYTRA));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.WING.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.OFF_HAND, org.bukkit.Material.ELYTRA));
+
+        // 4. ARMOR -> Strictly matching armor slots, NEVER HAND or OFF_HAND
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HEAD, org.bukkit.Material.DIAMOND_HELMET));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HAND, org.bukkit.Material.DIAMOND_HELMET));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.OFF_HAND, org.bukkit.Material.DIAMOND_HELMET));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.CHEST, org.bukkit.Material.DIAMOND_HELMET));
+
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HEAD, org.bukkit.Material.TURTLE_HELMET));
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HEAD, org.bukkit.Material.PLAYER_HEAD));
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.CHEST, org.bukkit.Material.NETHERITE_CHESTPLATE));
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.LEGS, org.bukkit.Material.IRON_LEGGINGS));
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.FEET, org.bukkit.Material.GOLDEN_BOOTS));
+
+        // Custom material ARMOR (e.g. cosmetic PAPER) allowed in armor slots only, never HAND/OFF_HAND
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HEAD, org.bukkit.Material.PAPER));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.HAND, org.bukkit.Material.PAPER));
+        assertFalse(com.github.orenaidaucac.royItems.item.ItemType.ARMOR.isValidEquipmentSlot(
+                org.bukkit.inventory.EquipmentSlot.OFF_HAND, org.bukkit.Material.PAPER));
+
+        // 5. TALISMAN -> Passive in storage inventory ONLY, never double-counted in equipment slots
+        assertTrue(com.github.orenaidaucac.royItems.item.ItemType.TALISMAN.isInventoryPassive());
+        for (org.bukkit.inventory.EquipmentSlot slot : allSlots) {
+            assertFalse(com.github.orenaidaucac.royItems.item.ItemType.TALISMAN.isValidEquipmentSlot(slot, org.bukkit.Material.TOTEM_OF_UNDYING));
+        }
+
+        // 6. Non-gear items -> Zero equipment or passive stats
+        for (com.github.orenaidaucac.royItems.item.ItemType nonGear : List.of(
+                com.github.orenaidaucac.royItems.item.ItemType.VOUCHER,
+                com.github.orenaidaucac.royItems.item.ItemType.GEM_STONE,
+                com.github.orenaidaucac.royItems.item.ItemType.CONSUMABLE,
+                com.github.orenaidaucac.royItems.item.ItemType.MATERIAL,
+                com.github.orenaidaucac.royItems.item.ItemType.PET)) {
+            assertFalse(nonGear.isInventoryPassive());
+            for (org.bukkit.inventory.EquipmentSlot slot : allSlots) {
+                assertFalse(nonGear.isValidEquipmentSlot(slot, org.bukkit.Material.PAPER));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Voucher Air Click Event: useItemInHand distinguishes air clicks from cancellations")
+    void testPlayerInteractAirEventSemantics() {
+        org.bukkit.event.player.PlayerInteractEvent airClick = new org.bukkit.event.player.PlayerInteractEvent(
+                null,
+                org.bukkit.event.block.Action.RIGHT_CLICK_AIR,
+                null,
+                null,
+                org.bukkit.block.BlockFace.SELF,
+                org.bukkit.inventory.EquipmentSlot.HAND
+        );
+
+        // Bukkit marks RIGHT_CLICK_AIR as useInteractedBlock == DENY (making isCancelled() == true!)
+        assertTrue(airClick.isCancelled());
+        assertNotEquals(org.bukkit.event.Event.Result.DENY, airClick.useItemInHand());
+
+        // When cancelled explicitly (or disable-on-use denies hand usage), useItemInHand() becomes DENY
+        airClick.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+        assertEquals(org.bukkit.event.Event.Result.DENY, airClick.useItemInHand());
+    }
+
+    @Test
+    @DisplayName("Custom 2D Armor (Equippable Component): Key parsing, Slot resolution, Meta application & Config round-trip")
+    void testCustom2DArmorEquippableSupport() throws Exception {
+        // 1. ItemDefinition defaults
+        com.github.orenaidaucac.royItems.item.ItemDefinition emptyDef =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "plain_armor");
+        assertNull(emptyDef.getEquipmentModel());
+        assertNull(emptyDef.getEquipmentSlot());
+
+        // 2. Shared NamespacedKey parser (independent of CustomModelData integers)
+        assertEquals(org.bukkit.NamespacedKey.fromString("nexo:galaxyv2"),
+                ItemBuilder.parseNamespacedKey("nexo:galaxyv2"));
+        assertEquals(org.bukkit.NamespacedKey.fromString("nexo:galaxyv2"),
+                ItemBuilder.parseNamespacedKey("  Nexo:GalaxyV2 "));
+        assertEquals(org.bukkit.NamespacedKey.minecraft("custom_armor"),
+                ItemBuilder.parseNamespacedKey("custom_armor"));
+        assertEquals(org.bukkit.NamespacedKey.fromString("nexo:nexo_armor/forest_helmet"),
+                ItemBuilder.parseNamespacedKey("nexo:nexo_armor/forest_helmet"));
+        assertNull(ItemBuilder.parseNamespacedKey(null));
+        assertNull(ItemBuilder.parseNamespacedKey("   "));
+        assertNull(ItemBuilder.parseNamespacedKey("invalid key with spaces"));
+
+        // 3. Automatic EquipmentSlot detection & manual override
+        assertEquals(org.bukkit.inventory.EquipmentSlot.HEAD,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.NETHERITE_HELMET, null));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.HEAD,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.PLAYER_HEAD, null));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.CHEST,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.NETHERITE_CHESTPLATE, null));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.CHEST,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.ELYTRA, null));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.LEGS,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.NETHERITE_LEGGINGS, null));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.FEET,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.NETHERITE_BOOTS, null));
+        assertNull(ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.PAPER, null));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.CHEST,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.PAPER, "chest"));
+        assertEquals(org.bukkit.inventory.EquipmentSlot.FEET,
+                ItemBuilder.resolveEquipmentSlot(org.bukkit.Material.PAPER, "BOOTS"));
+
+        // 4. applyEquipmentModel applies EquippableComponent via Bukkit API while leaving unset armor untouched
+        final org.bukkit.inventory.EquipmentSlot[] capturedSlot = new org.bukkit.inventory.EquipmentSlot[1];
+        final org.bukkit.NamespacedKey[] capturedModel = new org.bukkit.NamespacedKey[1];
+        final Boolean[] capturedSwappable = new Boolean[1];
+        final boolean[] setEquippableCalled = new boolean[1];
+
+        org.bukkit.inventory.meta.components.EquippableComponent mockEquippable =
+                (org.bukkit.inventory.meta.components.EquippableComponent) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.meta.components.EquippableComponent.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.inventory.meta.components.EquippableComponent.class},
+                        (proxy, method, args) -> {
+                            switch (method.getName()) {
+                                case "setSlot" -> capturedSlot[0] = (org.bukkit.inventory.EquipmentSlot) args[0];
+                                case "getSlot" -> { return capturedSlot[0]; }
+                                case "setModel" -> capturedModel[0] = (org.bukkit.NamespacedKey) args[0];
+                                case "getModel" -> { return capturedModel[0]; }
+                                case "setSwappable" -> capturedSwappable[0] = (Boolean) args[0];
+                                case "isSwappable" -> { return capturedSwappable[0] != null && capturedSwappable[0]; }
+                                default -> {}
+                            }
+                            return null;
+                        });
+
+        org.bukkit.inventory.meta.ItemMeta mockMeta =
+                (org.bukkit.inventory.meta.ItemMeta) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.meta.ItemMeta.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.inventory.meta.ItemMeta.class},
+                        (proxy, method, args) -> {
+                            if ("getEquippable".equals(method.getName())) return mockEquippable;
+                            if ("setEquippable".equals(method.getName())) {
+                                setEquippableCalled[0] = true;
+                                return null;
+                            }
+                            return null;
+                        });
+
+        // Backwards compatibility: no equipment-model -> EquippableComponent is not modified
+        ItemBuilder.applyEquipmentModel(mockMeta, org.bukkit.Material.NETHERITE_HELMET, emptyDef);
+        assertFalse(setEquippableCalled[0]);
+
+        // Apply Galaxy V2 equipment-model across all 4 slots
+        org.bukkit.Material[] materials = {
+                org.bukkit.Material.NETHERITE_HELMET,
+                org.bukkit.Material.NETHERITE_CHESTPLATE,
+                org.bukkit.Material.NETHERITE_LEGGINGS,
+                org.bukkit.Material.NETHERITE_BOOTS
+        };
+        org.bukkit.inventory.EquipmentSlot[] expectedSlots = {
+                org.bukkit.inventory.EquipmentSlot.HEAD,
+                org.bukkit.inventory.EquipmentSlot.CHEST,
+                org.bukkit.inventory.EquipmentSlot.LEGS,
+                org.bukkit.inventory.EquipmentSlot.FEET
+        };
+        for (int i = 0; i < materials.length; i++) {
+            capturedSlot[0] = null;
+            capturedModel[0] = null;
+            capturedSwappable[0] = null;
+            setEquippableCalled[0] = false;
+
+            com.github.orenaidaucac.royItems.item.ItemDefinition piece =
+                    new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "galaxy_" + i);
+            piece.setItemModel("nexo:galaxyv2_item_" + i);
+            piece.setEquipmentModel("nexo:galaxyv2");
+
+            ItemBuilder.applyEquipmentModel(mockMeta, materials[i], piece);
+            assertTrue(setEquippableCalled[0]);
+            assertEquals(expectedSlots[i], capturedSlot[0]);
+            assertEquals(org.bukkit.NamespacedKey.fromString("nexo:galaxyv2"), capturedModel[0]);
+            assertNull(capturedSwappable[0]); // vanilla armor preserves native swappable flag
+        }
+
+        // Custom base material + explicit equipment-slot marks swappable=true
+        capturedSlot[0] = null;
+        capturedModel[0] = null;
+        capturedSwappable[0] = null;
+        setEquippableCalled[0] = false;
+        com.github.orenaidaucac.royItems.item.ItemDefinition customBase =
+                new com.github.orenaidaucac.royItems.item.ItemDefinition(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "custom_cape");
+        customBase.setEquipmentSlot("CHEST");
+        customBase.setEquipmentModel("nexo:galaxyv2");
+        ItemBuilder.applyEquipmentModel(mockMeta, org.bukkit.Material.PAPER, customBase);
+        assertTrue(setEquippableCalled[0]);
+        assertEquals(org.bukkit.inventory.EquipmentSlot.CHEST, capturedSlot[0]);
+        assertEquals(org.bukkit.NamespacedKey.fromString("nexo:galaxyv2"), capturedModel[0]);
+        assertEquals(Boolean.TRUE, capturedSwappable[0]);
+
+        // 5. YAML Config Load & Save Round-Trip (item-model & equipment-model independence)
+        java.nio.file.Path tempDir = java.nio.file.Files.createTempDirectory("royitems-equippable-test");
+        try {
+            java.io.File armorFile = tempDir.resolve("item/ARMOR.yml").toFile();
+            armorFile.getParentFile().mkdirs();
+            org.bukkit.configuration.file.YamlConfiguration armorYaml = new org.bukkit.configuration.file.YamlConfiguration();
+            armorYaml.set("galaxyv2_helmet.material", "NETHERITE_HELMET");
+            armorYaml.set("galaxyv2_helmet.item-model", "nexo:galaxyv2_helmet");
+            armorYaml.set("galaxyv2_helmet.equipment-model", "nexo:galaxyv2");
+            armorYaml.set("legacy_helm.material", "DIAMOND_HELMET");
+            armorYaml.set("custom_helm.material", "PAPER");
+            armorYaml.set("custom_helm.equippable-model", "nexo:forest");
+            armorYaml.set("custom_helm.equippable-slot", "HEAD");
+            armorYaml.save(armorFile);
+
+            org.bukkit.plugin.Plugin mockPlugin = (org.bukkit.plugin.Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                    org.bukkit.plugin.Plugin.class.getClassLoader(),
+                    new Class<?>[]{org.bukkit.plugin.Plugin.class},
+                    (proxy, method, args) -> {
+                        if ("getDataFolder".equals(method.getName())) return tempDir.toFile();
+                        if ("getLogger".equals(method.getName())) return java.util.logging.Logger.getGlobal();
+                        return null;
+                    });
+            com.github.orenaidaucac.royItems.item.ItemRegistry registry = new com.github.orenaidaucac.royItems.item.ItemRegistry();
+            com.github.orenaidaucac.royItems.core.config.ItemConfigManager cfgManager =
+                    new com.github.orenaidaucac.royItems.core.config.ItemConfigManager(mockPlugin, registry);
+            cfgManager.loadAll();
+
+            com.github.orenaidaucac.royItems.item.ItemDefinition loadedGalaxy =
+                    registry.get(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "galaxyv2_helmet");
+            assertNotNull(loadedGalaxy);
+            assertEquals("nexo:galaxyv2_helmet", loadedGalaxy.getItemModel());
+            assertEquals("nexo:galaxyv2", loadedGalaxy.getEquipmentModel());
+
+            com.github.orenaidaucac.royItems.item.ItemDefinition loadedLegacy =
+                    registry.get(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "legacy_helm");
+            assertNotNull(loadedLegacy);
+            assertNull(loadedLegacy.getEquipmentModel());
+
+            com.github.orenaidaucac.royItems.item.ItemDefinition loadedAlias =
+                    registry.get(com.github.orenaidaucac.royItems.item.ItemType.ARMOR, "custom_helm");
+            assertNotNull(loadedAlias);
+            assertEquals("nexo:forest", loadedAlias.getEquipmentModel());
+            assertEquals("HEAD", loadedAlias.getEquipmentSlot());
+
+            // Persist & clear round-trip
+            assertTrue(cfgManager.saveItem(loadedGalaxy));
+            loadedGalaxy.setEquipmentModel(null);
+            loadedGalaxy.setEquipmentSlot(null);
+            assertTrue(cfgManager.saveItem(loadedGalaxy));
+            org.bukkit.configuration.file.YamlConfiguration reloaded =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(armorFile);
+            assertEquals("nexo:galaxyv2_helmet", reloaded.getString("galaxyv2_helmet.item-model"));
+            assertFalse(reloaded.contains("galaxyv2_helmet.equipment-model"));
+            assertFalse(reloaded.contains("galaxyv2_helmet.equipment-slot"));
+        } finally {
+            try (var walk = java.nio.file.Files.walk(tempDir)) {
+                walk.sorted(java.util.Comparator.reverseOrder()).map(java.nio.file.Path::toFile).forEach(java.io.File::delete);
+            }
+        }
+
+        // 6. Verify editor-gui.yml includes equipment-model at Page 3 Slot 29
+        org.bukkit.configuration.file.YamlConfiguration gui =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File("src/main/resources/gui/editor-gui.yml"));
+        assertTrue(gui.contains("detail-editor.properties.equipment-model"));
+        assertEquals(3, gui.getInt("detail-editor.properties.equipment-model.page"));
+        assertEquals(29, gui.getInt("detail-editor.properties.equipment-model.slot"));
+        assertEquals("NETHERITE_CHESTPLATE", gui.getString("detail-editor.properties.equipment-model.material"));
+    }
+
+    @Test
+    @DisplayName("PhoenixNPCs Integration: Config parsing, duplicate handling, NPC validity & interaction logic")
+    void testPhoenixNpcsIntegration() throws Exception {
+        // 1. Config Parsing & Deduplication
+        org.bukkit.configuration.file.YamlConfiguration cfg1 = new org.bukkit.configuration.file.YamlConfiguration();
+        cfg1.set("title", "<gold>Station 1</gold>");
+        cfg1.set("phoenixnpcs", List.of("npc_blacksmith", "npc_alchemist", "npc_blacksmith")); // contains duplicate
+
+        com.github.orenaidaucac.royItems.station.CraftingStation st1 =
+                com.github.orenaidaucac.royItems.station.CraftingStation.fromConfig("station_1", cfg1);
+        assertEquals(2, st1.getPhoenixNpcs().size());
+        assertEquals("npc_blacksmith", st1.getPhoenixNpcs().get(0));
+        assertEquals("npc_alchemist", st1.getPhoenixNpcs().get(1));
+
+        // Test single string configuration
+        org.bukkit.configuration.file.YamlConfiguration cfgSingle = new org.bukkit.configuration.file.YamlConfiguration();
+        cfgSingle.set("phoenixnpcs", "solo_npc");
+        com.github.orenaidaucac.royItems.station.CraftingStation stSingle =
+                com.github.orenaidaucac.royItems.station.CraftingStation.fromConfig("station_single", cfgSingle);
+        assertEquals(1, stSingle.getPhoenixNpcs().size());
+        assertEquals("solo_npc", stSingle.getPhoenixNpcs().get(0));
+
+        // Test absent configuration
+        org.bukkit.configuration.file.YamlConfiguration cfgEmpty = new org.bukkit.configuration.file.YamlConfiguration();
+        com.github.orenaidaucac.royItems.station.CraftingStation stEmpty =
+                com.github.orenaidaucac.royItems.station.CraftingStation.fromConfig("station_empty", cfgEmpty);
+        assertNotNull(stEmpty.getPhoenixNpcs());
+        assertTrue(stEmpty.getPhoenixNpcs().isEmpty());
+
+        // 2. Cross-Station Duplicate ID Detection & Resolution
+        org.bukkit.configuration.file.YamlConfiguration cfg2 = new org.bukkit.configuration.file.YamlConfiguration();
+        cfg2.set("title", "<gold>Station 2</gold>");
+        cfg2.set("phoenixnpcs", List.of("npc_alchemist", "npc_wizard")); // duplicates npc_alchemist from station 1
+
+        com.github.orenaidaucac.royItems.station.CraftingStation st2 =
+                com.github.orenaidaucac.royItems.station.CraftingStation.fromConfig("station_2", cfg2);
+
+        java.io.File tempDir = java.nio.file.Files.createTempDirectory("royitems-station-test").toFile();
+        try {
+            java.io.File stFolder = new java.io.File(tempDir, "crafting-station");
+            stFolder.mkdirs();
+            cfg1.save(new java.io.File(stFolder, "station_1.yml"));
+            cfg2.save(new java.io.File(stFolder, "station_2.yml"));
+
+            java.util.logging.Logger testLogger = java.util.logging.Logger.getLogger("RoyItemsTest");
+            org.bukkit.plugin.Plugin mockPlugin = (org.bukkit.plugin.Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                    org.bukkit.plugin.Plugin.class.getClassLoader(),
+                    new Class<?>[]{org.bukkit.plugin.Plugin.class},
+                    (proxy, method, args) -> {
+                        if ("getDataFolder".equals(method.getName())) return tempDir;
+                        if ("getLogger".equals(method.getName())) return testLogger;
+                        return null;
+                    });
+
+            com.github.orenaidaucac.royItems.integration.IntegrationManager mockIntegration =
+                    new com.github.orenaidaucac.royItems.integration.IntegrationManager(mockPlugin);
+
+            final String[] stationOpened = new String[1];
+            com.github.orenaidaucac.royItems.station.CraftingStationManager manager =
+                    new com.github.orenaidaucac.royItems.station.CraftingStationManager(
+                            null, null, null, null, mockIntegration) {
+                        @Override
+                        public void openStation(org.bukkit.entity.Player player, String stationId, int page) {
+                            // Tracking open call
+                            stationOpened[0] = stationId;
+                        }
+                    };
+
+            // Access stations map via reflection or loadAll with mock
+            java.lang.reflect.Field stationsField = com.github.orenaidaucac.royItems.station.CraftingStationManager.class.getDeclaredField("stations");
+            stationsField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, com.github.orenaidaucac.royItems.station.CraftingStation> map =
+                    (Map<String, com.github.orenaidaucac.royItems.station.CraftingStation>) stationsField.get(manager);
+            map.put("station_1", st1);
+            map.put("station_2", st2);
+
+            manager.validateNpcConfigurations();
+
+            // station_1 must keep npc_alchemist, while station_2 had the duplicate removed
+            assertTrue(st1.getPhoenixNpcs().contains("npc_alchemist"));
+            assertFalse(st2.getPhoenixNpcs().contains("npc_alchemist"), "Duplicate ID must be stripped from second station");
+            assertTrue(st2.getPhoenixNpcs().contains("npc_wizard"), "Unique ID must be preserved");
+
+            // 3. Interaction Handling & Validity Checks
+
+            // Mock Player (online)
+            org.bukkit.entity.Player mockPlayer = (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                    org.bukkit.entity.Player.class.getClassLoader(),
+                    new Class<?>[]{org.bukkit.entity.Player.class},
+                    (proxy, method, args) -> {
+                        if ("isOnline".equals(method.getName())) return true;
+                        return null;
+                    });
+
+            // Mock Npc (valid, enabled, visible, id: npc_blacksmith)
+            final boolean[] npcEnabled = {true};
+            final boolean[] npcVisible = {true};
+            final String[] npcIdentifier = {"npc_blacksmith"};
+            final String[] npcDisplayName = {"Blacksmith Thoren"};
+
+            com.phoenixplugins.phoenixnpcs.api.Npc mockNpc = (com.phoenixplugins.phoenixnpcs.api.Npc) java.lang.reflect.Proxy.newProxyInstance(
+                    com.phoenixplugins.phoenixnpcs.api.Npc.class.getClassLoader(),
+                    new Class<?>[]{com.phoenixplugins.phoenixnpcs.api.Npc.class},
+                    (proxy, method, args) -> {
+                        switch (method.getName()) {
+                            case "getIdentifier" -> { return npcIdentifier[0]; }
+                            case "getDisplayName" -> { return npcDisplayName[0]; }
+                            case "isEnabled" -> { return npcEnabled[0]; }
+                            case "isVisibleTo" -> { return npcVisible[0]; }
+                            default -> { return null; }
+                        }
+                    });
+
+            // Case A: Valid interaction -> opens station_1
+            stationOpened[0] = null;
+            boolean handled = manager.handlePhoenixNpcInteract(mockPlayer, mockNpc);
+            assertTrue(handled);
+            assertEquals("station_1", stationOpened[0]);
+
+            // Case B: Valid interaction via display name
+            npcIdentifier[0] = "different_id";
+            st1.getPhoenixNpcs().add("Blacksmith Thoren");
+            stationOpened[0] = null;
+            handled = manager.handlePhoenixNpcInteract(mockPlayer, mockNpc);
+            assertTrue(handled);
+            assertEquals("station_1", stationOpened[0]);
+            st1.getPhoenixNpcs().remove("Blacksmith Thoren");
+            npcIdentifier[0] = "npc_blacksmith";
+
+            // Case C: NPC disabled -> returns false, does not open
+            npcEnabled[0] = false;
+            stationOpened[0] = null;
+            handled = manager.handlePhoenixNpcInteract(mockPlayer, mockNpc);
+            assertFalse(handled);
+            assertNull(stationOpened[0]);
+            npcEnabled[0] = true;
+
+            // Case D: NPC invisible to player -> returns false
+            npcVisible[0] = false;
+            stationOpened[0] = null;
+            handled = manager.handlePhoenixNpcInteract(mockPlayer, mockNpc);
+            assertFalse(handled);
+            assertNull(stationOpened[0]);
+            npcVisible[0] = true;
+
+            // Case E: Unmatched NPC -> returns false
+            npcIdentifier[0] = "unmatched_npc_id";
+            npcDisplayName[0] = "Random Guy";
+            stationOpened[0] = null;
+            handled = manager.handlePhoenixNpcInteract(mockPlayer, mockNpc);
+            assertFalse(handled);
+            assertNull(stationOpened[0]);
+
+            // Case F: Null / Offline player -> returns false
+            assertFalse(manager.handlePhoenixNpcInteract(null, mockNpc));
+
+            org.bukkit.entity.Player offlinePlayer = (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                    org.bukkit.entity.Player.class.getClassLoader(),
+                    new Class<?>[]{org.bukkit.entity.Player.class},
+                    (proxy, method, args) -> {
+                        if ("isOnline".equals(method.getName())) return false;
+                        return null;
+                    });
+            assertFalse(manager.handlePhoenixNpcInteract(offlinePlayer, mockNpc));
+
+            // Case G: Null NPC -> returns false
+            assertFalse(manager.handlePhoenixNpcInteract(mockPlayer, null));
+
+            // 4. Hook availability when plugin is not installed
+            com.github.orenaidaucac.royItems.integration.PhoenixNpcsHook hook =
+                    new com.github.orenaidaucac.royItems.integration.PhoenixNpcsHook();
+            assertFalse(hook.isAvailable(), "Hook must report false when PhoenixNPCs is not loaded");
+
+            // 5. Idempotent registration without PhoenixNPCs must not throw
+            assertDoesNotThrow(manager::registerPhoenixNpcsListener);
+            assertDoesNotThrow(manager::unregisterPhoenixNpcsListener);
+            assertDoesNotThrow(manager::cleanup);
+
+        } finally {
+            try (var walk = java.nio.file.Files.walk(tempDir.toPath())) {
+                walk.sorted(Comparator.reverseOrder()).map(java.nio.file.Path::toFile).forEach(java.io.File::delete);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Ghost Block Hardening: Concurrency Lock & OreGen Regeneration State Safety")
+    void testGhostBlockMineRadiusHardening() {
+        com.github.orenaidaucac.royItems.integration.AdvancedOreGenHook hook =
+                new com.github.orenaidaucac.royItems.integration.AdvancedOreGenHook();
+        assertFalse(hook.setup());
+        assertFalse(hook.isAvailable());
+        assertFalse(hook.isOreGenerator(null));
+        assertFalse(hook.regenerate(null, null));
+
+        com.github.orenaidaucac.royItems.mechanics.MineRadiusListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.MineRadiusListener(null, null, null, null, hook, null);
+
+        org.bukkit.configuration.file.YamlConfiguration config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.set("mine-radius.enabled", true);
+        config.set("mine-radius.advanced-ore-gen.auto-regenerate", true);
+        config.set("mine-radius.limits.max-radius-tier", 7);
+        listener.loadConfig(config);
+
+        assertTrue(listener.isEnabled());
+        assertTrue(listener.isAdvancedOreGenAutoRegenerate());
+        assertEquals(7, listener.getMaxRadiusTier());
+        assertSame(hook, listener.getAdvancedOreGenHook());
+    }
+
+    @Test
+    @DisplayName("Voucher Interaction Hardening: Debounce & Air Right-Click Robustness")
+    void testVoucherInteractionHardening() {
+        // Test CurrencyDisplayInfo resolution
+        CurrencyDisplayInfo info = new CurrencyDisplayInfo("VAULT", "Dollar", "$", "#,##0.00");
+        assertEquals("VAULT", info.getId());
+        assertEquals("Dollar", info.getDisplayName());
+        assertEquals("$", info.getSymbol());
+        assertEquals("$1,500.00", info.getSymbol() + info.format(1500.0));
+
+        // Test VoucherCurrencyReward calculations
+        VoucherCurrencyReward fixedReward = new VoucherCurrencyReward("VAULT", 5000.0);
+        assertTrue(fixedReward.isValid());
+        assertEquals(5000.0, fixedReward.calculateReward(), 0.001);
+        assertFalse(fixedReward.isRandom());
+
+        VoucherCurrencyReward rangeReward = new VoucherCurrencyReward("PLAYERPOINTS", 100.0, 500.0);
+        assertTrue(rangeReward.isValid());
+        assertTrue(rangeReward.isRandom());
+        double rolled = rangeReward.calculateReward();
+        assertTrue(rolled >= 100.0 && rolled <= 500.0, "Rolled reward must be within configured range");
+
+        // Verify PlayerInteractEvent semantics on RIGHT_CLICK_AIR
+        org.bukkit.event.player.PlayerInteractEvent airClick = new org.bukkit.event.player.PlayerInteractEvent(
+                null,
+                org.bukkit.event.block.Action.RIGHT_CLICK_AIR,
+                null,
+                null,
+                org.bukkit.block.BlockFace.SELF,
+                org.bukkit.inventory.EquipmentSlot.HAND
+        );
+        assertTrue(airClick.isCancelled(), "Air clicks are cancelled by default in Bukkit due to useInteractedBlock DENY");
+        // But our SpecialItemListener at LOWEST priority processes vouchers before anything else and enforces DENY
+        airClick.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+        airClick.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+        assertEquals(org.bukkit.event.Event.Result.DENY, airClick.useItemInHand());
     }
 }

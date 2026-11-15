@@ -67,6 +67,8 @@ public class ItemDefinition {
     private boolean hideArmorTrim = false;
     private String dyeColor = null;
     private boolean hideDye = false;
+    private String equipmentModel = null;
+    private String equipmentSlot = null;
 
     // Gem specific properties
     private String gemId = null;
@@ -213,6 +215,12 @@ public class ItemDefinition {
 
     public boolean isHideDye() { return hideDye; }
     public void setHideDye(boolean hideDye) { this.hideDye = hideDye; }
+
+    public String getEquipmentModel() { return equipmentModel; }
+    public void setEquipmentModel(String equipmentModel) { this.equipmentModel = equipmentModel; }
+
+    public String getEquipmentSlot() { return equipmentSlot; }
+    public void setEquipmentSlot(String equipmentSlot) { this.equipmentSlot = equipmentSlot; }
 
     public String getGemId() { return gemId; }
     public void setGemId(String gemId) { this.gemId = gemId; }

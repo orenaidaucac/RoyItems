@@ -19,3 +19,58 @@ dragon_chestplate:
     - "1"
     - "ABC"
   version: 1
+
+# ==============================================================================
+# Custom 2D Armor (Equippable Component - Minecraft 1.21.2+ / Leaf 26.2+ & Nexo)
+# ==============================================================================
+# - item-model: Controls the 2D inventory/hand icon (or numeric CustomModelData)
+# - equipment-model: Sets minecraft:equippable `asset_id` for the worn 2D body
+#   texture (assets/<namespace>/equipment/<id>.json), independent of item-model!
+# - Slot auto-detection: _HELMET -> HEAD, _CHESTPLATE -> CHEST,
+#   _LEGGINGS -> LEGS, _BOOTS -> FEET (or set `equipment-slot` manually).
+#
+# Verified Nexo Galaxy V2 Example (uncomment to activate):
+# galaxyv2_helmet:
+#   material: NETHERITE_HELMET
+#   display-name: "<gradient:#A855F7:#38BDF8><bold>Galaxy V2 Helmet</bold></gradient>"
+#   item-model: nexo:galaxyv2_helmet
+#   equipment-model: nexo:galaxyv2
+#   lore-format: default
+#   stats:
+#     max-health: 20
+#     defense: 15
+#   version: 1
+#
+# galaxyv2_chestplate:
+#   material: NETHERITE_CHESTPLATE
+#   display-name: "<gradient:#A855F7:#38BDF8><bold>Galaxy V2 Chestplate</bold></gradient>"
+#   item-model: nexo:galaxyv2_chestplate
+#   equipment-model: nexo:galaxyv2
+#   lore-format: default
+#   stats:
+#     max-health: 40
+#     defense: 25
+#   version: 1
+#
+# galaxyv2_leggings:
+#   material: NETHERITE_LEGGINGS
+#   display-name: "<gradient:#A855F7:#38BDF8><bold>Galaxy V2 Leggings</bold></gradient>"
+#   item-model: nexo:galaxyv2_leggings
+#   equipment-model: nexo:galaxyv2
+#   lore-format: default
+#   stats:
+#     max-health: 30
+#     defense: 20
+#   version: 1
+#
+# galaxyv2_boots:
+#   material: NETHERITE_BOOTS
+#   display-name: "<gradient:#A855F7:#38BDF8><bold>Galaxy V2 Boots</bold></gradient>"
+#   item-model: nexo:galaxyv2_boots
+#   equipment-model: nexo:galaxyv2
+#   lore-format: default
+#   stats:
+#     max-health: 15
+#     movement-speed: 0.05
+#     defense: 12
+#   version: 1

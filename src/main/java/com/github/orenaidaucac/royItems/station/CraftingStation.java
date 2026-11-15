@@ -17,6 +17,7 @@ public class CraftingStation {
     private final List<String> commands = new ArrayList<>();
     private final List<String> fancyNpcs = new ArrayList<>();
     private final List<Integer> citizenNpcs = new ArrayList<>();
+    private final List<String> phoenixNpcs = new ArrayList<>();
 
     private final Map<String, StationBackground> backgrounds = new LinkedHashMap<>();
     private final Map<String, StationRecipe> recipes = new LinkedHashMap<>();
@@ -72,6 +73,23 @@ public class CraftingStation {
                         station.citizenNpcs.add(Integer.parseInt(obj.toString().trim()));
                     } catch (NumberFormatException ignored) {}
                 }
+            }
+        }
+
+        // PhoenixNPCs
+        if (config.isList("phoenixnpcs")) {
+            for (Object obj : config.getList("phoenixnpcs")) {
+                if (obj != null) {
+                    String idStr = obj.toString().trim();
+                    if (!idStr.isEmpty() && !station.phoenixNpcs.contains(idStr)) {
+                        station.phoenixNpcs.add(idStr);
+                    }
+                }
+            }
+        } else if (config.contains("phoenixnpcs")) {
+            String single = config.getString("phoenixnpcs");
+            if (single != null && !single.trim().isEmpty() && !station.phoenixNpcs.contains(single.trim())) {
+                station.phoenixNpcs.add(single.trim());
             }
         }
 
@@ -156,6 +174,7 @@ public class CraftingStation {
     public List<String> getCommands() { return commands; }
     public List<String> getFancyNpcs() { return fancyNpcs; }
     public List<Integer> getCitizenNpcs() { return citizenNpcs; }
+    public List<String> getPhoenixNpcs() { return phoenixNpcs; }
     public Map<String, StationBackground> getBackgrounds() { return backgrounds; }
     public Map<String, StationRecipe> getRecipes() { return recipes; }
     public StationDynamicLore getDynamicLore() { return dynamicLore; }

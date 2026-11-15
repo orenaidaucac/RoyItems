@@ -57,6 +57,11 @@
       <option name="url" value="https://repo.codemc.io/repository/maven-releases/" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="phoenixplugins" />
+      <option name="name" value="phoenixplugins" />
+      <option name="url" value="https://repo.phoenixplugins.com/repository/maven-public/" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="dmulloy2-repo" />
       <option name="name" value="dmulloy2-repo" />
       <option name="url" value="https://repo.dmulloy2.net/repository/public/" />

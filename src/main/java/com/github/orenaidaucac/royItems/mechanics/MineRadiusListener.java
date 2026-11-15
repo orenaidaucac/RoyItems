@@ -61,6 +61,9 @@ public class MineRadiusListener implements Listener {
     // Recursion guard: ensures secondary radius block breaks do not re-trigger Mine Radius
     private static final ThreadLocal<Boolean> IS_PROCESSING = ThreadLocal.withInitial(() -> false);
 
+    // Active mining locks across all concurrent players/threads to prevent race conditions & dupes
+    private static final Set<Location> ACTIVE_MINING_LOCATIONS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
     public MineRadiusListener(ItemPDCManager pdcManager, ItemRegistry registry, StatManager statManager,
                               ExtraStorageHook extraStorageHook, AdvancedOreGenHook advancedOreGenHook, PlatformScheduler scheduler) {
         this.pdcManager = pdcManager;
@@ -281,77 +284,108 @@ public class MineRadiusListener implements Listener {
 
                 Location loc = new Location(world, x, y, z);
 
-                // Folia Region Thread Safety Check: skip blocks outside the current region thread
-                if (scheduler != null && scheduler.isFolia()) {
-                    try {
-                        if (!Bukkit.isOwnedByCurrentRegion(loc)) {
-                            continue;
-                        }
-                    } catch (Throwable ignored) {}
-                }
-
-                Block target = world.getBlockAt(x, y, z);
-                if (target.getType().isAir() || !allowedBlocks.contains(target.getType())) {
+                // 1. Chunk Loading check: never synchronously force-load unloaded chunks
+                if (!world.isChunkLoaded(x >> 4, z >> 4)) {
                     continue;
                 }
 
-                // Security: Don't break TileEntities (chests, furnaces, spawner blocks)
-                if (target.getState() instanceof TileState) {
-                    continue;
-                }
-
-                // Protection check (WorldGuard, GriefPrevention, Towny, Lands, SkyBlock)
-                BlockBreakEvent breakEvent = new BlockBreakEvent(target, player);
-                IS_PROCESSING.set(true);
+                // 2. Folia/Leaf Region Thread Safety Check: skip blocks outside the current region thread
                 try {
-                    Bukkit.getPluginManager().callEvent(breakEvent);
+                    if (!Bukkit.isOwnedByCurrentRegion(loc)) {
+                        continue;
+                    }
+                } catch (NoSuchMethodError | NoSuchFieldError | Exception ignored) {}
+
+                // 3. Concurrency Lock: prevent two players/threads from mining/duping the exact same block
+                if (!ACTIVE_MINING_LOCATIONS.add(loc)) {
+                    continue;
+                }
+
+                try {
+                    Block target = world.getBlockAt(x, y, z);
+                    if (target.getType().isAir() || !allowedBlocks.contains(target.getType())) {
+                        continue;
+                    }
+
+                    // Security: Don't break TileEntities (chests, furnaces, spawner blocks)
+                    if (target.getState() instanceof TileState) {
+                        continue;
+                    }
+
+                    // Protection check (WorldGuard, GriefPrevention, Towny, Lands, SkyBlock)
+                    BlockBreakEvent breakEvent = new BlockBreakEvent(target, player);
+                    IS_PROCESSING.set(true);
+                    try {
+                        Bukkit.getPluginManager().callEvent(breakEvent);
+                    } finally {
+                        IS_PROCESSING.set(false);
+                    }
+
+                    if (breakEvent.isCancelled()) {
+                        continue; // Skip protected block safely
+                    }
+
+                    // Collect drops (Paper automatically applies tool Fortune and Silk Touch)
+                    Collection<ItemStack> blockDrops = target.getDrops(tool, player);
+                    if (blockDrops != null && !blockDrops.isEmpty()) {
+                        for (ItemStack drop : blockDrops) {
+                            if (drop != null && !drop.getType().isAir() && drop.getAmount() > 0) {
+                                collectedDrops.add(drop.clone());
+                            }
+                        }
+                    }
+
+                    // Collect EXP
+                    int exp = breakEvent.getExpToDrop();
+                    if (exp > 0) {
+                        totalExp += exp;
+                    }
+
+                    // Break or Regenerate block
+                    // For AdvancedOreGen generators: regenerate in-place to keep fence/water generators fully intact
+                    boolean isAogGen = advancedOreGenAutoRegenerate && advancedOreGenHook != null && advancedOreGenHook.isAvailable()
+                            && advancedOreGenHook.isOreGenerator(target);
+
+                    boolean regenerated = false;
+                    if (isAogGen) {
+                        regenerated = advancedOreGenHook.regenerate(target, player);
+                    }
+
+                    if (!regenerated) {
+                        target.setType(Material.AIR, false);
+                    }
+                    processedBlocks++;
+
+                    // Ghost Block Elimination: Immediate authoritative client block synchronization
+                    org.bukkit.block.data.BlockData currentData = target.getBlockData();
+                    broadcastBlockChange(loc, currentData);
+
+                    // 1-tick delayed post-physics re-sync on Region Scheduler
+                    if (scheduler != null) {
+                        final Location syncLoc = loc.clone();
+                        scheduler.runLocationDelayed(syncLoc, () -> {
+                            try {
+                                if (syncLoc.getWorld() != null && syncLoc.getWorld().isChunkLoaded(syncLoc.getBlockX() >> 4, syncLoc.getBlockZ() >> 4)) {
+                                    Block freshBlock = syncLoc.getBlock();
+                                    broadcastBlockChange(syncLoc, freshBlock.getBlockData());
+                                }
+                            } catch (Throwable ignored) {}
+                        }, 1L);
+                    }
+
+                    // Simulate Durability with Unbreaking
+                    if (!isUnbreakable && maxDurability > 0) {
+                        boolean applyDamage = (unbreakingLevel <= 0) || (ThreadLocalRandom.current().nextInt(unbreakingLevel + 1) == 0);
+                        if (applyDamage) {
+                            durabilityLoss++;
+                            if (currentDamage + durabilityLoss >= maxDurability) {
+                                toolBroken = true;
+                                break;
+                            }
+                        }
+                    }
                 } finally {
-                    IS_PROCESSING.set(false);
-                }
-
-                if (breakEvent.isCancelled()) {
-                    continue; // Skip protected block safely
-                }
-
-                // Collect drops (Paper automatically applies tool Fortune and Silk Touch)
-                Collection<ItemStack> blockDrops = target.getDrops(tool, player);
-                if (blockDrops != null && !blockDrops.isEmpty()) {
-                    for (ItemStack drop : blockDrops) {
-                        if (drop != null && !drop.getType().isAir() && drop.getAmount() > 0) {
-                            collectedDrops.add(drop.clone());
-                        }
-                    }
-                }
-
-                // Collect EXP
-                int exp = breakEvent.getExpToDrop();
-                if (exp > 0) {
-                    totalExp += exp;
-                }
-
-                // Break or Regenerate block
-                // For AdvancedOreGen generators: regenerate in-place to keep fence/water generators fully intact
-                boolean regenerated = false;
-                if (advancedOreGenAutoRegenerate && advancedOreGenHook != null && advancedOreGenHook.isAvailable()
-                        && advancedOreGenHook.isOreGenerator(target)) {
-                    regenerated = advancedOreGenHook.regenerate(target, player);
-                }
-
-                if (!regenerated) {
-                    target.setType(Material.AIR, true);
-                }
-                processedBlocks++;
-
-                // Simulate Durability with Unbreaking
-                if (!isUnbreakable && maxDurability > 0) {
-                    boolean applyDamage = (unbreakingLevel <= 0) || (ThreadLocalRandom.current().nextInt(unbreakingLevel + 1) == 0);
-                    if (applyDamage) {
-                        durabilityLoss++;
-                        if (currentDamage + durabilityLoss >= maxDurability) {
-                            toolBroken = true;
-                            break;
-                        }
-                    }
+                    ACTIVE_MINING_LOCATIONS.remove(loc);
                 }
             }
 
@@ -377,6 +411,36 @@ public class MineRadiusListener implements Listener {
         // 3. Award accumulated EXP
         if (totalExp > 0) {
             player.giveExp(totalExp);
+        }
+
+        // 4. Center Block 1-tick post-break resync
+        if (scheduler != null) {
+            final Location centerSync = centerLoc.clone();
+            scheduler.runLocationDelayed(centerSync, () -> {
+                try {
+                    if (centerSync.getWorld() != null && centerSync.getWorld().isChunkLoaded(centerSync.getBlockX() >> 4, centerSync.getBlockZ() >> 4)) {
+                        Block freshCenter = centerSync.getBlock();
+                        broadcastBlockChange(centerSync, freshCenter.getBlockData());
+                    }
+                } catch (Throwable ignored) {}
+            }, 1L);
+        }
+    }
+
+    /**
+     * Broadcasts authoritative block change to all players within view distance (48 blocks).
+     */
+    private void broadcastBlockChange(Location loc, org.bukkit.block.data.BlockData data) {
+        if (loc == null || loc.getWorld() == null || data == null) return;
+        World world = loc.getWorld();
+        for (Player p : world.getPlayers()) {
+            if (p != null && p.isOnline() && p.getWorld().equals(world)) {
+                try {
+                    if (p.getLocation().distanceSquared(loc) <= 48.0 * 48.0) {
+                        p.sendBlockChange(loc, data);
+                    }
+                } catch (Throwable ignored) {}
+            }
         }
     }
 

@@ -184,6 +184,7 @@ public final class RoyItems extends JavaPlugin {
         this.cooldownManager = new CooldownManager();
         this.potionEffectManager = new PotionEffectManager(itemRegistry, itemPDCManager, platformScheduler);
         this.voucherManager = new VoucherManager(this, platformScheduler, cooldownManager, requirementChecker, integrationManager, messageManager);
+        this.voucherManager.setPdcManager(this.itemPDCManager);
 
         this.gemSocketManager = new GemSocketManager(itemRegistry, itemPDCManager, dynamicLoreEngine);
 
@@ -259,6 +260,11 @@ public final class RoyItems extends JavaPlugin {
         // 4.6. Cleanup Voucher Manager
         if (voucherManager != null) {
             voucherManager.cleanup();
+        }
+
+        // 4.7. Cleanup Crafting Station Engine (listeners, commands, GUIs)
+        if (craftingStationManager != null) {
+            craftingStationManager.cleanup();
         }
 
         // 5. Cleanup Player Stat Attribute Modifiers

@@ -792,8 +792,23 @@ public class ItemDetailEditorGui {
                     }
                 });
 
-        // Armor Trim (Only on Armor)
+        // Armor Trim & Custom Equipment (Only on Armor)
         if (def.getType().isArmor()) {
+            // Custom Equipment Model (Equippable asset_id)
+            renderProperty(gui, "equipment-model", 3, 29, org.bukkit.Material.NETHERITE_CHESTPLATE,
+                    Map.of("%value%", def.getEquipmentModel() != null ? def.getEquipmentModel() : "Default"),
+                    event -> {
+                        if (event.isRightClick()) {
+                            def.setEquipmentModel(null);
+                            open();
+                        } else {
+                            manager.getChatInputManager().requestInput(player, def, currentPage,
+                                    "Custom Equipment Model", def.getEquipmentModel(),
+                                    "Enter Equipment Asset ID (e.g. nexo:galaxyv2):",
+                                    input -> com.github.orenaidaucac.royItems.item.ItemBuilder.parseNamespacedKey(input) != null,
+                                    input -> def.setEquipmentModel(input.trim().toLowerCase(java.util.Locale.ROOT)));
+                        }
+                    });
             renderProperty(gui, "trim-customization", 3, 30, Material.ARMOR_STAND,
                     Map.of(
                             "%material%", def.getTrimMaterial() != null ? def.getTrimMaterial() : "None",

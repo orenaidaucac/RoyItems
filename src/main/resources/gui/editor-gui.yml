@@ -716,6 +716,18 @@ detail-editor:
         - "<#FFD166>Left-Click: <white>Change Trim Pattern</white>"
         - "<#EF476F>Right-Click: <white>Remove Trim</white>"
 
+    equipment-model:
+      page: 3
+      slot: 29
+      material: NETHERITE_CHESTPLATE
+      name: "<#FF9F1C>Custom Equipment Model"
+      lore:
+        - "<gray>2D worn armor texture (Equippable asset_id, Armor only)."
+        - "<dark_gray>▪ <gray>Current: <white>%value%</white>"
+        - ""
+        - "<#FFD166>Left-Click: <white>Enter Asset ID via Chat (e.g. nexo:galaxyv2)</white>"
+        - "<#EF476F>Right-Click: <white>Remove Equipment Model</white>"
+
     dye-color:
       page: 3
       slot: 31

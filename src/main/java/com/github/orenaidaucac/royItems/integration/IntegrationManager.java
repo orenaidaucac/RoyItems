@@ -33,6 +33,7 @@ public class IntegrationManager implements Listener {
     private ExcellentEconomyHook excellentEconomyHook;
     private CitizensHook citizensHook;
     private FancyNpcsHook fancyNpcsHook;
+    private PhoenixNpcsHook phoenixNpcsHook;
     private ExtraStorageHook extraStorageHook;
     private EcoEnchantsHook ecoEnchantsHook;
     private AdvancedOreGenHook advancedOreGenHook;
@@ -76,6 +77,12 @@ public class IntegrationManager implements Listener {
         fancyNpcsHook = new FancyNpcsHook();
         if (fancyNpcsHook.isAvailable()) {
             logger.info("Hooked into FancyNpcs successfully.");
+        }
+
+        // PhoenixNPCs
+        phoenixNpcsHook = new PhoenixNpcsHook();
+        if (phoenixNpcsHook.isAvailable()) {
+            logger.info("Hooked into PhoenixNPCs successfully.");
         }
 
         // MMOCore
@@ -162,6 +169,16 @@ public class IntegrationManager implements Listener {
             if (advancedOreGenHook != null && advancedOreGenHook.setup()) {
                 logger.info("Detected AdvancedOreGen enabled dynamically. Hooked into AdvancedOreGen successfully!");
             }
+        } else if (name.equalsIgnoreCase("PhoenixNPCs") || name.equalsIgnoreCase("phoenixnpcs")) {
+            if (phoenixNpcsHook == null) {
+                phoenixNpcsHook = new PhoenixNpcsHook();
+            }
+            if (phoenixNpcsHook.isAvailable()) {
+                logger.info("Detected PhoenixNPCs enabled dynamically. Hooked into PhoenixNPCs successfully!");
+                if (plugin instanceof com.github.orenaidaucac.royItems.RoyItems ri && ri.getCraftingStationManager() != null) {
+                    ri.getCraftingStationManager().registerPhoenixNpcsListener();
+                }
+            }
         }
     }
 
@@ -173,6 +190,11 @@ public class IntegrationManager implements Listener {
                 extraStorageHook.setAvailable(false);
                 logger.info("ExtraStorage disabled. Storage hook unlinked.");
             }
+        } else if (name.equalsIgnoreCase("PhoenixNPCs") || name.equalsIgnoreCase("phoenixnpcs")) {
+            if (plugin instanceof com.github.orenaidaucac.royItems.RoyItems ri && ri.getCraftingStationManager() != null) {
+                ri.getCraftingStationManager().unregisterPhoenixNpcsListener();
+            }
+            logger.info("PhoenixNPCs disabled. Interaction listener unlinked.");
         }
     }
 
@@ -184,6 +206,11 @@ public class IntegrationManager implements Listener {
         if (ecoEnchantsHook != null) ecoEnchantsHook.setup();
         if (advancedOreGenHook != null) advancedOreGenHook.setup();
         if (mythicMobsHook != null) mythicMobsHook.setup();
+        if (phoenixNpcsHook != null && phoenixNpcsHook.isAvailable()) {
+            if (plugin instanceof com.github.orenaidaucac.royItems.RoyItems ri && ri.getCraftingStationManager() != null) {
+                ri.getCraftingStationManager().registerPhoenixNpcsListener();
+            }
+        }
     }
 
     public boolean hasVault() {
@@ -256,6 +283,14 @@ public class IntegrationManager implements Listener {
 
     public FancyNpcsHook getFancyNpcsHook() {
         return fancyNpcsHook;
+    }
+
+    public boolean hasPhoenixNpcs() {
+        return phoenixNpcsHook != null && phoenixNpcsHook.isAvailable();
+    }
+
+    public PhoenixNpcsHook getPhoenixNpcsHook() {
+        return phoenixNpcsHook;
     }
 
     public WorldGuardHook getWorldGuardHook() {

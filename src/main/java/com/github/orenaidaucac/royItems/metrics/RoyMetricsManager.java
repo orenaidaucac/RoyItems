@@ -126,6 +126,15 @@ public class RoyMetricsManager {
                     if (im.hasAuraSkills()) map.put("AuraSkills", 1);
                     if (im.hasMythicMobs()) map.put("MythicMobs", 1);
                     if (im.hasWorldGuard()) map.put("WorldGuard", 1);
+                    if (im.hasPlayerPoints()) map.put("PlayerPoints", 1);
+                    if (im.hasExcellentEconomy()) map.put("ExcellentEconomy", 1);
+                    if (im.hasCitizens()) map.put("Citizens", 1);
+                    if (im.hasFancyNpcs()) map.put("FancyNpcs", 1);
+                    if (im.hasPhoenixNpcs()) map.put("PhoenixNPCs", 1);
+                    if (im.hasExtraStorage()) map.put("ExtraStorage", 1);
+                    if (im.hasEcoEnchants()) map.put("EcoEnchants", 1);
+                    if (im.hasAdvancedOreGen()) map.put("AdvancedOreGen", 1);
+                    if (im.hasLuckPerms()) map.put("LuckPerms", 1);
                 }
             } catch (Throwable ignored) {}
             return map;

@@ -142,25 +142,21 @@ public class StatManager {
         PlayerInventory inv = player.getInventory();
         Map<String, Integer> setCounts = new HashMap<>();
 
-        // 1. Process Main Hand
-        processItem(inv.getItemInMainHand(), cache, setCounts, player);
+        // 1. Process Main Hand (only equipment types valid for MAIN_HAND)
+        processEquippedItem(inv.getItemInMainHand(), org.bukkit.inventory.EquipmentSlot.HAND, cache, setCounts, player);
 
-        // 2. Process Off Hand
-        processItem(inv.getItemInOffHand(), cache, setCounts, player);
+        // 2. Process Off Hand (only equipment types valid for OFF_HAND)
+        processEquippedItem(inv.getItemInOffHand(), org.bukkit.inventory.EquipmentSlot.OFF_HAND, cache, setCounts, player);
 
-        // 3. Process Armor pieces
-        for (ItemStack armor : inv.getArmorContents()) {
-            processItem(armor, cache, setCounts, player);
-        }
+        // 3. Process Armor pieces in their explicit armor slots
+        processEquippedItem(inv.getHelmet(), org.bukkit.inventory.EquipmentSlot.HEAD, cache, setCounts, player);
+        processEquippedItem(inv.getChestplate(), org.bukkit.inventory.EquipmentSlot.CHEST, cache, setCounts, player);
+        processEquippedItem(inv.getLeggings(), org.bukkit.inventory.EquipmentSlot.LEGS, cache, setCounts, player);
+        processEquippedItem(inv.getBoots(), org.bukkit.inventory.EquipmentSlot.FEET, cache, setCounts, player);
 
-        // 4. Process Talismans in Inventory
+        // 4. Process Inventory-Passive items (e.g. TALISMAN) once from storage contents
         for (ItemStack item : inv.getStorageContents()) {
-            if (item != null && pdcManager.isRoyItem(item)) {
-                ItemType type = pdcManager.getType(item);
-                if (type == ItemType.TALISMAN) {
-                    processItem(item, cache, setCounts, player);
-                }
-            }
+            processPassiveInventoryItem(item, cache, setCounts, player);
         }
 
         // 5. Apply Item Set Bonuses
@@ -191,6 +187,22 @@ public class StatManager {
 
         // 6. Apply attributes directly to Player entity
         applyAttributes(player, cache);
+    }
+
+    private void processEquippedItem(ItemStack item, org.bukkit.inventory.EquipmentSlot slot,
+                                     PlayerStatCache cache, Map<String, Integer> setCounts, Player player) {
+        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
+        ItemType type = pdcManager.getType(item);
+        if (type == null || !type.isValidEquipmentSlot(slot, item.getType())) return;
+        processItem(item, cache, setCounts, player);
+    }
+
+    private void processPassiveInventoryItem(ItemStack item, PlayerStatCache cache,
+                                             Map<String, Integer> setCounts, Player player) {
+        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
+        ItemType type = pdcManager.getType(item);
+        if (type == null || !type.isInventoryPassive()) return;
+        processItem(item, cache, setCounts, player);
     }
 
     private void processItem(ItemStack item, PlayerStatCache cache, Map<String, Integer> setCounts, Player player) {

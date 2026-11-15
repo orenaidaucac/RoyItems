@@ -206,12 +206,14 @@ public class ItemConfigManager {
             def.setEffects(effectList);
         }
 
-        // Armor trim & Dye
+        // Armor trim, Dye & Equippable
         def.setTrimMaterial(sec.getString("trim-material", null));
         def.setTrimPattern(sec.getString("trim-pattern", null));
         def.setHideArmorTrim(sec.getBoolean("hide-armor-trim", false));
         def.setDyeColor(sec.getString("dye-color", null));
         def.setHideDye(sec.getBoolean("hide-dye", false));
+        def.setEquipmentModel(sec.getString("equipment-model", sec.getString("equippable-model", null)));
+        def.setEquipmentSlot(sec.getString("equipment-slot", sec.getString("equippable-slot", null)));
 
         // Gem Stone specific
         if (type == ItemType.GEM_STONE) {
@@ -428,12 +430,14 @@ public class ItemConfigManager {
             }
         }
 
-        // Armor Trims & Leather Dye
+        // Armor Trims, Leather Dye & Equippable
         config.set(path + ".trim-material", (def.getTrimMaterial() != null && !def.getTrimMaterial().trim().isEmpty()) ? def.getTrimMaterial().trim() : null);
         config.set(path + ".trim-pattern", (def.getTrimPattern() != null && !def.getTrimPattern().trim().isEmpty()) ? def.getTrimPattern().trim() : null);
         config.set(path + ".hide-armor-trim", def.isHideArmorTrim() ? true : null);
         config.set(path + ".dye-color", (def.getDyeColor() != null && !def.getDyeColor().trim().isEmpty()) ? def.getDyeColor().trim() : null);
         config.set(path + ".hide-dye", def.isHideDye() ? true : null);
+        config.set(path + ".equipment-model", (def.getEquipmentModel() != null && !def.getEquipmentModel().trim().isEmpty()) ? def.getEquipmentModel().trim() : null);
+        config.set(path + ".equipment-slot", (def.getEquipmentSlot() != null && !def.getEquipmentSlot().trim().isEmpty()) ? def.getEquipmentSlot().trim() : null);
 
         // Gem Stone properties
         if (def.getType() == ItemType.GEM_STONE) {

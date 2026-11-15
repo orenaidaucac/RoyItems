@@ -48,6 +48,11 @@ public class VoucherManager implements Listener {
     // Concurrency control: players currently rolling a random gacha voucher
     private final Set<UUID> activeGachaPlayers = ConcurrentHashMap.newKeySet();
 
+    // Same-tick / multi-packet anti-dupe debounce guard (e.g. HAND + OFF_HAND / InteractEntity + InteractAtEntity)
+    private static final long VOUCHER_USE_DEBOUNCE_MS = 120L;
+    private final Map<UUID, Long> lastVoucherUseMillis = new ConcurrentHashMap<>();
+    private volatile com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager;
+
     // Cache of configured currency display metadata
     private final Map<String, CurrencyDisplayInfo> currencyDisplayMap = new ConcurrentHashMap<>();
 
@@ -235,8 +240,17 @@ public class VoucherManager implements Listener {
     public void handleVoucher(Player player, ItemStack item, ItemDefinition def, EquipmentSlot hand) {
         if (player == null || item == null || def == null) return;
 
+        // 0. Same-tick / multi-packet debounce guard (blocks HAND+OFF_HAND / Entity+AtEntity double fires)
+        UUID uuid = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        Long previousUse = lastVoucherUseMillis.get(uuid);
+        if (previousUse != null && (now - previousUse) < VOUCHER_USE_DEBOUNCE_MS) {
+            return;
+        }
+        lastVoucherUseMillis.put(uuid, now);
+
         // 1. Anti-spam / concurrent rolling check
-        if (activeGachaPlayers.contains(player.getUniqueId())) {
+        if (activeGachaPlayers.contains(uuid)) {
             messageManager.send(player, "voucher-in-progress", "&cYou are currently rolling a voucher! Please wait for it to finish.");
             return;
         }
@@ -264,16 +278,36 @@ public class VoucherManager implements Listener {
             }
         }
 
-        // 4. Safe item consumption
-        if (item.getAmount() <= 0) return;
-        item.setAmount(item.getAmount() - 1);
-
-        // 5. Apply cooldown
-        if (def.getCooldown() > 0 && cooldownManager != null) {
-            cooldownManager.setCooldown(player, def.getId(), def.getCooldown());
+        // 4. Atomic live-hand verification & safe item consumption
+        EquipmentSlot activeHand = (hand == EquipmentSlot.OFF_HAND) ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND;
+        ItemStack liveItem = player.getInventory().getItem(activeHand);
+        if (liveItem == null || liveItem.getType().isAir() || liveItem.getAmount() <= 0) {
+            return;
+        }
+        if (pdcManager != null) {
+            if (!pdcManager.isRoyItem(liveItem)
+                    || pdcManager.getType(liveItem) != com.github.orenaidaucac.royItems.item.ItemType.VOUCHER) {
+                return;
+            }
+            String liveId = pdcManager.getId(liveItem);
+            if (liveId == null || !liveId.equalsIgnoreCase(def.getId())) {
+                return;
+            }
         }
 
-        // 6. Calculate reward amount & deposit currency atomically
+        ItemStack refundBackup = liveItem.clone();
+        refundBackup.setAmount(1);
+
+        int remainingAmount = liveItem.getAmount() - 1;
+        if (remainingAmount <= 0) {
+            player.getInventory().setItem(activeHand, null);
+        } else {
+            liveItem.setAmount(remainingAmount);
+            player.getInventory().setItem(activeHand, liveItem);
+        }
+        player.updateInventory();
+
+        // 5. Calculate reward amount & deposit currency atomically
         double rewardAmount = 0.0;
         CurrencyDisplayInfo cInfo = null;
 
@@ -283,11 +317,16 @@ public class VoucherManager implements Listener {
 
             boolean depositSuccess = depositCurrency(player, reward.getType(), rewardAmount);
             if (!depositSuccess) {
-                // Transaction failed! Refund item immediately to protect player
-                refundItem(player, item, hand);
+                // Transaction failed! Refund exact voucher clone immediately to protect player
+                refundItem(player, refundBackup, activeHand);
                 messageManager.send(player, "voucher-transaction-failed", "&cFailed to deposit reward. The transaction was cancelled safely.");
                 return;
             }
+        }
+
+        // 6. Apply cooldown only after consumption & currency deposit succeed
+        if (def.getCooldown() > 0 && cooldownManager != null) {
+            cooldownManager.setCooldown(player, def.getId(), def.getCooldown());
         }
 
         // 7. Execute configured commands safely with placeholder substitution
@@ -487,26 +526,28 @@ public class VoucherManager implements Listener {
     /**
      * Safely refunds 1 voucher back into player's hand/inventory if transaction fails.
      */
-    private void refundItem(Player player, ItemStack item, EquipmentSlot hand) {
+    private void refundItem(Player player, ItemStack refundBackup, EquipmentSlot hand) {
+        if (player == null || refundBackup == null || refundBackup.getType().isAir()) return;
         try {
-            if (hand == EquipmentSlot.HAND) {
-                ItemStack current = player.getInventory().getItemInMainHand();
-                if (current.getType() != Material.AIR) {
-                    current.setAmount(current.getAmount() + 1);
-                } else {
-                    item.setAmount(1);
-                    player.getInventory().setItemInMainHand(item);
-                }
-            } else if (hand == EquipmentSlot.OFF_HAND) {
-                ItemStack current = player.getInventory().getItemInOffHand();
-                if (current.getType() != Material.AIR) {
-                    current.setAmount(current.getAmount() + 1);
-                } else {
-                    item.setAmount(1);
-                    player.getInventory().setItemInOffHand(item);
-                }
+            ItemStack toReturn = refundBackup.clone();
+            toReturn.setAmount(1);
+            EquipmentSlot activeHand = (hand == EquipmentSlot.OFF_HAND) ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND;
+            ItemStack current = player.getInventory().getItem(activeHand);
+
+            if (current == null || current.getType().isAir()) {
+                player.getInventory().setItem(activeHand, toReturn);
+            } else if (current.isSimilar(toReturn) && current.getAmount() < current.getMaxStackSize()) {
+                current.setAmount(current.getAmount() + 1);
+                player.getInventory().setItem(activeHand, current);
+            } else {
+                player.getInventory().addItem(toReturn);
             }
+            player.updateInventory();
         } catch (Throwable ignored) {}
+    }
+
+    public void setPdcManager(com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager) {
+        this.pdcManager = pdcManager;
     }
 
     private Sound parseSound(String name, Sound fallback) {
@@ -529,7 +570,9 @@ public class VoucherManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        activeGachaPlayers.remove(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        activeGachaPlayers.remove(uuid);
+        lastVoucherUseMillis.remove(uuid);
     }
 
     public boolean isPlayerRolling(UUID uuid) {
@@ -538,10 +581,12 @@ public class VoucherManager implements Listener {
 
     public void clearPlayer(UUID uuid) {
         activeGachaPlayers.remove(uuid);
+        lastVoucherUseMillis.remove(uuid);
     }
 
     public void cleanup() {
         activeGachaPlayers.clear();
+        lastVoucherUseMillis.clear();
         currencyDisplayMap.clear();
     }
 }

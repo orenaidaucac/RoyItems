@@ -17,6 +17,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.scheduler.BukkitTask;
@@ -46,6 +47,10 @@ public class CraftingStationManager implements Listener {
     private final Map<UUID, BukkitTask> activeCraftingTasks = new ConcurrentHashMap<>();
     private final List<String> registeredCommandAliases = new ArrayList<>();
 
+    private Listener fancyNpcsListener;
+    private Listener citizensListener;
+    private Listener phoenixNpcsListener;
+
     public CraftingStationManager(RoyItems plugin, ItemRegistry registry, ItemPDCManager pdcManager,
                                   ItemBuilder itemBuilder, IntegrationManager integration) {
         this.plugin = plugin;
@@ -53,6 +58,10 @@ public class CraftingStationManager implements Listener {
         this.pdcManager = pdcManager;
         this.itemBuilder = itemBuilder;
         this.integration = integration;
+    }
+
+    private java.util.logging.Logger getLogger() {
+        return plugin != null ? plugin.getLogger() : java.util.logging.Logger.getLogger("RoyItems");
     }
 
     public void initialize() {
@@ -116,12 +125,13 @@ public class CraftingStationManager implements Listener {
                     CraftingStation station = CraftingStation.fromConfig(id, cfg);
                     stations.put(id.toLowerCase(), station);
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.SEVERE, "Failed to load crafting station " + file.getName() + ": " + e.getMessage(), e);
+                    getLogger().log(Level.SEVERE, "Failed to load crafting station " + file.getName() + ": " + e.getMessage(), e);
                 }
             }
         }
 
-        plugin.getLogger().info("Successfully loaded " + stations.size() + " crafting stations.");
+        validateNpcConfigurations();
+        getLogger().info("Successfully loaded " + stations.size() + " crafting stations.");
         registerCommandAliases();
     }
 
@@ -140,6 +150,7 @@ public class CraftingStationManager implements Listener {
             cfg.set("commands", List.of(cleanId));
             cfg.set("fancynpcs", new ArrayList<>());
             cfg.set("citizen", new ArrayList<>());
+            cfg.set("phoenixnpcs", new ArrayList<>());
 
             // Sample background
             cfg.set("backgrounds.border.material", "BLACK_STAINED_GLASS_PANE");
@@ -162,7 +173,7 @@ public class CraftingStationManager implements Listener {
             syncCommandsSafely();
             return true;
         } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to create station file " + cleanId + ".yml: " + e.getMessage(), e);
+            getLogger().log(Level.SEVERE, "Failed to create station file " + cleanId + ".yml: " + e.getMessage(), e);
             return false;
         }
     }
@@ -359,56 +370,200 @@ public class CraftingStationManager implements Listener {
     // NPC INTEGRATION LISTENERS
     // =========================================================================
 
-    private void registerNpcListeners() {
-        // FancyNpcs Listener
-        if (integration.hasFancyNpcs()) {
-            try {
-                Bukkit.getPluginManager().registerEvents(new Listener() {
-                    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
-                    public void onFancyNpcInteract(de.oliver.fancynpcs.api.events.NpcInteractEvent event) {
-                        if (event.getNpc() == null || event.getNpc().getData() == null) return;
-                        String npcId = event.getNpc().getData().getId();
-                        String npcName = event.getNpc().getData().getName();
+    public synchronized void registerNpcListeners() {
+        registerFancyNpcsListener();
+        registerCitizensListener();
+        registerPhoenixNpcsListener();
+    }
 
-                        for (CraftingStation station : stations.values()) {
-                            for (String target : station.getFancyNpcs()) {
-                                if (target.equalsIgnoreCase(npcId) || target.equalsIgnoreCase(npcName)) {
-                                    event.setCancelled(true);
-                                    openStation(event.getPlayer(), station.getId(), 1);
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }, plugin);
-                plugin.getLogger().info("Registered FancyNpcs interaction listener for Crafting Stations.");
-            } catch (Throwable e) {
-                plugin.getLogger().warning("Could not register FancyNpcs listener: " + e.getMessage());
-            }
-        }
+    public synchronized void registerFancyNpcsListener() {
+        if (fancyNpcsListener != null || !integration.hasFancyNpcs()) return;
+        try {
+            fancyNpcsListener = new Listener() {
+                @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+                public void onFancyNpcInteract(de.oliver.fancynpcs.api.events.NpcInteractEvent event) {
+                    if (event.getNpc() == null || event.getNpc().getData() == null) return;
+                    String npcId = event.getNpc().getData().getId();
+                    String npcName = event.getNpc().getData().getName();
 
-        // Citizens Listener
-        if (integration.hasCitizens()) {
-            try {
-                Bukkit.getPluginManager().registerEvents(new Listener() {
-                    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
-                    public void onCitizensInteract(net.citizensnpcs.api.event.NPCRightClickEvent event) {
-                        if (event.getNPC() == null) return;
-                        int npcId = event.getNPC().getId();
-
-                        for (CraftingStation station : stations.values()) {
-                            if (station.getCitizenNpcs().contains(npcId)) {
+                    for (CraftingStation station : stations.values()) {
+                        for (String target : station.getFancyNpcs()) {
+                            if (target.equalsIgnoreCase(npcId) || target.equalsIgnoreCase(npcName)) {
                                 event.setCancelled(true);
-                                openStation(event.getClicker(), station.getId(), 1);
+                                openStation(event.getPlayer(), station.getId(), 1);
                                 return;
                             }
                         }
                     }
-                }, plugin);
-                plugin.getLogger().info("Registered Citizens NPC interaction listener for Crafting Stations.");
-            } catch (Throwable e) {
-                plugin.getLogger().warning("Could not register Citizens listener: " + e.getMessage());
+                }
+            };
+            Bukkit.getPluginManager().registerEvents(fancyNpcsListener, plugin);
+            getLogger().info("Registered FancyNpcs interaction listener for Crafting Stations.");
+        } catch (Throwable e) {
+            getLogger().warning("Could not register FancyNpcs listener: " + e.getMessage());
+            fancyNpcsListener = null;
+        }
+    }
+
+    public synchronized void registerCitizensListener() {
+        if (citizensListener != null || !integration.hasCitizens()) return;
+        try {
+            citizensListener = new Listener() {
+                @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+                public void onCitizensInteract(net.citizensnpcs.api.event.NPCRightClickEvent event) {
+                    if (event.getNPC() == null) return;
+                    int npcId = event.getNPC().getId();
+
+                    for (CraftingStation station : stations.values()) {
+                        if (station.getCitizenNpcs().contains(npcId)) {
+                            event.setCancelled(true);
+                            openStation(event.getClicker(), station.getId(), 1);
+                            return;
+                        }
+                    }
+                }
+            };
+            Bukkit.getPluginManager().registerEvents(citizensListener, plugin);
+            getLogger().info("Registered Citizens NPC interaction listener for Crafting Stations.");
+        } catch (Throwable e) {
+            getLogger().warning("Could not register Citizens listener: " + e.getMessage());
+            citizensListener = null;
+        }
+    }
+
+    public synchronized void registerPhoenixNpcsListener() {
+        if (phoenixNpcsListener != null || !integration.hasPhoenixNpcs()) return;
+        try {
+            phoenixNpcsListener = new Listener() {
+                @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+                public void onPhoenixNpcInteract(com.phoenixplugins.phoenixnpcs.api.events.NpcInteractEvent event) {
+                    if (handlePhoenixNpcInteract(event.getPlayer(), event.getNpc())) {
+                        event.setCancelled(true);
+                    }
+                }
+            };
+            Bukkit.getPluginManager().registerEvents(phoenixNpcsListener, plugin);
+            getLogger().info("Registered PhoenixNPCs interaction listener for Crafting Stations.");
+        } catch (Throwable e) {
+            getLogger().warning("Could not register PhoenixNPCs listener: " + e.getMessage());
+            phoenixNpcsListener = null;
+        }
+    }
+
+    public synchronized void unregisterPhoenixNpcsListener() {
+        if (phoenixNpcsListener != null) {
+            HandlerList.unregisterAll(phoenixNpcsListener);
+            phoenixNpcsListener = null;
+        }
+    }
+
+    public synchronized void unregisterFancyNpcsListener() {
+        if (fancyNpcsListener != null) {
+            HandlerList.unregisterAll(fancyNpcsListener);
+            fancyNpcsListener = null;
+        }
+    }
+
+    public synchronized void unregisterCitizensListener() {
+        if (citizensListener != null) {
+            HandlerList.unregisterAll(citizensListener);
+            citizensListener = null;
+        }
+    }
+
+    /**
+     * Handles an interaction with a PhoenixNPC.
+     * Verifies NPC validity (enabled, visible to player, valid identifier),
+     * and if matched to a configured Crafting Station, opens it.
+     *
+     * @param player The interacting player
+     * @param npc    The interacted PhoenixNPC
+     * @return true if a station was matched and opened; false otherwise
+     */
+    public boolean handlePhoenixNpcInteract(Player player, com.phoenixplugins.phoenixnpcs.api.Npc npc) {
+        if (player == null || !player.isOnline() || npc == null) return false;
+        String npcId = npc.getIdentifier();
+        if (npcId == null || npcId.isBlank()) return false;
+        if (!npc.isEnabled()) return false;
+        try {
+            if (!npc.isVisibleTo(player)) return false;
+        } catch (Throwable ignored) {}
+
+        String npcName = npc.getDisplayName();
+
+        for (CraftingStation station : stations.values()) {
+            for (String target : station.getPhoenixNpcs()) {
+                if (target.equalsIgnoreCase(npcId) || (npcName != null && target.equalsIgnoreCase(npcName))) {
+                    openStation(player, station.getId(), 1);
+                    return true;
+                }
             }
+        }
+        return false;
+    }
+
+    /**
+     * Validates NPC bindings across all loaded crafting stations.
+     * Detects duplicate NPC IDs across different stations and warns about missing PhoenixNPCs.
+     */
+    public void validateNpcConfigurations() {
+        // 1. Detect duplicate PhoenixNPC IDs across different crafting stations
+        Map<String, String> registeredPhoenixNpcs = new HashMap<>();
+        for (CraftingStation station : stations.values()) {
+            for (String npcId : new ArrayList<>(station.getPhoenixNpcs())) {
+                String existingStation = registeredPhoenixNpcs.putIfAbsent(npcId.toLowerCase(), station.getId());
+                if (existingStation != null) {
+                    getLogger().warning("[CraftingStation] Duplicate PhoenixNPC ID '" + npcId +
+                            "' detected in station '" + station.getId() + "'! Already assigned to station '" +
+                            existingStation + "'. Removing duplicate binding from '" + station.getId() + "'.");
+                    station.getPhoenixNpcs().remove(npcId);
+                }
+            }
+        }
+
+        // 2. Detect duplicate FancyNpcs across different crafting stations
+        Map<String, String> registeredFancyNpcs = new HashMap<>();
+        for (CraftingStation station : stations.values()) {
+            for (String npcId : new ArrayList<>(station.getFancyNpcs())) {
+                String existingStation = registeredFancyNpcs.putIfAbsent(npcId.toLowerCase(), station.getId());
+                if (existingStation != null) {
+                    getLogger().warning("[CraftingStation] Duplicate FancyNpc ID/Name '" + npcId +
+                            "' detected in station '" + station.getId() + "'! Already assigned to station '" +
+                            existingStation + "'. Removing duplicate binding from '" + station.getId() + "'.");
+                    station.getFancyNpcs().remove(npcId);
+                }
+            }
+        }
+
+        // 3. Detect duplicate Citizens across different crafting stations
+        Map<Integer, String> registeredCitizens = new HashMap<>();
+        for (CraftingStation station : stations.values()) {
+            for (Integer npcId : new ArrayList<>(station.getCitizenNpcs())) {
+                String existingStation = registeredCitizens.putIfAbsent(npcId, station.getId());
+                if (existingStation != null) {
+                    getLogger().warning("[CraftingStation] Duplicate Citizens NPC ID '" + npcId +
+                            "' detected in station '" + station.getId() + "'! Already assigned to station '" +
+                            existingStation + "'. Removing duplicate binding from '" + station.getId() + "'.");
+                    station.getCitizenNpcs().remove(npcId);
+                }
+            }
+        }
+
+        // 4. Validate existence of configured PhoenixNPCs if PhoenixNPCs is currently available
+        if (integration != null && integration.hasPhoenixNpcs()) {
+            try {
+                var api = com.phoenixplugins.phoenixnpcs.api.PhoenixNPCsAPI.get();
+                if (api != null) {
+                    for (CraftingStation station : stations.values()) {
+                        for (String npcId : station.getPhoenixNpcs()) {
+                            if (api.getNpc(npcId).isEmpty()) {
+                                getLogger().warning("[CraftingStation] Station '" + station.getId() +
+                                        "' configured PhoenixNPC ID '" + npcId + "', but no NPC with this ID was found in PhoenixNPCs.");
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -445,6 +600,14 @@ public class CraftingStationManager implements Listener {
             }
         }
         openGuis.clear();
+    }
+
+    public void cleanup() {
+        closeAllOpenGuis();
+        unregisterCommandAliases();
+        unregisterPhoenixNpcsListener();
+        unregisterFancyNpcsListener();
+        unregisterCitizensListener();
     }
 
     public boolean isCrafting(UUID uuid) {
