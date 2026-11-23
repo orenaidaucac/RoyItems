@@ -4312,6 +4312,12 @@ class RoyItemsUnitTest {
         @Override public ItemStack clone() {
             return new TestItemStack(mat, amt, maxStack);
         }
+        @Override public int hashCode() {
+            return System.identityHashCode(this);
+        }
+        @Override public boolean equals(Object obj) {
+            return this == obj;
+        }
     }
 
     private org.bukkit.entity.Player createMockInventoryPlayer(ItemStack[] storage) {
@@ -4477,5 +4483,481 @@ class RoyItemsUnitTest {
         assertEquals(300.0, mockVault.getBalance(null));
         assertFalse(money.take(null, null, null, mockIntegration, 15)); // 25 * 15 = 375 > 300, fails safely without deducting
         assertEquals(300.0, mockVault.getBalance(null)); // Zero loss transaction safety
+    }
+
+    @Test
+    @DisplayName("Smithing & Grindstone Protection: Config toggles loading")
+    void testSmithingAndGrindstoneConfigToggles() {
+        com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener(null, null);
+
+        // Default values must be true
+        assertTrue(listener.isPreventSmithingCorrupt());
+        assertTrue(listener.isPreventGrindstoneDisenchantConfigured());
+
+        // Toggle to false via configuration
+        YamlConfiguration yamlFalse = new YamlConfiguration();
+        yamlFalse.set("smithing-table.prevent-corrupt", false);
+        yamlFalse.set("grindstone.prevent-disenchant-configured", false);
+        listener.loadConfig(yamlFalse);
+        assertFalse(listener.isPreventSmithingCorrupt());
+        assertFalse(listener.isPreventGrindstoneDisenchantConfigured());
+
+        // Toggle back to true
+        YamlConfiguration yamlTrue = new YamlConfiguration();
+        yamlTrue.set("smithing-table.prevent-corrupt", true);
+        yamlTrue.set("grindstone.prevent-disenchant-configured", true);
+        listener.loadConfig(yamlTrue);
+        assertTrue(listener.isPreventSmithingCorrupt());
+        assertTrue(listener.isPreventGrindstoneDisenchantConfigured());
+    }
+
+    @Test
+    @DisplayName("Smithing Protection: Full slot & attempt detection")
+    void testSmithingProtectionLogic() {
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry = new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        Map<ItemStack, Boolean> royItemMarkers = new HashMap<>();
+
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> "getName".equals(method.getName()) ? "RoyItems" : null
+        );
+
+        com.github.orenaidaucac.royItems.item.ItemPDCManager mockPdc =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(mockPlugin) {
+                    @Override
+                    public boolean isRoyItem(ItemStack item) {
+                        return item != null && Boolean.TRUE.equals(royItemMarkers.get(item));
+                    }
+                    @Override
+                    public ItemType getType(ItemStack item) {
+                        return ItemType.SWORD;
+                    }
+                    @Override
+                    public String getId(ItemStack item) {
+                        return "excalibur";
+                    }
+                };
+
+        com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener(mockPdc, registry);
+
+        Map<Integer, ItemStack> smithingSlots = new HashMap<>();
+        org.bukkit.inventory.SmithingInventory mockSmithing =
+                (org.bukkit.inventory.SmithingInventory) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.SmithingInventory.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.inventory.SmithingInventory.class},
+                        (proxy, method, args) -> {
+                            if ("getItem".equals(method.getName())) {
+                                int s = (int) args[0];
+                                return smithingSlots.get(s);
+                            }
+                            if ("setItem".equals(method.getName())) {
+                                int s = (int) args[0];
+                                ItemStack it = (ItemStack) args[1];
+                                smithingSlots.put(s, it);
+                                return null;
+                            }
+                            if ("getContents".equals(method.getName())) {
+                                return smithingSlots.values().toArray(new ItemStack[0]);
+                            }
+                            return null;
+                        }
+                );
+
+        ItemStack vanillaTemplate = new TestItemStack(org.bukkit.Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 1);
+        ItemStack vanillaSword = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        ItemStack vanillaIngot = new TestItemStack(org.bukkit.Material.NETHERITE_INGOT, 1);
+        ItemStack roySword = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        royItemMarkers.put(roySword, true);
+
+        // Case 1: All empty
+        assertFalse(listener.isSmithingCorruptAttempt(mockSmithing));
+
+        // Case 2: All vanilla items (Template, Base, Addition)
+        smithingSlots.put(0, vanillaTemplate);
+        smithingSlots.put(1, vanillaSword);
+        smithingSlots.put(2, vanillaIngot);
+        assertFalse(listener.isSmithingCorruptAttempt(mockSmithing), "Vanilla smithing must be 100% allowed");
+
+        // Case 3: Base item is a RoyItem
+        smithingSlots.put(1, roySword);
+        assertTrue(listener.isSmithingCorruptAttempt(mockSmithing), "RoyItem in Base slot must trigger corrupt attempt");
+
+        // Case 4: Template item is a RoyItem
+        smithingSlots.put(1, vanillaSword);
+        smithingSlots.put(0, roySword);
+        assertTrue(listener.isSmithingCorruptAttempt(mockSmithing), "RoyItem in Template slot must trigger corrupt attempt");
+
+        // Case 5: Addition item is a RoyItem
+        smithingSlots.put(0, vanillaTemplate);
+        smithingSlots.put(2, roySword);
+        assertTrue(listener.isSmithingCorruptAttempt(mockSmithing), "RoyItem in Addition slot must trigger corrupt attempt");
+
+        // Case 6: Config disabled
+        YamlConfiguration yamlFalse = new YamlConfiguration();
+        yamlFalse.set("smithing-table.prevent-corrupt", false);
+        listener.loadConfig(yamlFalse);
+        assertFalse(listener.isSmithingCorruptAttempt(mockSmithing), "When config disabled, check returns false");
+    }
+
+    @Test
+    @DisplayName("Grindstone Protection: Pre-configured enchants & item combining")
+    void testGrindstoneProtectionLogic() {
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry = new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        Map<ItemStack, Boolean> royItemMarkers = new HashMap<>();
+        Map<ItemStack, ItemDefinition> royDefinitions = new HashMap<>();
+
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> "getName".equals(method.getName()) ? "RoyItems" : null
+        );
+
+        com.github.orenaidaucac.royItems.item.ItemPDCManager mockPdc =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(mockPlugin) {
+                    @Override
+                    public boolean isRoyItem(ItemStack item) {
+                        return item != null && Boolean.TRUE.equals(royItemMarkers.get(item));
+                    }
+                    @Override
+                    public ItemType getType(ItemStack item) {
+                        ItemDefinition d = royDefinitions.get(item);
+                        return d != null ? d.getType() : ItemType.SWORD;
+                    }
+                    @Override
+                    public String getId(ItemStack item) {
+                        ItemDefinition d = royDefinitions.get(item);
+                        return d != null ? d.getId() : "item";
+                    }
+                };
+
+        com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener(mockPdc, registry);
+
+        // Definition A: Has pre-configured enchantment
+        ItemDefinition defConfigured = new ItemDefinition(ItemType.SWORD, "excalibur");
+        Map<Enchantment, Integer> enchants = new HashMap<>();
+        enchants.put(Enchantment.SHARPNESS, 5);
+        defConfigured.setEnchantments(enchants);
+        registry.register(defConfigured);
+
+        // Definition B: No pre-configured enchantments
+        ItemDefinition defNoEnchants = new ItemDefinition(ItemType.SWORD, "plain_blade");
+        registry.register(defNoEnchants);
+
+        ItemStack itemWithEnchants = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        royItemMarkers.put(itemWithEnchants, true);
+        royDefinitions.put(itemWithEnchants, defConfigured);
+
+        ItemStack itemWithoutEnchants = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        royItemMarkers.put(itemWithoutEnchants, true);
+        royDefinitions.put(itemWithoutEnchants, defNoEnchants);
+
+        ItemStack vanillaItem1 = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        ItemStack vanillaItem2 = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+
+        // Test hasConfiguredEnchantments
+        assertTrue(listener.hasConfiguredEnchantments(itemWithEnchants));
+        assertFalse(listener.hasConfiguredEnchantments(itemWithoutEnchants));
+        assertFalse(listener.hasConfiguredEnchantments(vanillaItem1));
+        assertFalse(listener.hasConfiguredEnchantments(null));
+
+        Map<Integer, ItemStack> grindstoneSlots = new HashMap<>();
+        org.bukkit.inventory.GrindstoneInventory mockGrindstone =
+                (org.bukkit.inventory.GrindstoneInventory) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.GrindstoneInventory.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.inventory.GrindstoneInventory.class},
+                        (proxy, method, args) -> {
+                            if ("getItem".equals(method.getName())) {
+                                int s = (int) args[0];
+                                return grindstoneSlots.get(s);
+                            }
+                            if ("setItem".equals(method.getName())) {
+                                int s = (int) args[0];
+                                ItemStack it = (ItemStack) args[1];
+                                grindstoneSlots.put(s, it);
+                                return null;
+                            }
+                            if ("getContents".equals(method.getName())) {
+                                return grindstoneSlots.values().toArray(new ItemStack[0]);
+                            }
+                            return null;
+                        }
+                );
+
+        // Case 1: Both slots empty
+        assertFalse(listener.isGrindstoneBlocked(mockGrindstone));
+
+        // Case 2: Single vanilla item (Slot 0)
+        grindstoneSlots.put(0, vanillaItem1);
+        assertFalse(listener.isGrindstoneBlocked(mockGrindstone), "Single vanilla item must be allowed");
+
+        // Case 3: Two vanilla items (Slot 0 and Slot 1)
+        grindstoneSlots.put(1, vanillaItem2);
+        assertFalse(listener.isGrindstoneBlocked(mockGrindstone), "Combining two vanilla items must be allowed");
+
+        // Case 4: Single RoyItem WITHOUT pre-configured enchantments
+        grindstoneSlots.clear();
+        grindstoneSlots.put(0, itemWithoutEnchants);
+        assertFalse(listener.isGrindstoneBlocked(mockGrindstone), "Single RoyItem without pre-configured enchantments must be allowed");
+
+        // Case 5: Single RoyItem WITH pre-configured enchantments (Slot 0)
+        grindstoneSlots.clear();
+        grindstoneSlots.put(0, itemWithEnchants);
+        assertTrue(listener.isGrindstoneBlocked(mockGrindstone), "RoyItem with pre-configured enchantments in slot 0 must be BLOCKED");
+
+        // Case 6: Single RoyItem WITH pre-configured enchantments (Slot 1)
+        grindstoneSlots.clear();
+        grindstoneSlots.put(1, itemWithEnchants);
+        assertTrue(listener.isGrindstoneBlocked(mockGrindstone), "RoyItem with pre-configured enchantments in slot 1 must be BLOCKED");
+
+        // Case 7: Combining RoyItem (without enchants) + Vanilla item
+        grindstoneSlots.clear();
+        grindstoneSlots.put(0, itemWithoutEnchants);
+        grindstoneSlots.put(1, vanillaItem1);
+        assertTrue(listener.isGrindstoneBlocked(mockGrindstone), "Combining RoyItem with vanilla item must be BLOCKED to prevent PDC loss");
+
+        // Case 8: Combining Vanilla item + RoyItem (without enchants)
+        grindstoneSlots.clear();
+        grindstoneSlots.put(0, vanillaItem1);
+        grindstoneSlots.put(1, itemWithoutEnchants);
+        assertTrue(listener.isGrindstoneBlocked(mockGrindstone), "Combining vanilla item with RoyItem must be BLOCKED to prevent PDC loss");
+
+        // Case 9: Combining two RoyItems
+        grindstoneSlots.clear();
+        grindstoneSlots.put(0, itemWithoutEnchants);
+        grindstoneSlots.put(1, itemWithEnchants);
+        assertTrue(listener.isGrindstoneBlocked(mockGrindstone), "Combining two RoyItems must be BLOCKED");
+
+        // Case 10: Config disabled
+        YamlConfiguration yamlFalse = new YamlConfiguration();
+        yamlFalse.set("grindstone.prevent-disenchant-configured", false);
+        listener.loadConfig(yamlFalse);
+        assertFalse(listener.isGrindstoneBlocked(mockGrindstone), "When config disabled, check returns false");
+    }
+
+    @Test
+    @DisplayName("Localization: Verify new message keys exist across lang files")
+    void testProtectionMessageKeysExist() throws Exception {
+        java.io.InputStream inEn = getClass().getClassLoader().getResourceAsStream("lang/en-US.yml");
+        assertNotNull(inEn, "lang/en-US.yml must exist in test classpath");
+        YamlConfiguration en = new YamlConfiguration();
+        en.loadFromString(new String(inEn.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        assertTrue(en.contains("messages.smithing-table-blocked"), "messages.smithing-table-blocked must exist in en-US.yml");
+        assertTrue(en.contains("messages.grindstone-disenchant-blocked"), "messages.grindstone-disenchant-blocked must exist in en-US.yml");
+
+        java.io.InputStream inVi = getClass().getClassLoader().getResourceAsStream("lang/vi-VN.yml");
+        assertNotNull(inVi, "lang/vi-VN.yml must exist in test classpath");
+        YamlConfiguration vi = new YamlConfiguration();
+        vi.loadFromString(new String(inVi.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        assertTrue(vi.contains("messages.smithing-table-blocked"), "messages.smithing-table-blocked must exist in vi-VN.yml");
+        assertTrue(vi.contains("messages.grindstone-disenchant-blocked"), "messages.grindstone-disenchant-blocked must exist in vi-VN.yml");
+    }
+
+    @Test
+    @DisplayName("Protection Listeners: Full InventoryClickEvent simulation for Smithing and Grindstone")
+    void testInventoryClickEventsSmithingAndGrindstone() {
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry = new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        Map<ItemStack, Boolean> royItemMarkers = new HashMap<>();
+        Map<ItemStack, ItemDefinition> royDefinitions = new HashMap<>();
+
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> "getName".equals(method.getName()) ? "RoyItems" : null
+        );
+
+        com.github.orenaidaucac.royItems.item.ItemPDCManager mockPdc =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(mockPlugin) {
+                    @Override
+                    public boolean isRoyItem(ItemStack item) {
+                        return item != null && Boolean.TRUE.equals(royItemMarkers.get(item));
+                    }
+                    @Override
+                    public ItemType getType(ItemStack item) {
+                        ItemDefinition d = royDefinitions.get(item);
+                        return d != null ? d.getType() : ItemType.SWORD;
+                    }
+                    @Override
+                    public String getId(ItemStack item) {
+                        ItemDefinition d = royDefinitions.get(item);
+                        return d != null ? d.getId() : "item";
+                    }
+                };
+
+        com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener listener =
+                new com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener(mockPdc, registry);
+
+        ItemDefinition defConfigured = new ItemDefinition(ItemType.SWORD, "excalibur");
+        defConfigured.setEnchantments(Map.of(Enchantment.SHARPNESS, 5));
+        registry.register(defConfigured);
+
+        ItemDefinition defNoEnchants = new ItemDefinition(ItemType.SWORD, "plain_blade");
+        registry.register(defNoEnchants);
+
+        ItemStack royWithEnch = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        royItemMarkers.put(royWithEnch, true);
+        royDefinitions.put(royWithEnch, defConfigured);
+
+        ItemStack royWithoutEnch = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        royItemMarkers.put(royWithoutEnch, true);
+        royDefinitions.put(royWithoutEnch, defNoEnchants);
+
+        ItemStack vanillaSword = new TestItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+
+        org.bukkit.entity.Player mockPlayer = (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.entity.Player.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.Player.class},
+                (proxy, method, args) -> null
+        );
+
+        // 1. Smithing Table Simulations
+        Map<Integer, ItemStack> smithingSlots = new HashMap<>();
+        org.bukkit.inventory.SmithingInventory mockSmithing =
+                (org.bukkit.inventory.SmithingInventory) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.SmithingInventory.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.inventory.SmithingInventory.class},
+                        (proxy, method, args) -> {
+                            if ("getItem".equals(method.getName())) return smithingSlots.get((int) args[0]);
+                            if ("setItem".equals(method.getName())) {
+                                smithingSlots.put((int) args[0], (ItemStack) args[1]);
+                                return null;
+                            }
+                            if ("getContents".equals(method.getName())) return smithingSlots.values().toArray(new ItemStack[0]);
+                            return null;
+                        }
+                );
+
+        org.bukkit.inventory.InventoryView smithingView = (org.bukkit.inventory.InventoryView) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.InventoryView.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.InventoryView.class},
+                (proxy, method, args) -> {
+                    if ("getTopInventory".equals(method.getName())) return mockSmithing;
+                    if ("getPlayer".equals(method.getName())) return mockPlayer;
+                    if ("convertSlot".equals(method.getName())) return args != null && args.length > 0 ? args[0] : 0;
+                    return null;
+                }
+        );
+
+        // A. Result slot click when base is RoyItem -> Cancelled
+        smithingSlots.put(1, royWithEnch);
+        org.bukkit.event.inventory.InventoryClickEvent clickSmithResult = new org.bukkit.event.inventory.InventoryClickEvent(
+                smithingView, org.bukkit.event.inventory.InventoryType.SlotType.RESULT, 3,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PICKUP_ALL
+        );
+        listener.onInventoryClick(clickSmithResult);
+        assertTrue(clickSmithResult.isCancelled(), "Result click on Smithing Table with RoyItem must be cancelled");
+
+        // B. Cursor placement of RoyItem into Base slot (slot 1) -> Cancelled
+        smithingSlots.clear();
+        org.bukkit.event.inventory.InventoryClickEvent placeRoyCursor = new org.bukkit.event.inventory.InventoryClickEvent(
+                smithingView, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 1,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PLACE_ALL
+        ) {
+            @Override public ItemStack getCursor() { return royWithEnch; }
+        };
+        listener.onInventoryClick(placeRoyCursor);
+        assertTrue(placeRoyCursor.isCancelled(), "Placing RoyItem into slot 1 of Smithing Table must be cancelled");
+
+        // C. Cursor placement of Vanilla item into Base slot -> Not cancelled
+        org.bukkit.event.inventory.InventoryClickEvent placeVanillaCursor = new org.bukkit.event.inventory.InventoryClickEvent(
+                smithingView, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 1,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PLACE_ALL
+        ) {
+            @Override public ItemStack getCursor() { return vanillaSword; }
+        };
+        listener.onInventoryClick(placeVanillaCursor);
+        assertFalse(placeVanillaCursor.isCancelled(), "Placing vanilla item into slot 1 of Smithing Table must be allowed");
+
+        // D. Shift-click RoyItem from inventory -> Cancelled
+        org.bukkit.event.inventory.InventoryClickEvent shiftClickRoy = new org.bukkit.event.inventory.InventoryClickEvent(
+                smithingView, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 4,
+                org.bukkit.event.inventory.ClickType.SHIFT_LEFT, org.bukkit.event.inventory.InventoryAction.MOVE_TO_OTHER_INVENTORY
+        ) {
+            @Override public ItemStack getCurrentItem() { return royWithEnch; }
+        };
+        listener.onInventoryClick(shiftClickRoy);
+        assertTrue(shiftClickRoy.isCancelled(), "Shift-clicking RoyItem into Smithing Table must be cancelled");
+
+        // 2. Grindstone Simulations
+        Map<Integer, ItemStack> grindstoneSlots = new HashMap<>();
+        org.bukkit.inventory.GrindstoneInventory mockGrindstone =
+                (org.bukkit.inventory.GrindstoneInventory) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.inventory.GrindstoneInventory.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.inventory.GrindstoneInventory.class},
+                        (proxy, method, args) -> {
+                            if ("getItem".equals(method.getName())) return grindstoneSlots.get((int) args[0]);
+                            if ("setItem".equals(method.getName())) {
+                                grindstoneSlots.put((int) args[0], (ItemStack) args[1]);
+                                return null;
+                            }
+                            if ("getContents".equals(method.getName())) return grindstoneSlots.values().toArray(new ItemStack[0]);
+                            return null;
+                        }
+                );
+
+        org.bukkit.inventory.InventoryView grindstoneView = (org.bukkit.inventory.InventoryView) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.InventoryView.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.InventoryView.class},
+                (proxy, method, args) -> {
+                    if ("getTopInventory".equals(method.getName())) return mockGrindstone;
+                    if ("getPlayer".equals(method.getName())) return mockPlayer;
+                    if ("convertSlot".equals(method.getName())) return args != null && args.length > 0 ? args[0] : 0;
+                    return null;
+                }
+        );
+
+        // A. Result slot click when RoyItem has configured enchants -> Cancelled
+        grindstoneSlots.put(0, royWithEnch);
+        org.bukkit.event.inventory.InventoryClickEvent clickGrindResultBlocked = new org.bukkit.event.inventory.InventoryClickEvent(
+                grindstoneView, org.bukkit.event.inventory.InventoryType.SlotType.RESULT, 2,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PICKUP_ALL
+        );
+        listener.onInventoryClick(clickGrindResultBlocked);
+        assertTrue(clickGrindResultBlocked.isCancelled(), "Result click on Grindstone for RoyItem with configured enchants must be cancelled");
+
+        // B. Result slot click when RoyItem has NO configured enchants -> Allowed
+        grindstoneSlots.clear();
+        grindstoneSlots.put(0, royWithoutEnch);
+        org.bukkit.event.inventory.InventoryClickEvent clickGrindResultAllowed = new org.bukkit.event.inventory.InventoryClickEvent(
+                grindstoneView, org.bukkit.event.inventory.InventoryType.SlotType.RESULT, 2,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PICKUP_ALL
+        );
+        listener.onInventoryClick(clickGrindResultAllowed);
+        assertFalse(clickGrindResultAllowed.isCancelled(), "Result click on Grindstone for RoyItem without configured enchants must be allowed");
+
+        // C. Placing item with configured enchants into Slot 0 -> Cancelled
+        grindstoneSlots.clear();
+        org.bukkit.event.inventory.InventoryClickEvent placeGrindBlocked = new org.bukkit.event.inventory.InventoryClickEvent(
+                grindstoneView, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 0,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PLACE_ALL
+        ) {
+            @Override public ItemStack getCursor() { return royWithEnch; }
+        };
+        listener.onInventoryClick(placeGrindBlocked);
+        assertTrue(placeGrindBlocked.isCancelled(), "Placing RoyItem with configured enchantments into Grindstone must be cancelled");
+
+        // D. Placing item without configured enchants into Slot 0 -> Allowed
+        org.bukkit.event.inventory.InventoryClickEvent placeGrindAllowed = new org.bukkit.event.inventory.InventoryClickEvent(
+                grindstoneView, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 0,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PLACE_ALL
+        ) {
+            @Override public ItemStack getCursor() { return royWithoutEnch; }
+        };
+        listener.onInventoryClick(placeGrindAllowed);
+        assertFalse(placeGrindAllowed.isCancelled(), "Placing RoyItem without configured enchantments into empty Grindstone must be allowed");
+
+        // E. Combining: Placing a second item into slot 1 when slot 0 already has a RoyItem -> Cancelled
+        grindstoneSlots.put(0, royWithoutEnch);
+        org.bukkit.event.inventory.InventoryClickEvent placeGrindCombine = new org.bukkit.event.inventory.InventoryClickEvent(
+                grindstoneView, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 1,
+                org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PLACE_ALL
+        ) {
+            @Override public ItemStack getCursor() { return vanillaSword; }
+        };
+        listener.onInventoryClick(placeGrindCombine);
+        assertTrue(placeGrindCombine.isCancelled(), "Combining second item with RoyItem in Grindstone must be cancelled");
     }
 }

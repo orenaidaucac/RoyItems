@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TestRegistryAccess implements RegistryAccess {
 
     private final Map<NamespacedKey, Enchantment> dummyEnchants = new java.util.HashMap<>();
-    private final Map<NamespacedKey, Object> otherObjects = new java.util.HashMap<>();
+    private final Map<String, Object> otherObjects = new java.util.HashMap<>();
 
     @SuppressWarnings("unchecked")
     @Override
@@ -46,6 +46,8 @@ public class TestRegistryAccess implements RegistryAccess {
             type = org.bukkit.block.BlockType.class;
         } else if (RegistryKey.ENCHANTMENT.equals(registryKey)) {
             type = Enchantment.class;
+        } else if (registryKey != null && "menu".equalsIgnoreCase(registryKey.key().value())) {
+            type = org.bukkit.inventory.MenuType.Typed.class;
         }
         return (Registry<T>) createRegistry(type);
     }
@@ -101,22 +103,29 @@ public class TestRegistryAccess implements RegistryAccess {
             }
         }
 
-        // For other types (like BlockType, ItemType, etc.), create a dynamic proxy of Keyed / targetType if interface
-        Object existing = otherObjects.get(key);
-        if (existing != null) return existing;
-
         if (targetType == null) {
             for (StackTraceElement elem : Thread.currentThread().getStackTrace()) {
                 if (elem.getClassName().contains("Material") || elem.getMethodName().contains("asItemType")) {
                     targetType = ItemType.class;
                     break;
+                } else if (elem.getClassName().contains("MenuType") || elem.getClassName().contains("InventoryType")) {
+                    targetType = org.bukkit.inventory.MenuType.Typed.class;
+                    break;
                 }
             }
         }
 
+        // For other types (like BlockType, ItemType, MenuType, etc.), create a dynamic proxy of Keyed / targetType if interface
+        String cacheKey = (targetType != null ? targetType.getName() : "null") + ":" + key;
+        Object existing = otherObjects.get(cacheKey);
+        if (existing != null) return existing;
+
         Set<Class<?>> interfaces = new LinkedHashSet<>();
         if (targetType != null && targetType.isInterface()) {
             interfaces.add(targetType);
+            if (org.bukkit.inventory.MenuType.class.isAssignableFrom(targetType)) {
+                interfaces.add(org.bukkit.inventory.MenuType.Typed.class);
+            }
         }
         interfaces.add(Keyed.class);
 
@@ -133,11 +142,15 @@ public class TestRegistryAccess implements RegistryAccess {
                     if ("getMaxDurability".equals(m.getName())) return (short) 0;
                     if ("getItemMetaClass".equals(m.getName())) return org.bukkit.inventory.meta.ItemMeta.class;
                     if ("asMaterial".equals(m.getName())) return org.bukkit.Material.matchMaterial(key.getKey());
+                    if ("isAir".equals(m.getName())) {
+                        String k = key.getKey().toLowerCase();
+                        return k.equals("air") || k.equals("cave_air") || k.equals("void_air");
+                    }
                     if ("typed".equals(m.getName())) return p;
                     return null;
                 }
         );
-        otherObjects.put(key, mockObj);
+        otherObjects.put(cacheKey, mockObj);
         return mockObj;
     }
 

@@ -24,6 +24,8 @@ messages:
   cooldown-active: "&cThis item is currently on cooldown! (&f#time#s&c remaining)"
   editor-locked: "&cThis item is currently being edited by another administrator!"
   anvil-rename-blocked: "&cYou cannot rename RoyItems items using an anvil."
+  smithing-table-blocked: "&cYou cannot upgrade or trim RoyItems using a Smithing Table."
+  grindstone-disenchant-blocked: "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone."
 
   # Update notifications (Admin on join and on reload)
   update-available:

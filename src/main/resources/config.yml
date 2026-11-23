@@ -221,6 +221,29 @@ anvil:
   prevent-rename: true
 
 # ==============================================================================
+# SMITHING TABLE RESTRICTIONS
+# ==============================================================================
+smithing-table:
+  # Prevent players from upgrading or trimming RoyItems using a Smithing Table.
+  # When true (default):
+  #   - Blocks vanillaizing / corrupting RoyItems via Netherite upgrades or Armor Trims.
+  # When false:
+  #   - Allows players to use Smithing Table on RoyItems (may result in loss of custom stats/data).
+  prevent-corrupt: true
+
+# ==============================================================================
+# GRINDSTONE RESTRICTIONS
+# ==============================================================================
+grindstone:
+  # Prevent players from removing pre-configured enchantments from RoyItems using a Grindstone.
+  # When true (default):
+  #   - Disenchanting pre-configured enchantments or combining items that would destroy RoyItems is blocked.
+  #   - Items without pre-configured enchantments and vanilla items can still use Grindstone normally.
+  # When false:
+  #   - Allows players to disenchant any RoyItem using a Grindstone.
+  prevent-disenchant-configured: true
+
+# ==============================================================================
 # MINE RADIUS MECHANICS & EXECUTOR
 # Controls wide-area horizontal plane mining for items with type: TOOL
 # and the mine-radius stat (3x3, 5x5, 7x7, 9x9, 11x11...).

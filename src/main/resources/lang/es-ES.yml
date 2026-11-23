@@ -24,6 +24,8 @@ messages:
   cooldown-active: "&c¡Este objeto está en enfriamiento! (Quedan &f#time#s&c)"
   editor-locked: "&c¡Este objeto está siendo editado actualmente por otro administrador!"
   anvil-rename-blocked: "&cNo puedes cambiar el nombre de los objetos de RoyItems usando un yunque."
+  smithing-table-blocked: "&cNo puedes mejorar ni aplicar adornos a objetos de RoyItems en una mesa de herrería."
+  grindstone-disenchant-blocked: "&cNo puedes eliminar los encantamientos preconfigurados de objetos de RoyItems en una afiladora."
 
   # Notificaciones de actualización (Administradores al unirse y al recargar)
   update-available:

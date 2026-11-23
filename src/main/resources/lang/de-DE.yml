@@ -24,6 +24,8 @@ messages:
   cooldown-active: "&cDieser Gegenstand hat noch Abklingzeit! (Noch &f#time#s&c)"
   editor-locked: "&cDieser Gegenstand wird derzeit von einem anderen Administrator bearbeitet!"
   anvil-rename-blocked: "&cDu kannst RoyItems-Gegenstände nicht im Amboss umbenennen."
+  smithing-table-blocked: "&cDu kannst RoyItems-Gegenstände nicht am Schmiedetisch aufwerten oder verzieren."
+  grindstone-disenchant-blocked: "&cDu kannst vorkonfigurierte Verzauberungen von RoyItems-Gegenständen nicht am Schleifstein entfernen."
 
   # Update-Benachrichtigungen (Admin beim Beitreten und Neuladen)
   update-available:

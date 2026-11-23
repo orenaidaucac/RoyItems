@@ -24,6 +24,8 @@ messages:
   cooldown-active: "&c이 아이템은 현재 재사용 대기시간입니다! (남은 시간: &f#time#초&c)"
   editor-locked: "&c이 아이템은 현재 다른 관리자가 편집 중입니다!"
   anvil-rename-blocked: "&c모루를 사용하여 RoyItems 아이템의 이름을 변경할 수 없습니다."
+  smithing-table-blocked: "&c대장장이 작업대를 사용하여 RoyItems 아이템을 업그레이드하거나 장식할 수 없습니다."
+  grindstone-disenchant-blocked: "&c숫돌을 사용하여 RoyItems 아이템의 기본 설정 마법을 제거할 수 없습니다."
 
   # 업데이트 알림 (관리자 접속 및 리로드 시)
   update-available:

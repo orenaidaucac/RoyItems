@@ -24,6 +24,8 @@ messages:
   cooldown-active: "&cVật phẩm này đang trong thời gian hồi chiêu! (Còn &f#time#s&c)"
   editor-locked: "&cVật phẩm này hiện đang được chỉnh sửa bởi một quản trị viên khác!"
   anvil-rename-blocked: "&cBạn không thể đổi tên vật phẩm RoyItems thông qua đe!"
+  smithing-table-blocked: "&cBạn không thể nâng cấp hoặc gắn Trim cho vật phẩm RoyItems bằng bàn rèn!"
+  grindstone-disenchant-blocked: "&cBạn không thể xóa phù phép mặc định của vật phẩm RoyItems bằng đá mài!"
 
   # Thông báo update (Admin khi vào server và khi reload)
   update-available:

@@ -24,6 +24,8 @@ messages:
   cooldown-active: "&cこのアイテムは現在クールダウン中です！ (残り &f#time#秒&c)"
   editor-locked: "&cこのアイテムは現在、別の管理者によって編集中です！"
   anvil-rename-blocked: "&c金床を使用してRoyItemsのアイテムの名前を変更することはできません。"
+  smithing-table-blocked: "&c鍛冶台を使用してRoyItemsアイテムを強化または装飾することはできません。"
+  grindstone-disenchant-blocked: "&c砥石を使用してRoyItemsアイテムの初期設定エンチャントを解除することはできません。"
 
   # アップデート通知 (参加時およびリロード時の管理者向け)
   update-available:

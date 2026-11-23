@@ -38,6 +38,8 @@ public class ItemProtectionListener implements Listener {
     private final ItemRegistry registry;
     private final MessageManager messageManager;
     private boolean preventAnvilRename = true;
+    private boolean preventSmithingCorrupt = true;
+    private boolean preventGrindstoneDisenchantConfigured = true;
 
     public ItemProtectionListener(ItemPDCManager pdcManager, ItemRegistry registry) {
         this(pdcManager, registry, null);
@@ -52,6 +54,8 @@ public class ItemProtectionListener implements Listener {
     public void loadConfig(FileConfiguration config) {
         if (config != null) {
             this.preventAnvilRename = config.getBoolean("anvil.prevent-rename", true);
+            this.preventSmithingCorrupt = config.getBoolean("smithing-table.prevent-corrupt", true);
+            this.preventGrindstoneDisenchantConfigured = config.getBoolean("grindstone.prevent-disenchant-configured", true);
         }
     }
 
@@ -65,6 +69,63 @@ public class ItemProtectionListener implements Listener {
             return def.getPreventAnvilRename();
         }
         return preventAnvilRename;
+    }
+
+    public boolean isPreventSmithingCorrupt() {
+        return preventSmithingCorrupt;
+    }
+
+    public boolean isPreventGrindstoneDisenchantConfigured() {
+        return preventGrindstoneDisenchantConfigured;
+    }
+
+    /**
+     * Checks if a RoyItem has pre-configured enchantments in its YAML definition.
+     */
+    public boolean hasConfiguredEnchantments(ItemStack item) {
+        ItemDefinition def = getDefinition(item);
+        if (def == null) return false;
+        java.util.Map<org.bukkit.enchantments.Enchantment, Integer> conf = def.getEnchantments();
+        return conf != null && !conf.isEmpty();
+    }
+
+    /**
+     * Checks if a Smithing Table inventory contains any RoyItem in its input or result slots.
+     */
+    public boolean isSmithingCorruptAttempt(SmithingInventory inv) {
+        if (inv == null || !preventSmithingCorrupt) return false;
+        for (int i = 0; i < 3; i++) {
+            ItemStack item = inv.getItem(i);
+            if (item != null && !item.getType().isAir() && pdcManager.isRoyItem(item)) {
+                return true;
+            }
+        }
+        ItemStack result = inv.getItem(3);
+        return result != null && !result.getType().isAir() && pdcManager.isRoyItem(result);
+    }
+
+    /**
+     * Checks if a Grindstone inventory operation should be blocked:
+     * 1. Either input item is a RoyItem with pre-configured enchantments.
+     * 2. Combining two items where at least one is a RoyItem (which wipes RoyItem PDC/lore/stats).
+     */
+    public boolean isGrindstoneBlocked(GrindstoneInventory inv) {
+        if (inv == null || !preventGrindstoneDisenchantConfigured) return false;
+        ItemStack item0 = inv.getItem(0);
+        ItemStack item1 = inv.getItem(1);
+        boolean has0 = item0 != null && !item0.getType().isAir();
+        boolean has1 = item1 != null && !item1.getType().isAir();
+
+        // 1. Check if either item has pre-configured enchantments
+        if (has0 && hasConfiguredEnchantments(item0)) return true;
+        if (has1 && hasConfiguredEnchantments(item1)) return true;
+
+        // 2. Combining two items where at least one is a RoyItem
+        if (has0 && has1 && (pdcManager.isRoyItem(item0) || pdcManager.isRoyItem(item1))) {
+            return true;
+        }
+
+        return false;
     }
 
     public ItemDefinition getDefinition(ItemStack item) {
@@ -280,15 +341,16 @@ public class ItemProtectionListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.LOW)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPrepareGrindstone(PrepareGrindstoneEvent event) {
         GrindstoneInventory inv = event.getInventory();
-        if (isDisableOnEnchantment(inv.getItem(0)) || isDisableOnEnchantment(inv.getItem(1))) {
+        if (isDisableOnEnchantment(inv.getItem(0)) || isDisableOnEnchantment(inv.getItem(1))
+                || isGrindstoneBlocked(inv)) {
             event.setResult(null);
         }
     }
 
-    @EventHandler(priority = EventPriority.LOW)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPrepareSmithing(PrepareSmithingEvent event) {
         SmithingInventory inv = event.getInventory();
         for (ItemStack item : inv.getContents()) {
@@ -296,6 +358,9 @@ public class ItemProtectionListener implements Listener {
                 event.setResult(null);
                 return;
             }
+        }
+        if (isSmithingCorruptAttempt(inv)) {
+            event.setResult(null);
         }
     }
 
@@ -449,19 +514,215 @@ public class ItemProtectionListener implements Listener {
                 }
             }
         } else if (inv instanceof GrindstoneInventory grindstone) {
-            if (event.getRawSlot() == 2) {
-                if (isDisableOnEnchantment(grindstone.getItem(0)) || isDisableOnEnchantment(grindstone.getItem(1))) {
+            int rawSlot = event.getRawSlot();
+            // A. Result Slot (Raw slot 2)
+            if (rawSlot == 2) {
+                boolean disabled = isDisableOnEnchantment(grindstone.getItem(0)) || isDisableOnEnchantment(grindstone.getItem(1));
+                if (disabled || isGrindstoneBlocked(grindstone)) {
                     event.setCancelled(true);
-                    if (event.getWhoClicked() instanceof Player p) p.updateInventory();
+                    grindstone.setItem(2, null);
+                    if (event.getWhoClicked() instanceof Player p) {
+                        p.updateInventory();
+                        if (isGrindstoneBlocked(grindstone) && messageManager != null) {
+                            messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                        }
+                    }
                     return;
                 }
             }
+
+            // B. Direct cursor placement into input slots (Raw slots 0, 1)
+            if (rawSlot >= 0 && rawSlot <= 1 && preventGrindstoneDisenchantConfigured) {
+                ItemStack cursor = event.getCursor();
+                if (cursor != null && !cursor.getType().isAir()) {
+                    if (hasConfiguredEnchantments(cursor)) {
+                        event.setCancelled(true);
+                        if (event.getWhoClicked() instanceof Player p) {
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                        }
+                        return;
+                    }
+                    int otherSlot = (rawSlot == 0) ? 1 : 0;
+                    ItemStack other = grindstone.getItem(otherSlot);
+                    if (other != null && !other.getType().isAir() && (pdcManager.isRoyItem(cursor) || pdcManager.isRoyItem(other))) {
+                        event.setCancelled(true);
+                        if (event.getWhoClicked() instanceof Player p) {
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // C. Shift-clicking from player inventory into Grindstone
+            if (event.isShiftClick() && rawSlot >= 3 && preventGrindstoneDisenchantConfigured) {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && !clicked.getType().isAir()) {
+                    if (hasConfiguredEnchantments(clicked)) {
+                        event.setCancelled(true);
+                        if (event.getWhoClicked() instanceof Player p) {
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                        }
+                        return;
+                    }
+                    boolean has0 = grindstone.getItem(0) != null && !grindstone.getItem(0).getType().isAir();
+                    boolean has1 = grindstone.getItem(1) != null && !grindstone.getItem(1).getType().isAir();
+                    if ((has0 || has1) && (pdcManager.isRoyItem(clicked) || (has0 && pdcManager.isRoyItem(grindstone.getItem(0))) || (has1 && pdcManager.isRoyItem(grindstone.getItem(1))))) {
+                        event.setCancelled(true);
+                        if (event.getWhoClicked() instanceof Player p) {
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // D. Hotbar Number Key Swap into input slots (Raw slots 0, 1)
+            if (rawSlot >= 0 && rawSlot <= 1 && event.getClick() == ClickType.NUMBER_KEY && preventGrindstoneDisenchantConfigured) {
+                int hotbarBtn = event.getHotbarButton();
+                if (hotbarBtn >= 0 && hotbarBtn < 9 && event.getWhoClicked() instanceof Player p) {
+                    ItemStack hotbarItem = p.getInventory().getItem(hotbarBtn);
+                    if (hotbarItem != null && !hotbarItem.getType().isAir()) {
+                        if (hasConfiguredEnchantments(hotbarItem)) {
+                            event.setCancelled(true);
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                            return;
+                        }
+                        int otherSlot = (rawSlot == 0) ? 1 : 0;
+                        ItemStack other = grindstone.getItem(otherSlot);
+                        if (other != null && !other.getType().isAir() && (pdcManager.isRoyItem(hotbarItem) || pdcManager.isRoyItem(other))) {
+                            event.setCancelled(true);
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // E. Offhand Swap Key (F) into input slots (Raw slots 0, 1)
+            if (rawSlot >= 0 && rawSlot <= 1 && event.getClick() == ClickType.SWAP_OFFHAND && preventGrindstoneDisenchantConfigured) {
+                if (event.getWhoClicked() instanceof Player p) {
+                    ItemStack offhand = p.getInventory().getItemInOffHand();
+                    if (offhand != null && !offhand.getType().isAir()) {
+                        if (hasConfiguredEnchantments(offhand)) {
+                            event.setCancelled(true);
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                            return;
+                        }
+                        int otherSlot = (rawSlot == 0) ? 1 : 0;
+                        ItemStack other = grindstone.getItem(otherSlot);
+                        if (other != null && !other.getType().isAir() && (pdcManager.isRoyItem(offhand) || pdcManager.isRoyItem(other))) {
+                            event.setCancelled(true);
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
         } else if (inv instanceof SmithingInventory smithing) {
-            if (event.getRawSlot() == 3) {
+            int rawSlot = event.getRawSlot();
+            // A. Result Slot (Raw slot 3)
+            if (rawSlot == 3) {
+                boolean disabled = false;
                 for (ItemStack item : smithing.getContents()) {
                     if (isDisableOnEnchantment(item) || isDisableOnCrafting(item)) {
+                        disabled = true;
+                        break;
+                    }
+                }
+                if (disabled || isSmithingCorruptAttempt(smithing)) {
+                    event.setCancelled(true);
+                    smithing.setItem(3, null);
+                    if (event.getWhoClicked() instanceof Player p) {
+                        p.updateInventory();
+                        if (isSmithingCorruptAttempt(smithing) && messageManager != null) {
+                            messageManager.send(p, "smithing-table-blocked", "&cYou cannot upgrade or trim RoyItems using a Smithing Table.");
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // B. Direct cursor placement into input slots (Raw slots 0, 1, 2)
+            if (rawSlot >= 0 && rawSlot <= 2 && preventSmithingCorrupt) {
+                ItemStack cursor = event.getCursor();
+                if (cursor != null && !cursor.getType().isAir() && pdcManager.isRoyItem(cursor)) {
+                    event.setCancelled(true);
+                    if (event.getWhoClicked() instanceof Player p) {
+                        p.updateInventory();
+                        if (messageManager != null) {
+                            messageManager.send(p, "smithing-table-blocked", "&cYou cannot upgrade or trim RoyItems using a Smithing Table.");
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // C. Shift-clicking from player inventory into Smithing Table
+            if (event.isShiftClick() && rawSlot >= 4 && preventSmithingCorrupt) {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && !clicked.getType().isAir() && pdcManager.isRoyItem(clicked)) {
+                    event.setCancelled(true);
+                    if (event.getWhoClicked() instanceof Player p) {
+                        p.updateInventory();
+                        if (messageManager != null) {
+                            messageManager.send(p, "smithing-table-blocked", "&cYou cannot upgrade or trim RoyItems using a Smithing Table.");
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // D. Hotbar Number Key Swap into input slots (Raw slots 0, 1, 2)
+            if (rawSlot >= 0 && rawSlot <= 2 && event.getClick() == ClickType.NUMBER_KEY && preventSmithingCorrupt) {
+                int hotbarBtn = event.getHotbarButton();
+                if (hotbarBtn >= 0 && hotbarBtn < 9 && event.getWhoClicked() instanceof Player p) {
+                    ItemStack hotbarItem = p.getInventory().getItem(hotbarBtn);
+                    if (hotbarItem != null && !hotbarItem.getType().isAir() && pdcManager.isRoyItem(hotbarItem)) {
                         event.setCancelled(true);
-                        if (event.getWhoClicked() instanceof Player p) p.updateInventory();
+                        p.updateInventory();
+                        if (messageManager != null) {
+                            messageManager.send(p, "smithing-table-blocked", "&cYou cannot upgrade or trim RoyItems using a Smithing Table.");
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // E. Offhand Swap Key (F) into input slots (Raw slots 0, 1, 2)
+            if (rawSlot >= 0 && rawSlot <= 2 && event.getClick() == ClickType.SWAP_OFFHAND && preventSmithingCorrupt) {
+                if (event.getWhoClicked() instanceof Player p) {
+                    ItemStack offhand = p.getInventory().getItemInOffHand();
+                    if (offhand != null && !offhand.getType().isAir() && pdcManager.isRoyItem(offhand)) {
+                        event.setCancelled(true);
+                        p.updateInventory();
+                        if (messageManager != null) {
+                            messageManager.send(p, "smithing-table-blocked", "&cYou cannot upgrade or trim RoyItems using a Smithing Table.");
+                        }
                         return;
                     }
                 }
@@ -502,6 +763,54 @@ public class ItemProtectionListener implements Listener {
         if (event.getRawSlots().contains(-999)) {
             if (isDisableOnDrop(event.getOldCursor())) {
                 event.setCancelled(true);
+                return;
+            }
+        }
+
+        Inventory top = event.getView().getTopInventory();
+        if (top instanceof SmithingInventory) {
+            if (preventSmithingCorrupt && event.getOldCursor() != null && !event.getOldCursor().getType().isAir() && pdcManager.isRoyItem(event.getOldCursor())) {
+                for (int slot : event.getRawSlots()) {
+                    if (slot >= 0 && slot <= 2) {
+                        event.setCancelled(true);
+                        if (event.getWhoClicked() instanceof Player p) {
+                            p.updateInventory();
+                            if (messageManager != null) {
+                                messageManager.send(p, "smithing-table-blocked", "&cYou cannot upgrade or trim RoyItems using a Smithing Table.");
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+        } else if (top instanceof GrindstoneInventory grindstone) {
+            if (preventGrindstoneDisenchantConfigured && event.getOldCursor() != null && !event.getOldCursor().getType().isAir()) {
+                for (int slot : event.getRawSlots()) {
+                    if (slot >= 0 && slot <= 1) {
+                        if (hasConfiguredEnchantments(event.getOldCursor())) {
+                            event.setCancelled(true);
+                            if (event.getWhoClicked() instanceof Player p) {
+                                p.updateInventory();
+                                if (messageManager != null) {
+                                    messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                                }
+                            }
+                            return;
+                        }
+                        int otherSlot = (slot == 0) ? 1 : 0;
+                        ItemStack other = grindstone.getItem(otherSlot);
+                        if (other != null && !other.getType().isAir() && (pdcManager.isRoyItem(event.getOldCursor()) || pdcManager.isRoyItem(other))) {
+                            event.setCancelled(true);
+                            if (event.getWhoClicked() instanceof Player p) {
+                                p.updateInventory();
+                                if (messageManager != null) {
+                                    messageManager.send(p, "grindstone-disenchant-blocked", "&cYou cannot remove pre-configured enchantments from RoyItems using a Grindstone.");
+                                }
+                            }
+                            return;
+                        }
+                    }
+                }
             }
         }
     }
