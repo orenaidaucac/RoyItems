@@ -1,11 +1,13 @@
 package com.github.orenaidaucac.royItems.core.config;
 
+import com.github.orenaidaucac.royItems.extraction.EnchantExtractionConfig;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.item.ItemRegistry;
 import com.github.orenaidaucac.royItems.item.ItemType;
 import com.github.orenaidaucac.royItems.mechanics.PotionEffectData;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
+import com.github.orenaidaucac.royItems.voucher.EcoEnchantReward;
 import com.github.orenaidaucac.royItems.voucher.VoucherCurrencyReward;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -275,6 +277,33 @@ public class ItemConfigManager {
             }
         }
 
+        // Voucher EcoEnchants Random Book Reward
+        if (sec.contains("ecoenchants")) {
+            ConfigurationSection ecoSec = sec.getConfigurationSection("ecoenchants");
+            if (ecoSec != null) {
+                String rarity = ecoSec.getString("rarity");
+                String ecoType = ecoSec.getString("type");
+                int minLevel = ecoSec.getInt("min-level", 1);
+                int maxLevel = ecoSec.getInt("max-level", Integer.MAX_VALUE);
+                if (rarity != null || ecoType != null || ecoSec.contains("min-level") || ecoSec.contains("max-level")) {
+                    def.setEcoEnchantReward(new EcoEnchantReward(rarity, ecoType, minLevel, maxLevel));
+                }
+            }
+        }
+
+        // Consumable Flag (controls right-click consumption)
+        if (sec.contains("consumable")) {
+            def.setConsumable(sec.getBoolean("consumable", true));
+        }
+
+        // Consumable Remove Enchantments (Enchantment Extraction)
+        if (sec.contains("remove-enchants")) {
+            ConfigurationSection reSec = sec.getConfigurationSection("remove-enchants");
+            if (reSec != null) {
+                def.setRemoveEnchantsConfig(EnchantExtractionConfig.fromConfig(reSec));
+            }
+        }
+
         def.setVersion(sec.getInt("version", 1));
 
         return def;
@@ -489,6 +518,49 @@ public class ItemConfigManager {
             }
         } else {
             config.set(path + ".currency", null);
+        }
+
+        // EcoEnchants Reward
+        if (def.getEcoEnchantReward() != null) {
+            EcoEnchantReward eco = def.getEcoEnchantReward();
+            if (eco.getRarity() != null) {
+                config.set(path + ".ecoenchants.rarity", eco.getRarity());
+            }
+            if (eco.getType() != null) {
+                config.set(path + ".ecoenchants.type", eco.getType());
+            }
+            if (eco.getMinLevel() > 1) {
+                config.set(path + ".ecoenchants.min-level", eco.getMinLevel());
+            }
+            if (eco.getMaxLevel() < Integer.MAX_VALUE) {
+                config.set(path + ".ecoenchants.max-level", eco.getMaxLevel());
+            }
+        } else {
+            config.set(path + ".ecoenchants", null);
+        }
+
+        // Consumable flag
+        if (!def.isConsumable()) {
+            config.set(path + ".consumable", false);
+        } else {
+            config.set(path + ".consumable", null);
+        }
+
+        // Remove Enchantments (Enchantment Extraction)
+        if (def.getRemoveEnchantsConfig() != null) {
+            EnchantExtractionConfig re = def.getRemoveEnchantsConfig();
+            config.set(path + ".remove-enchants.enabled", re.isEnabled());
+            config.set(path + ".remove-enchants.type", re.getType().name());
+            config.set(path + ".remove-enchants.chance", re.getChance());
+            if (re.getItemWhitelist() != null && !re.getItemWhitelist().isEmpty()) {
+                config.set(path + ".remove-enchants.item-whitelist", re.getItemWhitelist());
+            } else {
+                config.set(path + ".remove-enchants.item-whitelist", null);
+            }
+            config.set(path + ".remove-enchants.ecoenchants.rarity", re.getEcoRarities());
+            config.set(path + ".remove-enchants.ecoenchants.type", re.getEcoTypes());
+        } else {
+            config.set(path + ".remove-enchants", null);
         }
 
         // Bump version for LiveUpdate

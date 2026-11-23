@@ -184,7 +184,7 @@ requirements-format:
   auraskill: "&cAuraSkill: &f%skill% Lv.%level%"
 
 enchantments-format:
-  # Line format for standard enchantments (%name%, %level%, %raw-level%, %symbol%)
+  # Line format for standard enchantments (%name%, %level%, %raw-level%, %symbol%, %rarity%)
   format: "&7%name% %level%"
   # Line format for curse enchantments (Curse of Binding, Curse of Vanishing)
   curse-format: "&c%name% %level%"

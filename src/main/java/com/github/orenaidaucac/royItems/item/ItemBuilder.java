@@ -43,6 +43,10 @@ public class ItemBuilder {
         this.loreEngine = loreEngine;
     }
 
+    public DynamicLoreEngine getLoreEngine() {
+        return loreEngine;
+    }
+
     /**
      * Builds an ItemStack from a definition with default initial state.
      */
@@ -61,6 +65,14 @@ public class ItemBuilder {
      * Builds an ItemStack with specific instance state (slotted gems, expiration, active enchantments).
      */
     public ItemStack build(ItemDefinition def, int amount, List<String> slottedSockets, long expireTimestamp, Map<Enchantment, Integer> activeEnchants) {
+        return build(def, amount, slottedSockets, expireTimestamp, activeEnchants, false, null);
+    }
+
+    /**
+     * Builds an ItemStack with specific instance state, active enchantments, and active set bonus state.
+     */
+    public ItemStack build(ItemDefinition def, int amount, List<String> slottedSockets, long expireTimestamp,
+                           Map<Enchantment, Integer> activeEnchants, boolean isSetBonusActive, org.bukkit.entity.Player player) {
         if (def == null) return new ItemStack(Material.AIR);
 
         ItemStack item = createBaseItemStack(def.getMaterial());
@@ -84,7 +96,7 @@ public class ItemBuilder {
         }
 
         // 3. Dynamic Lore
-        List<String> rawLore = loreEngine.buildLore(def, slottedSockets, expireTimestamp, enchantsToApply);
+        List<String> rawLore = loreEngine.buildLore(def, slottedSockets, expireTimestamp, enchantsToApply, isSetBonusActive, player);
         meta.lore(TextUtility.formatLore(rawLore));
 
         // 4. Unbreakable
@@ -100,12 +112,20 @@ public class ItemBuilder {
 
         // Glow
         if (def.isGlow()) {
-            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            try {
+                meta.setEnchantmentGlintOverride(true);
+            } catch (Throwable t) {
+                meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
         }
 
         // If definition hides enchantments or lore format displays #enchantments#, hide vanilla tooltip
-        if (def.isHideEnchantments() || loreEngine.hasEnchantmentsPlaceholder(def)) {
+        boolean hideTooltip = def.isHideEnchantments() || (loreEngine != null && loreEngine.hasEnchantmentsPlaceholder(def));
+        if (!hideTooltip && loreEngine != null && loreEngine.getPlugin() != null) {
+            hideTooltip = loreEngine.getPlugin().getConfig().getBoolean("enchantments.hide-vanilla-tooltip", true);
+        }
+        if (hideTooltip) {
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         }
 
@@ -154,7 +174,7 @@ public class ItemBuilder {
 
         String socketsSerialized = serializeSockets(slottedSockets);
         pdcManager.tagItem(meta, def.getType(), def.getId(), def.getVersion(), finalExpire, socketsSerialized);
-        pdcManager.setEnchantHash(meta, enchantsToApply.hashCode());
+        pdcManager.setEnchantHash(meta, loreEngine.computeEnchantmentHash(def, enchantsToApply));
         if (def.getItemTier() != null && !def.getItemTier().isEmpty()) {
             pdcManager.tagTier(meta, def.getItemTier());
         }

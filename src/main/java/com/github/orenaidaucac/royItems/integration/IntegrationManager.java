@@ -35,6 +35,7 @@ public class IntegrationManager implements Listener {
     private FancyNpcsHook fancyNpcsHook;
     private PhoenixNpcsHook phoenixNpcsHook;
     private ExtraStorageHook extraStorageHook;
+    private VirtualStorageHook virtualStorageHook;
     private EcoEnchantsHook ecoEnchantsHook;
     private AdvancedOreGenHook advancedOreGenHook;
     private LuckPermsHook luckPermsHook;
@@ -116,6 +117,12 @@ public class IntegrationManager implements Listener {
         extraStorageHook = new ExtraStorageHook();
         if (extraStorageHook.setup()) {
             logger.info("Hooked into ExtraStorage successfully.");
+        }
+
+        // RoyMC-VirtualStorage
+        virtualStorageHook = new VirtualStorageHook();
+        if (virtualStorageHook.setup()) {
+            logger.info("Hooked into RoyMC-VirtualStorage successfully.");
         }
 
         // EcoEnchants
@@ -203,6 +210,7 @@ public class IntegrationManager implements Listener {
      */
     public void recheckHooks() {
         if (extraStorageHook != null) extraStorageHook.setup();
+        if (virtualStorageHook != null) virtualStorageHook.setup();
         if (ecoEnchantsHook != null) ecoEnchantsHook.setup();
         if (advancedOreGenHook != null) advancedOreGenHook.setup();
         if (mythicMobsHook != null) mythicMobsHook.setup();
@@ -303,6 +311,14 @@ public class IntegrationManager implements Listener {
 
     public ExtraStorageHook getExtraStorageHook() {
         return extraStorageHook;
+    }
+
+    public boolean hasVirtualStorage() {
+        return virtualStorageHook != null && virtualStorageHook.isAvailable();
+    }
+
+    public VirtualStorageHook getVirtualStorageHook() {
+        return virtualStorageHook;
     }
 
     public boolean hasEcoEnchants() {

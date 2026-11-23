@@ -1,5 +1,63 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.9] - 2026-11-23
+
+### 🌟 Highlights
+* **Advanced Shift-Click Mass Crafting:** Eliminated the artificial 64-item cap per shift-click craft operation in Crafting Stations. Players can now craft the exact maximum quantity supported by their raw materials and available inventory space in a single click (yielding hundreds or thousands of items across multiple stacks).
+* **Zero-Drop Guarantee & Inventory Pre-Checks:** Integrated high-speed inventory capacity simulation preventing item spills on the ground. If inventory space is completely full, crafting halts safely with an instant localized message without consuming any ingredients.
+* **Real-Time Dynamic Enchantment Lore Synchronization:** The `#enchantments#` placeholder now automatically updates lore in real time whenever enchantments are added or altered via Anvils, Enchanting Tables, Drag & Drop books, Admin commands, or Plugin APIs.
+* **Enchantment Extraction System (`CONSUMABLE`):** Introduced a drag-and-drop enchantment extractor mechanic. Players can extract single Vanilla or EcoEnchants enchantments off gear into functional Enchanted Books through an interactive GUI with configurable success rates and item whitelists.
+* **EcoEnchants Voucher Rewards & Gacha Integration:** Upgraded `type: VOUCHER` to award randomized EcoEnchants books filtered by Rarity or Type ID, with dynamic level boundaries and animated gacha roll effects.
+
+---
+
+### ➕ Added
+* **Shift-Click Mass Crafting Engine:**
+  * Sub-millisecond pre-calculation (`SimulatedSlot`) that accurately calculates open inventory slots, partial stack merges, and maximum item stack sizes.
+  * Multi-stack item generation directly into player inventory without dropping surplus items onto the ground.
+  * Added `craft-failed-inventory-full` message across all 7 supported language files (`en-US`, `vi-VN`, `zh-CN`, `es-ES`, `ru-RU`, `ja-JP`, `ko-KR`).
+  * Automatic ingredient pulling from both Player Inventory and **ExtraStorage** with full atomic transaction rollback safety.
+* **Consumable Enchantment Extraction:**
+  * Enabled `remove-enchants` feature for `type: CONSUMABLE` items.
+  * Drag-and-drop activation on equipment opens an interactive, responsive extraction GUI.
+  * Each enchantment is rendered as an interactive book with Roman numeral tiers, localized names, and rarity indicators.
+  * Configurable `success-chance`, `book-return-chance`, and `consume-on-failure`.
+  * Configurable `item-whitelist` (e.g. `SWORD`, `AXE`, `BOW`, `HELMET`, `CHESTPLATE`, etc.) preventing unauthorized item extraction.
+* **EcoEnchants Voucher Rewards:**
+  * Support for `ecoenchants.rarity` and `ecoenchants.type` in voucher reward definitions.
+  * Customizable `min-level` and `max-level` parameters with automatic verification against EcoEnchants registration limits.
+  * Creates fully authentic enchanted books with EcoEnchants PDC metadata and formatted lore.
+* **Dynamic Language Configuration Migration:**
+  * Intelligent configuration migration engine that scans disk language files on startup or reload.
+  * Automatically injects missing localization keys from new plugin versions while preserving existing comments, indentation, and custom admin translations.
+
+---
+
+### ⚡ Improved
+* **Authoritative Enchantment Lore Updating:**
+  * Rebuilt `#enchantments#` processor to immediately reflect enchantment changes across Anvils, Enchanting Tables, command upgrades, and external plugins.
+  * Implemented an internal glow-filter (`getEffectiveEnchantments`) that hides synthetic glowing enchantments (e.g. `LUCK_OF_THE_SEA` with hidden flags) from visible lore lines.
+  * Real-time sync on hand-switch, inventory interaction, and item repair.
+* **Crafting Station Performance:**
+  * Shift-click calculations execute in memory with integer simulation, incurring zero garbage collection pressure or TPS impact even during massive thousand-item crafts.
+  * Unified storage deduction ensures player inventory items are exhausted before consuming remote ExtraStorage items.
+
+---
+
+### 🐛 Bug Fixes
+* **Fixed Shift-Click 64-Item Crafting Ceiling:** Removed the hardcoded single-stack ceiling that prevented players with ample inventory space from mass-crafting items.
+* **Fixed Static Enchantment Lore Desync:** Resolved an issue where combining books in an Anvil or enchanting items in an Enchanting Table left custom `#enchantments#` lore unrefreshed until a full server reload.
+* **Fixed Glowing Enchantment Pollution:** Filtered internal cosmetic glow enchantments from generating phantom enchantment lines in custom item lore.
+* **Fixed Ground Item Spills in Crafting Stations:** Prevented overflow items from dropping on the ground when crafting large amounts with limited inventory space.
+
+---
+
+### 🔌 Compatibility
+* **Minecraft / Server Software:** Paper, Purpur, Folia, Leaf, and Spigot 1.21.4+ (Java 21+).
+* **Soft Dependencies:** EcoEnchants, ExtraStorage, AdvancedOreGen, MythicMobs 5.x, MMOCore, AuraSkills, Vault, PlaceholderAPI, WorldGuard, Nexo, ItemsAdder, Oraxen, and Citizens/FancyNpcs/PhoenixNPCs.
+
+---
+
 ## [2026.1.8] - 2026-11-15
 
 ### 🐛 Bug Fixes

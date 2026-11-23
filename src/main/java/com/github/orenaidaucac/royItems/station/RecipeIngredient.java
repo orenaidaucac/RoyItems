@@ -47,16 +47,34 @@ public interface RecipeIngredient {
     }
 
     default boolean hasEnough(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
-        return getPlayerAmount(player, registry, pdc, integration) >= getAmount();
+        return hasEnough(player, registry, pdc, integration, 1);
+    }
+
+    default boolean hasEnough(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+        if (multiplier <= 0) return true;
+        long totalNeed = (long) getAmount() * multiplier;
+        return getPlayerAmount(player, registry, pdc, integration) >= totalNeed;
     }
 
     boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration);
 
-    default boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration) {
-        return give(player, registry, pdc, builder, integration, 1);
+    default boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+        if (multiplier <= 0) return true;
+        for (int i = 0; i < multiplier; i++) {
+            if (!take(player, registry, pdc, integration)) return false;
+        }
+        return true;
     }
 
-    boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier);
+    default boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration) {
+        return give(player, registry, pdc, builder, integration, 1, false);
+    }
+
+    default boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+        return give(player, registry, pdc, builder, integration, multiplier, false);
+    }
+
+    boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround);
 
     String getFormattedDisplayName(StationDynamicLore loreConfig, ItemRegistry registry);
 
@@ -199,13 +217,20 @@ public interface RecipeIngredient {
 
         @Override
         public int getStorageAmount(Player player, IntegrationManager integration) {
-            if (player == null || integration == null || !integration.hasExtraStorage()) return 0;
-            // ExtraStorage strictly supports storing MATERIAL type
+            if (player == null || integration == null) return 0;
+            // VirtualStorage & ExtraStorage strictly support storing MATERIAL type
             if (itemType != null && itemType != ItemType.MATERIAL) {
                 return 0;
             }
             String storageKey = "ROYITEMS:MATERIAL:" + id.toLowerCase(Locale.ROOT);
-            return integration.getExtraStorageHook().getAmount(player, storageKey);
+            int total = 0;
+            if (integration.hasVirtualStorage()) {
+                total += (int) Math.min(Integer.MAX_VALUE, integration.getVirtualStorageHook().getAmount(player, storageKey));
+            }
+            if (integration.hasExtraStorage()) {
+                total += integration.getExtraStorageHook().getAmount(player, storageKey);
+            }
+            return total;
         }
 
         @Override
@@ -215,9 +240,18 @@ public interface RecipeIngredient {
 
         @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
-            if (!hasEnough(player, registry, pdc, integration)) return false;
+            return take(player, registry, pdc, integration, 1);
+        }
 
-            int need = amount;
+        @Override
+        public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+            if (multiplier <= 0) return true;
+            if (!hasEnough(player, registry, pdc, integration, multiplier)) return false;
+
+            long totalNeedLong = (long) amount * multiplier;
+            if (totalNeedLong > Integer.MAX_VALUE) return false;
+            int need = (int) totalNeedLong;
+
             int invAmount = getInventoryAmount(player, registry, pdc, integration);
             int takeFromInv = Math.min(invAmount, need);
             int takeFromStorage = need - takeFromInv;
@@ -228,7 +262,7 @@ public interface RecipeIngredient {
                 ItemStack[] contents = player.getInventory().getContents();
                 for (int i = 0; i < contents.length; i++) {
                     ItemStack item = contents[i];
-                    if (item != null && item.getType() != Material.AIR && pdc.isRoyItem(item)) {
+                    if (item != null && item.getType() != Material.AIR && pdc != null && pdc.isRoyItem(item)) {
                         String royId = pdc.getId(item);
                         ItemType rType = pdc.getType(item);
                         if (id.equalsIgnoreCase(royId) && (itemType == null || itemType == rType)) {
@@ -248,14 +282,34 @@ public interface RecipeIngredient {
                 player.updateInventory();
             }
 
-            // 2. Take remaining shortage from ExtraStorage
+            // 2. Take remaining shortage from VirtualStorage and/or ExtraStorage
             if (takeFromStorage > 0) {
-                if (integration == null || !integration.hasExtraStorage()) {
-                    return false;
-                }
+                int shortage = takeFromStorage;
                 String storageKey = "ROYITEMS:MATERIAL:" + id.toLowerCase(Locale.ROOT);
-                boolean success = integration.getExtraStorageHook().take(player, storageKey, takeFromStorage);
-                if (!success) {
+
+                // Priority 1: Take from RoyMC-VirtualStorage
+                if (integration != null && integration.hasVirtualStorage()) {
+                    long inVs = integration.getVirtualStorageHook().getAmount(player, storageKey);
+                    if (inVs > 0) {
+                        int takeVs = (int) Math.min(shortage, inVs);
+                        if (integration.getVirtualStorageHook().take(player, storageKey, takeVs)) {
+                            shortage -= takeVs;
+                        }
+                    }
+                }
+
+                // Priority 2: Take remaining from ExtraStorage if needed
+                if (shortage > 0 && integration != null && integration.hasExtraStorage()) {
+                    long inEs = integration.getExtraStorageHook().getAmount(player, storageKey);
+                    if (inEs > 0) {
+                        int takeEs = (int) Math.min(shortage, inEs);
+                        if (integration.getExtraStorageHook().take(player, storageKey, takeEs)) {
+                            shortage -= takeEs;
+                        }
+                    }
+                }
+
+                if (shortage > 0) {
                     // Safety rollback: if storage subtraction failed unexpectedly, restore inventory items
                     if (takeFromInv > 0 && registry != null) {
                         ItemDefinition def = registry.get(itemType, id);
@@ -274,6 +328,11 @@ public interface RecipeIngredient {
 
         @Override
         public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+            return give(player, registry, pdc, builder, integration, multiplier, false);
+        }
+
+        @Override
+        public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround) {
             if (player == null || registry == null || builder == null) return false;
             ItemDefinition def = registry.get(itemType, id);
             if (def == null) return false;
@@ -283,17 +342,23 @@ public interface RecipeIngredient {
             int maxStack = sample.getMaxStackSize() > 0 ? sample.getMaxStackSize() : 64;
 
             int left = total;
+            boolean allFit = true;
             while (left > 0) {
                 int stackSize = Math.min(left, maxStack);
                 ItemStack stack = builder.build(def, stackSize);
                 HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
-                for (ItemStack drop : leftover.values()) {
-                    player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                if (!leftover.isEmpty()) {
+                    allFit = false;
+                    if (dropOnGround) {
+                        for (ItemStack drop : leftover.values()) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                        }
+                    }
                 }
                 left -= stackSize;
             }
             player.updateInventory();
-            return true;
+            return allFit;
         }
 
         @Override
@@ -368,10 +433,16 @@ public interface RecipeIngredient {
 
         @Override
         public int getStorageAmount(Player player, IntegrationManager integration) {
-            if (player == null || integration == null || !integration.hasExtraStorage()) return 0;
-            // ExtraStorage stores vanilla materials by their enum name (e.g. DIAMOND)
+            if (player == null || integration == null) return 0;
             String storageKey = material.name();
-            return integration.getExtraStorageHook().getAmount(player, storageKey);
+            int total = 0;
+            if (integration.hasVirtualStorage()) {
+                total += (int) Math.min(Integer.MAX_VALUE, integration.getVirtualStorageHook().getAmount(player, storageKey));
+            }
+            if (integration.hasExtraStorage()) {
+                total += integration.getExtraStorageHook().getAmount(player, storageKey);
+            }
+            return total;
         }
 
         @Override
@@ -381,9 +452,18 @@ public interface RecipeIngredient {
 
         @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
-            if (!hasEnough(player, registry, pdc, integration)) return false;
+            return take(player, registry, pdc, integration, 1);
+        }
 
-            int need = amount;
+        @Override
+        public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+            if (multiplier <= 0) return true;
+            if (!hasEnough(player, registry, pdc, integration, multiplier)) return false;
+
+            long totalNeedLong = (long) amount * multiplier;
+            if (totalNeedLong > Integer.MAX_VALUE) return false;
+            int need = (int) totalNeedLong;
+
             int invAmount = getInventoryAmount(player, registry, pdc, integration);
             int takeFromInv = Math.min(invAmount, need);
             int takeFromStorage = need - takeFromInv;
@@ -411,14 +491,34 @@ public interface RecipeIngredient {
                 player.updateInventory();
             }
 
-            // 2. Take remaining shortage from ExtraStorage
+            // 2. Take remaining shortage from VirtualStorage and/or ExtraStorage
             if (takeFromStorage > 0) {
-                if (integration == null || !integration.hasExtraStorage()) {
-                    return false;
-                }
+                int shortage = takeFromStorage;
                 String storageKey = material.name();
-                boolean success = integration.getExtraStorageHook().take(player, storageKey, takeFromStorage);
-                if (!success) {
+
+                // Priority 1: Take from RoyMC-VirtualStorage
+                if (integration != null && integration.hasVirtualStorage()) {
+                    long inVs = integration.getVirtualStorageHook().getAmount(player, storageKey);
+                    if (inVs > 0) {
+                        int takeVs = (int) Math.min(shortage, inVs);
+                        if (integration.getVirtualStorageHook().take(player, storageKey, takeVs)) {
+                            shortage -= takeVs;
+                        }
+                    }
+                }
+
+                // Priority 2: Take remaining from ExtraStorage if needed
+                if (shortage > 0 && integration != null && integration.hasExtraStorage()) {
+                    long inEs = integration.getExtraStorageHook().getAmount(player, storageKey);
+                    if (inEs > 0) {
+                        int takeEs = (int) Math.min(shortage, inEs);
+                        if (integration.getExtraStorageHook().take(player, storageKey, takeEs)) {
+                            shortage -= takeEs;
+                        }
+                    }
+                }
+
+                if (shortage > 0) {
                     // Rollback inventory deduction if storage failed
                     if (takeFromInv > 0) {
                         player.getInventory().addItem(new ItemStack(material, takeFromInv));
@@ -433,10 +533,16 @@ public interface RecipeIngredient {
 
         @Override
         public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+            return give(player, registry, pdc, builder, integration, multiplier, false);
+        }
+
+        @Override
+        public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround) {
             if (player == null) return false;
             int total = amount * Math.max(1, multiplier);
             int left = total;
             int maxStack = material.getMaxStackSize() > 0 ? material.getMaxStackSize() : 64;
+            boolean allFit = true;
             while (left > 0) {
                 int stackSize = Math.min(left, maxStack);
                 ItemStack stack = new ItemStack(material, stackSize);
@@ -454,13 +560,18 @@ public interface RecipeIngredient {
                     }
                 }
                 HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
-                for (ItemStack drop : leftover.values()) {
-                    player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                if (!leftover.isEmpty()) {
+                    allFit = false;
+                    if (dropOnGround) {
+                        for (ItemStack drop : leftover.values()) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                        }
+                    }
                 }
                 left -= stackSize;
             }
             player.updateInventory();
-            return true;
+            return allFit;
         }
 
         @Override
@@ -554,14 +665,25 @@ public interface RecipeIngredient {
 
         @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+            return take(player, registry, pdc, integration, 1);
+        }
+
+        @Override
+        public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+            if (multiplier <= 0) return true;
             if (integration != null && integration.getVaultHook() != null) {
-                return integration.getVaultHook().withdraw(player, amount);
+                return integration.getVaultHook().withdraw(player, (double) amount * multiplier);
             }
             return false;
         }
 
         @Override
         public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+            return give(player, registry, pdc, builder, integration, multiplier, false);
+        }
+
+        @Override
+        public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround) {
             if (integration != null && integration.getVaultHook() != null) {
                 return integration.getVaultHook().deposit(player, (double) amount * Math.max(1, multiplier));
             }
@@ -605,13 +727,25 @@ public interface RecipeIngredient {
 
         @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
-            if (!hasEnough(player, registry, pdc, integration)) return false;
-            ExperienceUtils.takeExp(player, amount);
+            return take(player, registry, pdc, integration, 1);
+        }
+
+        @Override
+        public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+            if (multiplier <= 0) return true;
+            int total = amount * multiplier;
+            if (ExperienceUtils.getPlayerExp(player) < total) return false;
+            ExperienceUtils.takeExp(player, total);
             return true;
         }
 
         @Override
         public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+            return give(player, registry, pdc, builder, integration, multiplier, false);
+        }
+
+        @Override
+        public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround) {
             ExperienceUtils.giveExp(player, amount * Math.max(1, multiplier));
             return true;
         }
@@ -656,14 +790,25 @@ public interface RecipeIngredient {
 
         @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+            return take(player, registry, pdc, integration, 1);
+        }
+
+        @Override
+        public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+            if (multiplier <= 0) return true;
             if (integration != null && integration.getPlayerPointsHook() != null) {
-                return integration.getPlayerPointsHook().takePoints(player, amount);
+                return integration.getPlayerPointsHook().takePoints(player, amount * multiplier);
             }
             return false;
         }
 
         @Override
         public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+            return give(player, registry, pdc, builder, integration, multiplier, false);
+        }
+
+        @Override
+        public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround) {
             if (integration != null && integration.getPlayerPointsHook() != null) {
                 return integration.getPlayerPointsHook().givePoints(player, amount * Math.max(1, multiplier));
             }
@@ -713,14 +858,25 @@ public interface RecipeIngredient {
 
         @Override
         public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration) {
+            return take(player, registry, pdc, integration, 1);
+        }
+
+        @Override
+        public boolean take(Player player, ItemRegistry registry, ItemPDCManager pdc, IntegrationManager integration, int multiplier) {
+            if (multiplier <= 0) return true;
             if (integration != null && integration.getExcellentEconomyHook() != null) {
-                return integration.getExcellentEconomyHook().withdraw(player, currencyId, amount);
+                return integration.getExcellentEconomyHook().withdraw(player, currencyId, (double) amount * multiplier);
             }
             return false;
         }
 
         @Override
         public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier) {
+            return give(player, registry, pdc, builder, integration, multiplier, false);
+        }
+
+        @Override
+        public boolean give(Player player, ItemRegistry registry, ItemPDCManager pdc, ItemBuilder builder, IntegrationManager integration, int multiplier, boolean dropOnGround) {
             if (integration != null && integration.getExcellentEconomyHook() != null) {
                 return integration.getExcellentEconomyHook().deposit(player, currencyId, (double) amount * Math.max(1, multiplier));
             }

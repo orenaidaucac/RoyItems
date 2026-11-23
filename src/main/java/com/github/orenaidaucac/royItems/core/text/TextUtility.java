@@ -246,4 +246,18 @@ public class TextUtility {
         if (component == null) return "";
         return PlainTextComponentSerializer.plainText().serialize(component);
     }
+
+    /**
+     * Strips legacy colors, hex tags, and MiniMessage formatting tags from a string.
+     */
+    public static String stripColor(String input) {
+        if (input == null || input.isEmpty()) return "";
+        try {
+            return PlainTextComponentSerializer.plainText().serialize(format(input, false));
+        } catch (Exception e) {
+            return input.replaceAll("(?i)[&§][0-9a-fk-or]", "")
+                    .replaceAll("(?i)[&§]#[0-9a-fA-F]{6}", "")
+                    .replaceAll("<[^>]+>", "");
+        }
+    }
 }

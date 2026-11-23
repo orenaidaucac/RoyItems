@@ -4,6 +4,7 @@ import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.orenaidaucac.royItems.core.update.UpdateChecker;
 import com.github.orenaidaucac.royItems.item.LiveUpdateReport;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
@@ -12,7 +13,10 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Centralized internationalization (i18n) and message manager.
@@ -30,6 +34,7 @@ public class MessageManager {
     private FileConfiguration fallbackConfig;
     private String activeLanguage = "en-US";
     private String prefix = "&6RoyItems &8» &f";
+    private final Set<String> warnedMissingKeys = Collections.synchronizedSet(new HashSet<>());
 
     public MessageManager(Plugin plugin) {
         this.plugin = plugin;
@@ -37,6 +42,7 @@ public class MessageManager {
     }
 
     public void loadMessages() {
+        warnedMissingKeys.clear();
         File folder = new File(plugin.getDataFolder(), "lang");
         if (!folder.exists()) {
             folder.mkdirs();
@@ -52,7 +58,10 @@ public class MessageManager {
             }
         }
 
-        // 2. Load en-US embedded resource as universal fallback
+        // 2. Perform automatic language migration on existing files on disk
+        migrateLanguageFiles();
+
+        // 3. Load en-US embedded resource as universal fallback
         try {
             InputStream in = plugin.getResource("lang/en-US.yml");
             if (in != null) {
@@ -65,7 +74,7 @@ public class MessageManager {
             }
         } catch (Exception ignored) {}
 
-        // 3. Resolve active language from config.yml
+        // 4. Resolve active language from config.yml
         String requestedLang = plugin.getConfig().getString("language", "en-US");
         this.activeLanguage = normalizeLanguageCode(requestedLang);
 
@@ -84,6 +93,183 @@ public class MessageManager {
         this.config = YamlConfiguration.loadConfiguration(activeFile);
         this.prefix = config.getString("prefix", fallbackConfig != null ? fallbackConfig.getString("prefix", "&6RoyItems &8» &f") : "&6RoyItems &8» &f");
         plugin.getLogger().info("[MessageManager] Loaded localization language: " + activeLanguage + " (" + activeFile.getName() + ")");
+    }
+
+    /**
+     * Automatic Language Migration: Scans all .yml language files in plugins/RoyItems/lang/,
+     * identifies missing keys compared to embedded JAR template, and safely appends them
+     * while 100% preserving existing translations, custom colors, placeholders, and file structure.
+     */
+    public void migrateLanguageFiles() {
+        File folder = new File(plugin.getDataFolder(), "lang");
+        if (!folder.exists() || !folder.isDirectory()) return;
+
+        File[] files = folder.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".yml"));
+        if (files == null) return;
+
+        for (File file : files) {
+            try {
+                migrateFile(file);
+            } catch (Exception e) {
+                if (plugin != null && plugin.getLogger() != null) {
+                    plugin.getLogger().warning("[MessageManager] Failed to migrate language file " + file.getName() + ": " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    public void migrateFile(File file) {
+        if (file == null || !file.exists() || !file.isFile()) return;
+
+        String fileName = file.getName();
+        String baseName = fileName.substring(0, fileName.length() - 4);
+        String langCode = normalizeLanguageCode(baseName);
+
+        // 1. Obtain reference template resource
+        InputStream in = plugin.getResource("lang/" + langCode + ".yml");
+        if (in == null) {
+            in = plugin.getResource("lang/en-US.yml");
+        }
+        if (in == null) return;
+
+        String templateText;
+        try {
+            templateText = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return;
+        }
+
+        YamlConfiguration templateConfig = new YamlConfiguration();
+        try {
+            templateConfig.loadFromString(templateText);
+        } catch (Exception e) {
+            return;
+        }
+
+        ConfigurationSection tSec = templateConfig.getConfigurationSection("messages");
+        if (tSec == null) return;
+
+        // 2. Load disk file configuration
+        YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(file);
+
+        // 3. Detect missing keys under messages
+        List<String> missingKeys = new ArrayList<>();
+        for (String key : tSec.getKeys(false)) {
+            if (!diskConfig.contains("messages." + key) && !diskConfig.contains(key)) {
+                missingKeys.add(key);
+            }
+        }
+
+        if (missingKeys.isEmpty()) {
+            return; // 100% synchronized, nothing to migrate!
+        }
+
+        // 4. Construct migration snippet preserving comments and indentation
+        StringBuilder snippet = new StringBuilder();
+        snippet.append("\n  # ----------------------------------------------------------------------------\n");
+        snippet.append("  # Automatically migrated keys (RoyItems v2026.1.9)\n");
+        snippet.append("  # ----------------------------------------------------------------------------\n");
+
+        for (String key : missingKeys) {
+            String block = extractKeyBlockFromTemplate(templateText, key);
+            if (block != null && !block.isBlank()) {
+                snippet.append(block).append("\n");
+            } else {
+                Object val = tSec.get(key);
+                if (val instanceof List<?> list) {
+                    snippet.append("  ").append(key).append(":\n");
+                    for (Object o : list) {
+                        snippet.append("    - \"").append(o.toString().replace("\"", "\\\"")).append("\"\n");
+                    }
+                } else if (val != null) {
+                    snippet.append("  ").append(key).append(": \"").append(val.toString().replace("\"", "\\\"")).append("\"\n");
+                }
+            }
+        }
+
+        // 5. Safely append or insert snippet into disk file
+        try {
+            List<String> diskLines = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+            boolean hasMessagesKey = false;
+            int insertLineIdx = -1;
+
+            for (int i = 0; i < diskLines.size(); i++) {
+                String line = diskLines.get(i);
+                if (line.matches("^messages\\s*:.*")) {
+                    hasMessagesKey = true;
+                    for (int j = i + 1; j < diskLines.size(); j++) {
+                        String subLine = diskLines.get(j);
+                        if (!subLine.isBlank() && !subLine.startsWith(" ") && !subLine.startsWith("\t") && !subLine.startsWith("#")) {
+                            insertLineIdx = j;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (!hasMessagesKey) {
+                Files.writeString(file.toPath(),
+                        "\nmessages:" + snippet.toString(),
+                        StandardCharsets.UTF_8,
+                        StandardOpenOption.APPEND);
+            } else if (insertLineIdx != -1) {
+                diskLines.add(insertLineIdx, snippet.toString());
+                Files.write(file.toPath(), diskLines, StandardCharsets.UTF_8);
+            } else {
+                Files.writeString(file.toPath(),
+                        snippet.toString(),
+                        StandardCharsets.UTF_8,
+                        StandardOpenOption.APPEND);
+            }
+
+            if (plugin != null && plugin.getLogger() != null) {
+                plugin.getLogger().info("[MessageManager] Migrated " + missingKeys.size() + " missing message key(s) into lang/" + file.getName());
+            }
+        } catch (Exception e) {
+            if (plugin != null && plugin.getLogger() != null) {
+                plugin.getLogger().warning("[MessageManager] Failed to write migrated keys into lang/" + file.getName() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private String extractKeyBlockFromTemplate(String templateText, String key) {
+        if (templateText == null || key == null) return null;
+        String[] lines = templateText.split("\r?\n");
+
+        Pattern keyPattern = Pattern.compile("^\\s{2}" + Pattern.quote(key) + "\\s*:.*");
+        int startLine = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (keyPattern.matcher(lines[i]).matches()) {
+                startLine = i;
+                break;
+            }
+        }
+
+        if (startLine == -1) return null;
+
+        int commentStart = startLine;
+        while (commentStart > 0 && lines[commentStart - 1].matches("^\\s{2}#.*")) {
+            commentStart--;
+        }
+
+        StringBuilder block = new StringBuilder();
+        for (int i = commentStart; i < startLine; i++) {
+            block.append(lines[i]).append("\n");
+        }
+
+        block.append(lines[startLine]);
+
+        for (int i = startLine + 1; i < lines.length; i++) {
+            String next = lines[i];
+            if (next.matches("^\\s{4,}.*")) {
+                block.append("\n").append(next);
+            } else {
+                break;
+            }
+        }
+
+        return block.toString();
     }
 
     /**
@@ -125,11 +311,20 @@ public class MessageManager {
             }
         }
         if (fallbackConfig != null) {
+            String fallbackVal = null;
             if (fallbackConfig.contains("messages." + key)) {
-                return fallbackConfig.getString("messages." + key, def);
+                fallbackVal = fallbackConfig.getString("messages." + key, def);
+            } else if (fallbackConfig.contains(key)) {
+                fallbackVal = fallbackConfig.getString(key, def);
             }
-            if (fallbackConfig.contains(key)) {
-                return fallbackConfig.getString(key, def);
+            if (fallbackVal != null) {
+                if (warnedMissingKeys.add(key)) {
+                    if (plugin != null && plugin.getLogger() != null) {
+                        plugin.getLogger().warning("[MessageManager] Missing key '" + key + "' in language '"
+                                + activeLanguage + "', falling back to default en-US.");
+                    }
+                }
+                return fallbackVal;
             }
         }
         return def;
@@ -145,11 +340,20 @@ public class MessageManager {
             }
         }
         if (fallbackConfig != null) {
+            List<String> fallbackVal = null;
             if (fallbackConfig.isList("messages." + key)) {
-                return fallbackConfig.getStringList("messages." + key);
+                fallbackVal = fallbackConfig.getStringList("messages." + key);
+            } else if (fallbackConfig.isList(key)) {
+                fallbackVal = fallbackConfig.getStringList(key);
             }
-            if (fallbackConfig.isList(key)) {
-                return fallbackConfig.getStringList(key);
+            if (fallbackVal != null) {
+                if (warnedMissingKeys.add(key)) {
+                    if (plugin != null && plugin.getLogger() != null) {
+                        plugin.getLogger().warning("[MessageManager] Missing list key '" + key + "' in language '"
+                                + activeLanguage + "', falling back to default en-US.");
+                    }
+                }
+                return fallbackVal;
             }
         }
         return def;

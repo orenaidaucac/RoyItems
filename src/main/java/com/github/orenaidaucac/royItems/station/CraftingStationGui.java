@@ -13,6 +13,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import com.github.orenaidaucac.royItems.integration.IntegrationManager;
+import com.github.orenaidaucac.royItems.item.ItemBuilder;
+import com.github.orenaidaucac.royItems.item.ItemDefinition;
+import com.github.orenaidaucac.royItems.item.ItemPDCManager;
+import com.github.orenaidaucac.royItems.item.ItemRegistry;
+import com.github.orenaidaucac.royItems.item.ItemType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
@@ -204,7 +210,7 @@ public class CraftingStationGui {
     }
 
     private void handleCrafting(StationRecipe recipe, boolean isQuick, Gui gui) {
-        // Verify ingredients
+        // Verify ingredients for at least 1 craft
         if (!hasAllIngredients(recipe)) {
             playSound(station.getSoundFail());
             manager.getPlugin().getMessageManager().send(player, "craft-failed-ingredients");
@@ -215,32 +221,48 @@ public class CraftingStationGui {
 
         // 1. Instant Crafting (crafting-time = 0)
         if (craftingTime <= 0) {
-            int maxCrafts = isQuick ? calculateMaxCrafts(recipe) : 1;
-            int actualCrafts = 0;
-            for (int i = 0; i < maxCrafts; i++) {
-                if (!consumeInputs(recipe)) break;
-                actualCrafts++;
+            int targetCrafts;
+            if (isQuick) {
+                targetCrafts = calculateMaxCrafts(recipe);
+                if (targetCrafts <= 0) {
+                    playSound(station.getSoundFail());
+                    manager.getPlugin().getMessageManager().send(player, "craft-failed-inventory-full");
+                    return;
+                }
+            } else {
+                targetCrafts = 1;
+                if (!simulateCanFit(recipe, 1)) {
+                    playSound(station.getSoundFail());
+                    manager.getPlugin().getMessageManager().send(player, "craft-failed-inventory-full");
+                    return;
+                }
             }
 
-            if (actualCrafts > 0) {
-                for (RecipeIngredient out : recipe.getOutputs()) {
-                    out.give(player, manager.getRegistry(), manager.getPdcManager(), manager.getItemBuilder(), manager.getIntegration(), actualCrafts);
-                }
-
-                playSound(station.getSoundSuccess());
-                manager.getPlugin().getMessageManager().send(player, "craft-success", Map.of(
-                        "#amount#", String.valueOf(actualCrafts),
-                        "#recipe#", recipe.getId()
-                ));
-                open(); // Refresh counts in dynamic lore
-            } else {
+            // Consume inputs for targetCrafts atomically
+            if (!consumeInputs(recipe, targetCrafts)) {
                 playSound(station.getSoundFail());
                 manager.getPlugin().getMessageManager().send(player, "craft-failed-ingredients");
+                return;
             }
+
+            // Grant outputs for targetCrafts (zero-drop guarantee)
+            grantOutputs(recipe, targetCrafts);
+
+            playSound(station.getSoundSuccess());
+            manager.getPlugin().getMessageManager().send(player, "craft-success", Map.of(
+                    "#amount#", String.valueOf(targetCrafts),
+                    "#recipe#", recipe.getId()
+            ));
+            open(); // Refresh counts in dynamic lore
             return;
         }
 
         // 2. Timed Crafting Countdown (crafting-time > 0)
+        if (!simulateCanFit(recipe, 1)) {
+            playSound(station.getSoundFail());
+            manager.getPlugin().getMessageManager().send(player, "craft-failed-inventory-full");
+            return;
+        }
         startCraftingCountdown(recipe, gui);
     }
 
@@ -263,10 +285,17 @@ public class CraftingStationGui {
                 // Completed!
                 manager.cancelActiveCrafting(player.getUniqueId());
 
-                // Double check ingredients
+                // Double check inventory space and ingredients
+                if (!simulateCanFit(recipe, 1)) {
+                    playSound(station.getSoundFail());
+                    manager.getPlugin().getMessageManager().send(player, "craft-failed-inventory-full");
+                    open();
+                    return;
+                }
+
                 if (hasAllIngredients(recipe)) {
-                    if (consumeInputs(recipe)) {
-                        grantOutputs(recipe);
+                    if (consumeInputs(recipe, 1)) {
+                        grantOutputs(recipe, 1);
                         playSound(station.getSoundSuccess());
                         manager.getPlugin().getMessageManager().send(player, "craft-completed", Map.of(
                                 "#recipe#", recipe.getId()
@@ -289,8 +318,12 @@ public class CraftingStationGui {
     }
 
     private boolean hasAllIngredients(StationRecipe recipe) {
+        return hasAllIngredients(recipe, 1);
+    }
+
+    private boolean hasAllIngredients(StationRecipe recipe, int craftCount) {
         for (RecipeIngredient ing : recipe.getInputs()) {
-            if (!ing.hasEnough(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration())) {
+            if (!ing.hasEnough(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration(), craftCount)) {
                 return false;
             }
         }
@@ -298,15 +331,19 @@ public class CraftingStationGui {
     }
 
     private boolean consumeInputs(StationRecipe recipe) {
-        if (!hasAllIngredients(recipe)) return false;
+        return consumeInputs(recipe, 1);
+    }
+
+    private boolean consumeInputs(StationRecipe recipe, int craftCount) {
+        if (craftCount <= 0) return false;
         // Strict pre-check on all ingredients to prevent partial deductions
         for (RecipeIngredient ing : recipe.getInputs()) {
-            if (!ing.hasEnough(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration())) {
+            if (!ing.hasEnough(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration(), craftCount)) {
                 return false;
             }
         }
         for (RecipeIngredient ing : recipe.getInputs()) {
-            if (!ing.take(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration())) {
+            if (!ing.take(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration(), craftCount)) {
                 return false;
             }
         }
@@ -314,21 +351,355 @@ public class CraftingStationGui {
     }
 
     private void grantOutputs(StationRecipe recipe) {
+        grantOutputs(recipe, 1);
+    }
+
+    private void grantOutputs(StationRecipe recipe, int craftCount) {
         for (RecipeIngredient out : recipe.getOutputs()) {
-            out.give(player, manager.getRegistry(), manager.getPdcManager(), manager.getItemBuilder(), manager.getIntegration());
+            out.give(player, manager.getRegistry(), manager.getPdcManager(), manager.getItemBuilder(), manager.getIntegration(), craftCount);
         }
     }
 
-    private int calculateMaxCrafts(StationRecipe recipe) {
-        int max = 64;
-        for (RecipeIngredient ing : recipe.getInputs()) {
-            int have = ing.getPlayerAmount(player, manager.getRegistry(), manager.getPdcManager(), manager.getIntegration());
-            int need = ing.getAmount();
-            if (need > 0) {
-                max = Math.min(max, have / need);
+    public boolean simulateCanFit(StationRecipe recipe, int craftCount) {
+        return simulateCanFit(player, recipe, craftCount, manager.getRegistry(), manager.getPdcManager(), manager.getItemBuilder(), manager.getIntegration());
+    }
+
+    public int calculateMaxCrafts(StationRecipe recipe) {
+        return calculateMaxCrafts(player, recipe, manager.getRegistry(), manager.getPdcManager(), manager.getItemBuilder(), manager.getIntegration());
+    }
+
+    private static class SimulatedSlot {
+        ItemStack original;
+        int amount;
+        int maxStackSize;
+
+        SimulatedSlot(ItemStack item) {
+            if (item != null && item.getType() != Material.AIR) {
+                int amt = 0;
+                try { amt = item.getAmount(); } catch (Throwable ignored) { amt = 1; }
+                if (amt > 0) {
+                    this.original = item;
+                    this.amount = amt;
+                    int max = 64;
+                    try { max = item.getMaxStackSize() > 0 ? item.getMaxStackSize() : 64; } catch (Throwable ignored) {}
+                    this.maxStackSize = max;
+                } else {
+                    this.original = null;
+                    this.amount = 0;
+                    this.maxStackSize = 64;
+                }
+            } else {
+                this.original = null;
+                this.amount = 0;
+                this.maxStackSize = 64;
             }
         }
-        return Math.max(1, max);
+
+        boolean isEmpty() {
+            return original == null || amount <= 0;
+        }
+    }
+
+    public static boolean simulateCanFit(Player player, StationRecipe recipe, int craftCount,
+                                         ItemRegistry registry, ItemPDCManager pdc,
+                                         ItemBuilder builder, IntegrationManager integration) {
+        if (player == null || recipe == null || craftCount <= 0) return false;
+        if (player.getInventory() == null) return false;
+
+        ItemStack[] storage = player.getInventory().getStorageContents();
+        if (storage == null) return false;
+
+        SimulatedSlot[] sim = new SimulatedSlot[storage.length];
+        for (int i = 0; i < storage.length; i++) {
+            sim[i] = new SimulatedSlot(storage[i]);
+        }
+
+        // 1. Simulate taking inputs from inventory
+        for (RecipeIngredient ing : recipe.getInputs()) {
+            long totalNeedLong = (long) ing.getAmount() * craftCount;
+            int totalNeed = totalNeedLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalNeedLong;
+
+            if (ing instanceof RecipeIngredient.RoyItemIngredient royIng) {
+                int invAmount = royIng.getInventoryAmount(player, registry, pdc, integration);
+                int toDeduct = Math.min(invAmount, totalNeed);
+                if (toDeduct > 0) {
+                    for (SimulatedSlot slot : sim) {
+                        if (!slot.isEmpty() && pdc != null && pdc.isRoyItem(slot.original)) {
+                            String royId = pdc.getId(slot.original);
+                            ItemType rType = pdc.getType(slot.original);
+                            if (royIng.getId().equalsIgnoreCase(royId) && (royIng.getItemType() == null || royIng.getItemType() == rType)) {
+                                if (slot.amount <= toDeduct) {
+                                    toDeduct -= slot.amount;
+                                    slot.amount = 0;
+                                    slot.original = null;
+                                } else {
+                                    slot.amount -= toDeduct;
+                                    toDeduct = 0;
+                                    break;
+                                }
+                                if (toDeduct <= 0) break;
+                            }
+                        }
+                    }
+                }
+            } else if (ing instanceof RecipeIngredient.VanillaIngredient vanIng) {
+                int invAmount = vanIng.getInventoryAmount(player, registry, pdc, integration);
+                int toDeduct = Math.min(invAmount, totalNeed);
+                if (toDeduct > 0) {
+                    for (SimulatedSlot slot : sim) {
+                        if (!slot.isEmpty() && slot.original.getType() == vanIng.getMaterial()) {
+                            if (pdc != null && pdc.isRoyItem(slot.original)) continue;
+                            if (slot.amount <= toDeduct) {
+                                toDeduct -= slot.amount;
+                                slot.amount = 0;
+                                slot.original = null;
+                            } else {
+                                slot.amount -= toDeduct;
+                                toDeduct = 0;
+                                break;
+                            }
+                            if (toDeduct <= 0) break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Simulate adding outputs to sim
+        for (RecipeIngredient out : recipe.getOutputs()) {
+            if (out instanceof RecipeIngredient.RoyItemIngredient royOut) {
+                ItemDefinition def = registry != null ? registry.get(royOut.getItemType(), royOut.getId()) : null;
+                ItemStack sample = (def != null && builder != null) ? builder.build(def, 1) : null;
+                int maxStack = 64;
+                if (sample != null) {
+                    try { if (sample.getMaxStackSize() > 0) maxStack = sample.getMaxStackSize(); } catch (Throwable ignored) {}
+                } else if (def != null && def.getMaterial() != null) {
+                    Material m = Material.matchMaterial(def.getMaterial());
+                    if (m != null && m.getMaxStackSize() > 0) maxStack = m.getMaxStackSize();
+                }
+
+                long totalToAddLong = (long) royOut.getAmount() * craftCount;
+                if (totalToAddLong > Integer.MAX_VALUE) return false;
+                int totalToAdd = (int) totalToAddLong;
+
+                // Phase 2a: Merge into matching partial stacks
+                for (SimulatedSlot slot : sim) {
+                    if (totalToAdd <= 0) break;
+                    if (!slot.isEmpty() && sample != null) {
+                        boolean match = false;
+                        try { match = slot.original.isSimilar(sample); } catch (Throwable ignored) {}
+                        if (match) {
+                            int space = slot.maxStackSize - slot.amount;
+                            if (space > 0) {
+                                int add = Math.min(space, totalToAdd);
+                                slot.amount += add;
+                                totalToAdd -= add;
+                            }
+                        }
+                    }
+                }
+
+                // Phase 2b: Fill empty slots
+                for (SimulatedSlot slot : sim) {
+                    if (totalToAdd <= 0) break;
+                    if (slot.isEmpty()) {
+                        int add = Math.min(maxStack, totalToAdd);
+                        slot.original = sample;
+                        slot.amount = add;
+                        slot.maxStackSize = maxStack;
+                        totalToAdd -= add;
+                    }
+                }
+
+                if (totalToAdd > 0) {
+                    return false;
+                }
+            } else if (out instanceof RecipeIngredient.VanillaIngredient vanOut) {
+                Material mat = vanOut.getMaterial();
+                ItemStack sample = null;
+                try {
+                    sample = new ItemStack(mat, 1);
+                    if (vanOut.getDisplayName() != null || vanOut.getLore() != null) {
+                        ItemMeta meta = sample.getItemMeta();
+                        if (meta != null) {
+                            if (vanOut.getDisplayName() != null && !vanOut.getDisplayName().isBlank()) {
+                                meta.displayName(TextUtility.formatGui(vanOut.getDisplayName()));
+                            }
+                            if (vanOut.getLore() != null && !vanOut.getLore().isBlank()) {
+                                List<String> loreLines = Arrays.asList(vanOut.getLore().split("\\\\n|\\n"));
+                                meta.lore(TextUtility.formatGuiLore(loreLines));
+                            }
+                            sample.setItemMeta(meta);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                int maxStack = mat.getMaxStackSize() > 0 ? mat.getMaxStackSize() : 64;
+                long totalToAddLong = (long) vanOut.getAmount() * craftCount;
+                if (totalToAddLong > Integer.MAX_VALUE) return false;
+                int totalToAdd = (int) totalToAddLong;
+
+                // Phase 2a: Merge into matching partial stacks
+                for (SimulatedSlot slot : sim) {
+                    if (totalToAdd <= 0) break;
+                    if (!slot.isEmpty()) {
+                        boolean match = false;
+                        if (sample != null) {
+                            try { match = slot.original.isSimilar(sample); } catch (Throwable ignored) {}
+                        } else if (slot.original.getType() == mat) {
+                            match = (pdc == null || !pdc.isRoyItem(slot.original));
+                        }
+                        if (match) {
+                            int space = slot.maxStackSize - slot.amount;
+                            if (space > 0) {
+                                int add = Math.min(space, totalToAdd);
+                                slot.amount += add;
+                                totalToAdd -= add;
+                            }
+                        }
+                    }
+                }
+
+                // Phase 2b: Fill empty slots
+                for (SimulatedSlot slot : sim) {
+                    if (totalToAdd <= 0) break;
+                    if (slot.isEmpty()) {
+                        int add = Math.min(maxStack, totalToAdd);
+                        slot.original = sample;
+                        slot.amount = add;
+                        slot.maxStackSize = maxStack;
+                        totalToAdd -= add;
+                    }
+                }
+
+                if (totalToAdd > 0) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public static int calculateMaxCrafts(Player player, StationRecipe recipe,
+                                         ItemRegistry registry, ItemPDCManager pdc,
+                                         ItemBuilder builder, IntegrationManager integration) {
+        if (player == null || recipe == null) return 0;
+
+        // 1. Bound by available ingredients across inventory and storage
+        int maxFromIngredients = Integer.MAX_VALUE;
+        for (RecipeIngredient ing : recipe.getInputs()) {
+            int need = ing.getAmount();
+            if (need > 0) {
+                int have = ing.getPlayerAmount(player, registry, pdc, integration);
+                maxFromIngredients = Math.min(maxFromIngredients, have / need);
+            }
+        }
+        if (maxFromIngredients <= 0) {
+            return 0;
+        }
+
+        // 2. Check if recipe has physical item outputs
+        boolean hasItemOutputs = false;
+        for (RecipeIngredient out : recipe.getOutputs()) {
+            if (out.getType() == RecipeIngredient.Type.ROYITEMS || out.getType() == RecipeIngredient.Type.VANILLA) {
+                hasItemOutputs = true;
+                break;
+            }
+        }
+        if (!hasItemOutputs) {
+            return maxFromIngredients;
+        }
+
+        // 3. Compute realistic upper bound based on storage slots
+        int storageSlots = (player.getInventory() != null && player.getInventory().getStorageContents() != null)
+                ? player.getInventory().getStorageContents().length : 36;
+        int maxUpper = maxFromIngredients;
+        for (RecipeIngredient out : recipe.getOutputs()) {
+            if (out.getType() != RecipeIngredient.Type.ROYITEMS && out.getType() != RecipeIngredient.Type.VANILLA) {
+                continue;
+            }
+            int outAmount = Math.max(1, out.getAmount());
+            int maxStack = 64;
+            if (out instanceof RecipeIngredient.RoyItemIngredient royOut) {
+                ItemDefinition def = registry != null ? registry.get(royOut.getItemType(), royOut.getId()) : null;
+                if (def != null && builder != null) {
+                    ItemStack sample = builder.build(def, 1);
+                    if (sample != null && sample.getMaxStackSize() > 0) {
+                        maxStack = sample.getMaxStackSize();
+                    }
+                }
+            } else if (out instanceof RecipeIngredient.VanillaIngredient vanOut) {
+                maxStack = vanOut.getMaterial().getMaxStackSize() > 0 ? vanOut.getMaterial().getMaxStackSize() : 64;
+            }
+            long maxForThisOut = ((long) storageSlots * maxStack) / outAmount + 64;
+            if (maxForThisOut < maxUpper) {
+                maxUpper = (int) maxForThisOut;
+            }
+        }
+        maxUpper = Math.max(1, Math.min(maxUpper, maxFromIngredients));
+
+        // 4. Test maxUpper first
+        if (simulateCanFit(player, recipe, maxUpper, registry, pdc, builder, integration)) {
+            return maxUpper;
+        }
+
+        // 5. Gather transition points where input stacks in inventory are completely exhausted
+        Set<Integer> criticalPoints = new TreeSet<>();
+        ItemStack[] storage = player.getInventory() != null ? player.getInventory().getStorageContents() : null;
+        if (storage != null) {
+            for (RecipeIngredient ing : recipe.getInputs()) {
+                int needPerCraft = ing.getAmount();
+                if (needPerCraft <= 0) continue;
+                int cumCount = 0;
+                for (ItemStack item : storage) {
+                    if (item == null || item.getType() == Material.AIR) continue;
+                    boolean match = false;
+                    if (ing instanceof RecipeIngredient.RoyItemIngredient royIng && pdc != null && pdc.isRoyItem(item)) {
+                        String royId = pdc.getId(item);
+                        ItemType rType = pdc.getType(item);
+                        if (royIng.getId().equalsIgnoreCase(royId) && (royIng.getItemType() == null || royIng.getItemType() == rType)) {
+                            match = true;
+                        }
+                    } else if (ing instanceof RecipeIngredient.VanillaIngredient vanIng && item.getType() == vanIng.getMaterial()) {
+                        if (pdc == null || !pdc.isRoyItem(item)) {
+                            match = true;
+                        }
+                    }
+                    if (match) {
+                        cumCount += item.getAmount();
+                        int critCraft = cumCount / needPerCraft;
+                        if (critCraft >= 1 && critCraft <= maxUpper) {
+                            criticalPoints.add(critCraft);
+                        }
+                    }
+                }
+            }
+        }
+
+        int best = 0;
+        List<Integer> sortedCrits = new ArrayList<>(criticalPoints);
+        Collections.reverse(sortedCrits);
+        for (int crit : sortedCrits) {
+            if (crit > best && simulateCanFit(player, recipe, crit, registry, pdc, builder, integration)) {
+                best = crit;
+                break;
+            }
+        }
+
+        int low = Math.max(1, best);
+        int high = maxUpper;
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            if (simulateCanFit(player, recipe, mid, registry, pdc, builder, integration)) {
+                if (mid > best) best = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        return best;
     }
 
     private void renderNavigation(Gui gui) {

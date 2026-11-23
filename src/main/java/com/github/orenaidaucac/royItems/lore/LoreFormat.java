@@ -79,6 +79,31 @@ public class LoreFormat {
 
     public LoreFormat() {}
 
+    public LoreFormat(LoreFormat other) {
+        if (other == null) return;
+        this.id = other.id;
+        this.format = other.format != null ? new ArrayList<>(other.format) : new ArrayList<>();
+        this.bar = other.bar;
+        this.posStat = other.posStat;
+        this.negStat = other.negStat;
+        this.posPctStat = other.posPctStat;
+        this.negPctStat = other.negPctStat;
+        this.reqLevel = other.reqLevel;
+        this.reqPermission = other.reqPermission;
+        this.reqClass = other.reqClass;
+        this.reqClassWithLevel = other.reqClassWithLevel;
+        this.reqAuraSkill = other.reqAuraSkill;
+        this.enchantmentFormat = other.enchantmentFormat;
+        this.enchantmentCurseFormat = other.enchantmentCurseFormat;
+        this.enchantmentSymbol = other.enchantmentSymbol;
+        this.enchantmentLevelStyle = other.enchantmentLevelStyle;
+        this.enchantmentOrder = other.enchantmentOrder;
+        this.enchantmentCustomNames = new HashMap<>(other.enchantmentCustomNames);
+        this.durabilityUnbreakable = other.durabilityUnbreakable;
+        this.durabilityFormat = other.durabilityFormat;
+        this.customStats.putAll(other.customStats);
+    }
+
     public LoreFormat(String id, List<String> format, String bar, String posStat, String negStat, String posPctStat, String negPctStat) {
         this.id = id;
         this.format = format;
@@ -364,17 +389,29 @@ public class LoreFormat {
     }
 
     public static LoreFormat fromConfig(String id, FileConfiguration config) {
-        LoreFormat lf = new LoreFormat();
+        return fromConfig(id, config, null);
+    }
+
+    public static LoreFormat fromConfig(String id, FileConfiguration config, LoreFormat defaults) {
+        LoreFormat lf = (defaults != null) ? new LoreFormat(defaults) : new LoreFormat();
         lf.setId(id);
-        lf.setFormat(config.getStringList("format"));
-        lf.setBar(config.getString("bar", "&8&m------------------------"));
+        if (config == null) {
+            return lf;
+        }
+
+        if (config.contains("format")) {
+            lf.setFormat(config.getStringList("format"));
+        }
+        if (config.contains("bar")) {
+            lf.setBar(config.getString("bar", "&8&m------------------------"));
+        }
 
         ConfigurationSection statSec = config.getConfigurationSection("stat-format");
         if (statSec != null) {
-            lf.setPosStat(statSec.getString("positive", statSec.getString("format", statSec.getString("positive-format", "&7#name#: &a+#value#"))));
-            lf.setNegStat(statSec.getString("negative", statSec.getString("negative-format", "&7#name#: &c-#value#")));
-            lf.setPosPctStat(statSec.getString("percentage-positive", statSec.getString("percent-format", statSec.getString("percentage-format", statSec.getString("percent-positive", "&7#name#: &a+#value#%")))));
-            lf.setNegPctStat(statSec.getString("percentage-negative", statSec.getString("percent-negative-format", statSec.getString("percent-negative", "&7#name#: &c-#value#%"))));
+            lf.setPosStat(statSec.getString("positive", statSec.getString("format", statSec.getString("positive-format", lf.getPosStat()))));
+            lf.setNegStat(statSec.getString("negative", statSec.getString("negative-format", lf.getNegStat())));
+            lf.setPosPctStat(statSec.getString("percentage-positive", statSec.getString("percent-format", statSec.getString("percentage-format", statSec.getString("percent-positive", lf.getPosPctStat())))));
+            lf.setNegPctStat(statSec.getString("percentage-negative", statSec.getString("percent-negative-format", statSec.getString("percent-negative", lf.getNegPctStat()))));
 
             // Parse custom overrides under stat-format.custom
             ConfigurationSection customSec = statSec.getConfigurationSection("custom");
@@ -410,32 +447,50 @@ public class LoreFormat {
         // Sockets format
         ConfigurationSection socketSec = config.getConfigurationSection("sockets-format");
         if (socketSec != null) {
-            lf.setSocketEmpty(socketSec.getString("empty", "&8[&7◇&8] &7Empty Socket (%type%)"));
-            lf.setSocketFilled(socketSec.getString("filled", "&8[&a◆&8] &f%gem%"));
+            lf.setSocketEmpty(socketSec.getString("empty", lf.getSocketEmpty()));
+            lf.setSocketFilled(socketSec.getString("filled", lf.getSocketFilled()));
         }
 
         // Requirements format
         ConfigurationSection reqSec = config.getConfigurationSection("requirements-format");
         if (reqSec != null) {
-            lf.setReqLevel(reqSec.getString("level", "&cRequires Level: &f%level%"));
-            lf.setReqPermission(reqSec.getString("permission", "&cRequires Permission: &f%permission%"));
-            lf.setReqClass(reqSec.getString("class", "&cClass: &f%class%"));
-            lf.setReqClassWithLevel(reqSec.getString("class-with-level", "&cClass: &f%class% (Lv.%level%)"));
-            lf.setReqAuraSkill(reqSec.getString("auraskill", "&cAuraSkill: &f%skill% Lv.%level%"));
+            lf.setReqLevel(reqSec.getString("level", lf.getReqLevel()));
+            lf.setReqPermission(reqSec.getString("permission", lf.getReqPermission()));
+            lf.setReqClass(reqSec.getString("class", lf.getReqClass()));
+            lf.setReqClassWithLevel(reqSec.getString("class-with-level", lf.getReqClassWithLevel()));
+            lf.setReqAuraSkill(reqSec.getString("auraskill", lf.getReqAuraSkill()));
         }
 
-        // Enchantments format
+        // Enchantments format: check enchantments-format, enchantment-format, enchantments
         ConfigurationSection enchSec = config.getConfigurationSection("enchantments-format");
+        if (enchSec == null) {
+            enchSec = config.getConfigurationSection("enchantment-format");
+        }
+        if (enchSec == null) {
+            enchSec = config.getConfigurationSection("enchantments");
+        }
         if (enchSec != null) {
-            lf.setEnchantmentFormat(enchSec.getString("format", "&7%name% %level%"));
-            lf.setEnchantmentCurseFormat(enchSec.getString("curse-format", "&c%name% %level%"));
-            lf.setEnchantmentSymbol(enchSec.getString("symbol", ""));
-            lf.setEnchantmentLevelStyle(enchSec.getString("level-style", "ROMAN"));
-            lf.setEnchantmentOrder(enchSec.getString("order", "VANILLA_FIRST"));
+            String fmt = enchSec.getString("format");
+            if (fmt == null) fmt = enchSec.getString("default-format");
+            if (fmt != null && !fmt.isBlank()) {
+                lf.setEnchantmentFormat(fmt);
+            }
+            if (enchSec.contains("curse-format")) {
+                lf.setEnchantmentCurseFormat(enchSec.getString("curse-format"));
+            }
+            if (enchSec.contains("symbol")) {
+                lf.setEnchantmentSymbol(enchSec.getString("symbol"));
+            }
+            if (enchSec.contains("level-style")) {
+                lf.setEnchantmentLevelStyle(enchSec.getString("level-style"));
+            }
+            if (enchSec.contains("order")) {
+                lf.setEnchantmentOrder(enchSec.getString("order"));
+            }
 
             ConfigurationSection customNamesSec = enchSec.getConfigurationSection("custom-names");
             if (customNamesSec != null) {
-                Map<String, String> customNames = new HashMap<>();
+                Map<String, String> customNames = new HashMap<>(lf.getEnchantmentCustomNames());
                 for (String key : customNamesSec.getKeys(false)) {
                     customNames.put(key.toLowerCase().replace('-', '_'), customNamesSec.getString(key));
                 }

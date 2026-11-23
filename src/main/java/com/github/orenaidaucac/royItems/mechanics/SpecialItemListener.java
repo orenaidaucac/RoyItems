@@ -81,6 +81,14 @@ public class SpecialItemListener implements Listener {
             return;
         }
 
+        // Items with remove-enchants enabled must NEVER be consumed or activated via Right-Click
+        if (def.hasRemoveEnchants()) {
+            event.setCancelled(true);
+            event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+            event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+            return;
+        }
+
         // 1. VOUCHER Handling (supports both MAIN_HAND and OFF_HAND, Air and Block clicks)
         // Does not require aiming at a block; immune to external plugin cancellation on air clicks
         if (type == ItemType.VOUCHER) {
@@ -108,6 +116,11 @@ public class SpecialItemListener implements Listener {
 
         // 2. CONSUMABLE Handling
         if (type == ItemType.CONSUMABLE) {
+            if (!def.isConsumable()) {
+                event.setCancelled(true);
+                event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+                return;
+            }
             handleConsumable(player, item, def);
             event.setCancelled(true);
             return;

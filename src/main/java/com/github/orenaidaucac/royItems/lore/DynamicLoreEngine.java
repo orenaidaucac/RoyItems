@@ -2,6 +2,7 @@ package com.github.orenaidaucac.royItems.lore;
 
 import com.github.orenaidaucac.royItems.RoyItems;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
+import com.github.orenaidaucac.royItems.integration.EcoEnchantsHook;
 import com.github.orenaidaucac.royItems.item.ItemBuilder;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.item.ItemType;
@@ -11,9 +12,12 @@ import com.github.orenaidaucac.royItems.tier_set.ItemSet;
 import com.github.orenaidaucac.royItems.tier_set.ItemSetManager;
 import com.github.orenaidaucac.royItems.tier_set.ItemTier;
 import com.github.orenaidaucac.royItems.tier_set.ItemTierManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -39,6 +43,35 @@ import java.util.regex.Pattern;
 public class DynamicLoreEngine {
 
     private static final Pattern STAT_PLACEHOLDER_PATTERN = Pattern.compile("[#%]([a-zA-Z0-9_.-]+)[#%]");
+    private static final Pattern LEADING_COLOR_PATTERN = Pattern.compile(
+            "^(?:[&§]x(?:[&§][0-9a-fA-F]){6}|[&§]#[0-9a-fA-F]{6}|[&§][0-9a-fk-or]|<[a-zA-Z0-9_#/-]+>|\\{#[0-9a-fA-F]{6}\\})",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern LEADING_COLOR_BEFORE_NAME = Pattern.compile(
+            "^(?:(?:[&§]x(?:[&§][0-9a-fA-F]){6}|[&§]#[0-9a-fA-F]{6}|[&§][0-9a-fk-or]|<[a-zA-Z0-9_#/-]+>|\\{#[0-9a-fA-F]{6}\\})\\s*)+(?=[%#]name[%#])",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final List<String> KNOWN_ENCHANTMENT_NAMES = List.of(
+            // Vanilla English
+            "protection", "fire protection", "feather falling", "blast protection", "projectile protection",
+            "respiration", "aqua affinity", "thorns", "depth strider", "frost walker", "soul speed", "swift sneak",
+            "sharpness", "smite", "bane of arthropods", "knockback", "fire aspect", "looting", "sweeping edge",
+            "efficiency", "silk touch", "unbreaking", "fortune", "power", "punch", "flame", "infinity",
+            "luck of the sea", "lure", "loyalty", "impaling", "riptide", "channeling", "multishot", "quick charge",
+            "piercing", "mending", "curse of vanishing", "curse of binding", "density", "breach", "wind burst",
+            // Common Vietnamese localization
+            "bảo vệ", "bảo vệ khỏi lửa", "rơi chậm", "thở dưới nước", "gai", "sải bước nhanh", "đi trên băng",
+            "tốc độ linh hồn", "lén lút nhanh", "sắc bén", "hại thây ma", "hại chân đốt", "bật lùi", "nhặt lượm",
+            "càn quét", "hiệu suất", "đập mềm", "bền bỉ", "gia tài", "sức mạnh", "lửa", "vô hạn", "may mắn của biển",
+            "nhử mồi", "lòng trung thành", "xiên khích", "thủy triều", "triệu hồi sấm sét", "đa cung", "nạp nhanh",
+            "xuyên thấu", "sửa chữa", "lời nguyền biến mất", "lời nguyền trói buộc"
+    );
+
+    private static boolean startsWithColorCode(String str) {
+        if (str == null || str.isEmpty()) return false;
+        return LEADING_COLOR_PATTERN.matcher(str).find();
+    }
 
     private final Plugin plugin;
     private ItemTierManager itemTierManager;
@@ -49,6 +82,7 @@ public class DynamicLoreEngine {
     private com.github.orenaidaucac.royItems.item.ItemRegistry registry;
     private final Map<String, LoreFormat> formats = new ConcurrentHashMap<>();
     private final DecimalFormat df = new DecimalFormat("#,##0.##");
+    private LoreFormat globalEnchantmentFormat = new LoreFormat();
 
     public DynamicLoreEngine(Plugin plugin) {
         this(plugin, null, null);
@@ -58,6 +92,18 @@ public class DynamicLoreEngine {
         this.plugin = plugin;
         this.itemTierManager = itemTierManager;
         this.itemSetManager = itemSetManager;
+    }
+
+    public Plugin getPlugin() {
+        return plugin;
+    }
+
+    public LoreFormat getGlobalEnchantmentFormat() {
+        return globalEnchantmentFormat;
+    }
+
+    public void setGlobalEnchantmentFormat(LoreFormat globalEnchantmentFormat) {
+        this.globalEnchantmentFormat = (globalEnchantmentFormat != null) ? globalEnchantmentFormat : new LoreFormat();
     }
 
     public void setItemTierManager(ItemTierManager itemTierManager) {
@@ -88,8 +134,51 @@ public class DynamicLoreEngine {
         this.registry = registry;
     }
 
+    /**
+     * Loads global enchantment defaults from config.yml into globalEnchantmentFormat.
+     */
+    public void loadConfig(FileConfiguration config) {
+        if (config == null) return;
+        ConfigurationSection sec = config.getConfigurationSection("enchantments");
+        if (sec == null) sec = config.getConfigurationSection("enchantments-format");
+        if (sec == null) sec = config.getConfigurationSection("enchantment-format");
+        if (sec != null) {
+            LoreFormat global = new LoreFormat();
+            String fmt = sec.getString("format");
+            if (fmt == null) fmt = sec.getString("default-format");
+            if (fmt != null && !fmt.isBlank()) {
+                global.setEnchantmentFormat(fmt);
+            }
+            if (sec.contains("curse-format")) {
+                global.setEnchantmentCurseFormat(sec.getString("curse-format"));
+            }
+            if (sec.contains("symbol")) {
+                global.setEnchantmentSymbol(sec.getString("symbol"));
+            }
+            if (sec.contains("level-style")) {
+                global.setEnchantmentLevelStyle(sec.getString("level-style"));
+            }
+            if (sec.contains("order")) {
+                global.setEnchantmentOrder(sec.getString("order"));
+            }
+            ConfigurationSection customNamesSec = sec.getConfigurationSection("custom-names");
+            if (customNamesSec != null) {
+                Map<String, String> map = new HashMap<>();
+                for (String k : customNamesSec.getKeys(false)) {
+                    map.put(k.toLowerCase().replace('-', '_'), customNamesSec.getString(k));
+                }
+                global.setEnchantmentCustomNames(map);
+            }
+            this.globalEnchantmentFormat = global;
+        }
+    }
+
     public void loadFormats() {
         formats.clear();
+        if (plugin != null) {
+            loadConfig(plugin.getConfig());
+        }
+
         File folder = new File(plugin.getDataFolder(), "lore-format");
         if (!folder.exists()) {
             folder.mkdirs();
@@ -114,7 +203,7 @@ public class DynamicLoreEngine {
                     continue;
                 }
                 FileConfiguration config = YamlConfiguration.loadConfiguration(file);
-                LoreFormat format = LoreFormat.fromConfig(id, config);
+                LoreFormat format = LoreFormat.fromConfig(id, config, globalEnchantmentFormat);
                 formats.put(id, format);
             }
         }
@@ -172,7 +261,7 @@ public class DynamicLoreEngine {
         String formatId = def.getLoreFormat() != null ? def.getLoreFormat().toLowerCase() : "default";
         LoreFormat format = formats.getOrDefault(formatId, formats.get("default"));
         if (format == null) {
-            format = new LoreFormat();
+            format = new LoreFormat(globalEnchantmentFormat);
         }
 
         List<String> template = (format.getFormat() != null && !format.getFormat().isEmpty())
@@ -186,6 +275,7 @@ public class DynamicLoreEngine {
 
         List<String> processed = new ArrayList<>();
         String barString = format.getBar() != null ? format.getBar() : "&8&m------------------------";
+        boolean enchantmentsPlaced = false;
 
         for (String rawLine : template) {
             if (rawLine == null) continue;
@@ -205,6 +295,7 @@ public class DynamicLoreEngine {
                 processed.addAll(reqLines);
             } else if (trimmed.equalsIgnoreCase("#enchantments#") || trimmed.equalsIgnoreCase("%enchantments%")) {
                 processed.addAll(enchLines);
+                enchantmentsPlaced = true;
             } else if (trimmed.equalsIgnoreCase("#set#") || trimmed.equalsIgnoreCase("%set%")) {
                 if (def.getItemSet() != null && !def.getItemSet().isEmpty() && !setLines.isEmpty()) {
                     processed.addAll(setLines);
@@ -290,6 +381,27 @@ public class DynamicLoreEngine {
                             processed.add(setLines.get(i));
                         }
                     }
+                }
+            }
+        }
+
+        if (!enchantmentsPlaced && !enchLines.isEmpty()) {
+            boolean autoSync = (plugin == null || plugin.getConfig() == null || plugin.getConfig().getBoolean("enchantments.auto-sync-lore", true));
+            if (autoSync) {
+                int insertPos = -1;
+                for (int i = 0; i < processed.size(); i++) {
+                    String p = processed.get(i);
+                    if (p != null && (p.contains("Socket") || p.contains("Requires") || p.contains("◆") || p.contains("◇"))) {
+                        insertPos = i;
+                        break;
+                    }
+                }
+                if (insertPos != -1) {
+                    processed.addAll(insertPos, enchLines);
+                } else if (!processed.isEmpty()) {
+                    processed.addAll(processed.size() - 1, enchLines);
+                } else {
+                    processed.addAll(enchLines);
                 }
             }
         }
@@ -796,13 +908,15 @@ public class DynamicLoreEngine {
             return lines;
         }
 
-        List<Map.Entry<org.bukkit.enchantments.Enchantment, Integer>> sorted = sortEnchantments(enchants, format);
+        LoreFormat activeFormat = (format != null) ? format : (globalEnchantmentFormat != null ? globalEnchantmentFormat : new LoreFormat());
 
-        String tpl = format != null && format.getEnchantmentFormat() != null ? format.getEnchantmentFormat() : "&7%name% %level%";
-        String curseTpl = format != null && format.getEnchantmentCurseFormat() != null ? format.getEnchantmentCurseFormat() : "&c%name% %level%";
-        String symbol = format != null && format.getEnchantmentSymbol() != null ? format.getEnchantmentSymbol() : "";
-        String levelStyle = format != null && format.getEnchantmentLevelStyle() != null ? format.getEnchantmentLevelStyle() : "ROMAN";
-        Map<String, String> customNames = format != null ? format.getEnchantmentCustomNames() : Collections.emptyMap();
+        List<Map.Entry<org.bukkit.enchantments.Enchantment, Integer>> sorted = sortEnchantments(enchants, activeFormat);
+
+        String tpl = activeFormat.getEnchantmentFormat() != null ? activeFormat.getEnchantmentFormat() : "&7%name% %level%";
+        String curseTpl = activeFormat.getEnchantmentCurseFormat() != null ? activeFormat.getEnchantmentCurseFormat() : "&c%name% %level%";
+        String symbol = activeFormat.getEnchantmentSymbol() != null ? activeFormat.getEnchantmentSymbol() : "";
+        String levelStyle = activeFormat.getEnchantmentLevelStyle() != null ? activeFormat.getEnchantmentLevelStyle() : "ROMAN";
+        Map<String, String> customNames = activeFormat.getEnchantmentCustomNames() != null ? activeFormat.getEnchantmentCustomNames() : Collections.emptyMap();
 
         for (Map.Entry<org.bukkit.enchantments.Enchantment, Integer> entry : sorted) {
             org.bukkit.enchantments.Enchantment ench = entry.getKey();
@@ -815,36 +929,49 @@ public class DynamicLoreEngine {
                 continue;
             }
 
-            // 1. EcoEnchants integration: check if EcoEnchant
-            if (ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(ench)) {
-                String ecoFormatted = ecoEnchantsHook.getFormattedName(ench, level);
-                if (ecoFormatted != null && !ecoFormatted.isEmpty()) {
-                    String line = ecoFormatted;
-                    if (!symbol.isEmpty() && !line.startsWith(symbol)) {
-                        line = symbol + line;
-                    }
-                    lines.add(line);
-                    continue;
-                }
-            }
-
-            // 2. Curse enchantment check
+            boolean isEco = (ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(ench));
             boolean isCurse = isCurseEnchantment(ench);
             String selectedTpl = isCurse ? curseTpl : tpl;
 
-            // 3. Name resolution
-            String keyName = ench.getKey().getKey().toLowerCase().replace('-', '_');
-            String name;
-            if (customNames != null && customNames.containsKey(keyName)) {
-                name = customNames.get(keyName);
-            } else {
-                name = formatEnchantmentName(ench);
+            // 1. Name resolution (custom-names check first, then EcoEnchants hook, then Vanilla formatter)
+            String name = null;
+            if (customNames != null && !customNames.isEmpty()) {
+                String rawKey = ench.getKey().getKey().toLowerCase();
+                String fullKey = ench.getKey().toString().toLowerCase();
+                String underKey = rawKey.replace('-', '_');
+                String dashKey = rawKey.replace('_', '-');
+                String underFull = fullKey.replace('-', '_');
+                String dashFull = fullKey.replace('_', '-');
+
+                name = customNames.get(underKey);
+                if (name == null) name = customNames.get(dashKey);
+                if (name == null) name = customNames.get(rawKey);
+                if (name == null) name = customNames.get(underFull);
+                if (name == null) name = customNames.get(dashFull);
+                if (name == null) name = customNames.get(fullKey);
             }
 
-            // 4. Level resolution
+            if (name == null || name.isBlank()) {
+                if (isEco) {
+                    name = ecoEnchantsHook.getDisplayName(ench);
+                    if (name == null || name.isBlank()) {
+                        name = formatEnchantmentName(ench);
+                    }
+                } else {
+                    name = formatEnchantmentName(ench);
+                }
+            }
+
+            // 2. Max level & Level string resolution
+            int maxLevel;
+            if (isEco) {
+                maxLevel = ecoEnchantsHook.getMaxLevel(ench);
+            } else {
+                maxLevel = ench.getMaxLevel();
+            }
+
             String levelStr;
-            if (ench.getMaxLevel() == 1 && level == 1) {
-                // Vanilla standard: single-level enchantments (e.g. Mending, Silk Touch) do not display "I"
+            if (maxLevel == 1 && level == 1) {
                 levelStr = "";
             } else if ("NUMBER".equalsIgnoreCase(levelStyle)) {
                 levelStr = String.valueOf(level);
@@ -852,15 +979,43 @@ public class DynamicLoreEngine {
                 levelStr = toRoman(level);
             }
 
-            // 5. Line formatting
-            String line = selectedTpl
-                    .replace("%name%", name).replace("#name#", name)
-                    .replace("%level%", levelStr).replace("#level#", levelStr)
-                    .replace("%raw-level%", String.valueOf(level)).replace("#raw-level#", String.valueOf(level))
-                    .replace("%symbol%", symbol).replace("#symbol#", symbol);
+            // 3. Rarity resolution
+            String rarity = "";
+            if (isEco) {
+                String r = ecoEnchantsHook.getRarityDisplayName(ench);
+                if (r != null) {
+                    rarity = r;
+                }
+            }
 
-            // Clean up trailing space if levelStr was empty
-            line = line.replaceAll("\\s+$", "");
+            // 4. Line template substitution
+            String line = selectedTpl;
+            if (startsWithColorCode(name)) {
+                line = LEADING_COLOR_BEFORE_NAME.matcher(line).replaceFirst("");
+            }
+            if (levelStr.isEmpty()) {
+                line = line.replaceAll("(?i)(?:[&§][0-9a-fk-or]|<[^>]+>)?\\s*\\[\\s*[%#]level[%#]\\s*\\]", "");
+                line = line.replaceAll("(?i)(?:[&§][0-9a-fk-or]|<[^>]+>)?\\s*\\(\\s*[%#]level[%#]\\s*\\)", "");
+                line = line.replaceAll("(?i)(?:[&§][0-9a-fk-or]|<[^>]+>)?\\s*<\\s*[%#]level[%#]\\s*>", "");
+                line = line.replaceAll("(?i)(?:[&§][0-9a-fk-or]|<[^>]+>)?\\s*[%#]level[%#]", "");
+            } else {
+                line = line.replace("%level%", levelStr).replace("#level#", levelStr);
+            }
+
+            line = line.replace("%name%", name).replace("#name#", name)
+                    .replace("%raw-level%", String.valueOf(level)).replace("#raw-level#", String.valueOf(level))
+                    .replace("%symbol%", symbol).replace("#symbol#", symbol)
+                    .replace("%rarity%", rarity).replace("#rarity#", rarity);
+
+            if (!symbol.isEmpty() && !selectedTpl.contains("%symbol%") && !selectedTpl.contains("#symbol#")) {
+                if (!line.startsWith(symbol)) {
+                    line = symbol + line;
+                }
+            }
+
+            // Strip trailing color codes if any remain dangling at the end
+            line = line.replaceAll("(?i)(?:[&§]x(?:[&§][0-9a-fA-F]){6}|[&§]#[0-9a-fA-F]{6}|[&§][0-9a-fk-or]|<[^>]+>|\\{#[0-9a-fA-F]{6}\\})+$", "");
+            line = line.replaceAll(" {2,}", " ").stripTrailing();
             lines.add(line);
         }
 
@@ -949,6 +1104,9 @@ public class DynamicLoreEngine {
     public static String formatEnchantmentName(org.bukkit.enchantments.Enchantment ench) {
         if (ench == null) return "";
         String key = ench.getKey().getKey();
+        if (key.equalsIgnoreCase("binding_curse")) return "Curse of Binding";
+        if (key.equalsIgnoreCase("vanishing_curse")) return "Curse of Vanishing";
+        if (key.equalsIgnoreCase("sweeping")) return "Sweeping Edge";
         String[] words = key.replace('_', ' ').split("\\s+");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < words.length; i++) {
@@ -962,6 +1120,301 @@ public class DynamicLoreEngine {
             }
         }
         return sb.toString();
+    }
+
+    public LoreFormat getFormat(ItemDefinition def) {
+        if (def == null) {
+            return globalEnchantmentFormat != null ? globalEnchantmentFormat : new LoreFormat();
+        }
+        String formatId = def.getLoreFormat() != null ? def.getLoreFormat().toLowerCase(Locale.ROOT) : "default";
+        LoreFormat format = formats.getOrDefault(formatId, formats.get("default"));
+        if (format == null) {
+            format = globalEnchantmentFormat != null ? globalEnchantmentFormat : new LoreFormat();
+        }
+        return format;
+    }
+
+    public int computeEnchantmentHash(ItemDefinition def, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
+        LoreFormat format = getFormat(def);
+        int enchantsHash = (activeEnchants != null) ? activeEnchants.hashCode() : 0;
+
+        String tpl = format != null && format.getEnchantmentFormat() != null ? format.getEnchantmentFormat() : "";
+        String curseTpl = format != null && format.getEnchantmentCurseFormat() != null ? format.getEnchantmentCurseFormat() : "";
+        String symbol = format != null && format.getEnchantmentSymbol() != null ? format.getEnchantmentSymbol() : "";
+        String levelStyle = format != null && format.getEnchantmentLevelStyle() != null ? format.getEnchantmentLevelStyle() : "";
+        String order = format != null && format.getEnchantmentOrder() != null ? format.getEnchantmentOrder() : "";
+        int customNamesHash = (format != null && format.getEnchantmentCustomNames() != null) ? format.getEnchantmentCustomNames().hashCode() : 0;
+
+        return Objects.hash(enchantsHash, tpl, curseTpl, symbol, levelStyle, order, customNamesHash);
+    }
+
+    private static boolean matchesEnchantmentPattern(String line, String name) {
+        if (line == null || line.isBlank() || name == null || name.isBlank()) {
+            return false;
+        }
+        String lowerLine = line.toLowerCase(Locale.ROOT);
+        String lowerName = name.toLowerCase(Locale.ROOT);
+
+        int idx = lowerLine.indexOf(lowerName);
+        if (idx == -1) {
+            return false;
+        }
+
+        // Boundary check before name
+        if (idx > 0) {
+            char prev = lowerLine.charAt(idx - 1);
+            if (Character.isLetterOrDigit(prev)) {
+                return false;
+            }
+        }
+
+        // Check after name
+        int endIdx = idx + lowerName.length();
+        if (endIdx >= lowerLine.length()) {
+            return true;
+        }
+
+        char next = lowerLine.charAt(endIdx);
+        if (Character.isLetterOrDigit(next)) {
+            return false;
+        }
+
+        String rest = lowerLine.substring(endIdx).trim();
+        if (rest.isEmpty()) {
+            return true;
+        }
+
+        return rest.matches("(?i)^(?:[ivxlcdm]+|[0-9]+|\\([ivxlcdm0-9]+\\)|\\[[ivxlcdm0-9]+\\]|:.*|-.*)");
+    }
+
+    public boolean isEnchantmentLine(String plainLine, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants, ItemDefinition def) {
+        if (plainLine == null || plainLine.isBlank()) return false;
+        String trimmed = plainLine.trim();
+
+        // 1. Exclude bar separators
+        if (trimmed.contains("----") || trimmed.contains("━━━━") || trimmed.equals("---")) {
+            return false;
+        }
+
+        // 2. Exclude sockets
+        if (trimmed.contains("Socket") || trimmed.contains("socket") || trimmed.contains("◆") || trimmed.contains("◇")) {
+            return false;
+        }
+
+        // 3. Exclude requirements
+        String lowerTrimmed = trimmed.toLowerCase(Locale.ROOT);
+        if (lowerTrimmed.contains("requires") || lowerTrimmed.contains("yêu cầu")
+                || lowerTrimmed.contains("class:") || lowerTrimmed.contains("auraskill:")) {
+            return false;
+        }
+
+        // 4. Exclude set lore
+        if (def != null && def.getItemSet() != null && !def.getItemSet().isEmpty()) {
+            if (lowerTrimmed.contains("set:") || lowerTrimmed.contains("bộ:") || lowerTrimmed.contains(def.getItemSet().toLowerCase(Locale.ROOT))) {
+                return false;
+            }
+        }
+
+        // 5. Exclude definition lore lines
+        if (def != null && def.getLore() != null) {
+            for (String dLine : def.getLore()) {
+                if (dLine != null && !dLine.isBlank()) {
+                    String strippedDLine = TextUtility.stripColor(dLine).trim();
+                    if (!strippedDLine.isEmpty() && strippedDLine.equalsIgnoreCase(trimmed)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // 6. Check against active enchants and known enchantment names
+        LoreFormat format = getFormat(def);
+        Map<String, String> customNames = (format != null && format.getEnchantmentCustomNames() != null)
+                ? format.getEnchantmentCustomNames() : Collections.emptyMap();
+
+        String cleanLine = trimmed.replaceAll("^[✦★◆◇■•\\s\\[\\]]+", "").trim();
+
+        if (activeEnchants != null) {
+            for (org.bukkit.enchantments.Enchantment ench : activeEnchants.keySet()) {
+                if (ench == null) continue;
+                String enchName = formatEnchantmentName(ench);
+                if (matchesEnchantmentPattern(cleanLine, enchName)) return true;
+
+                String rawKey = ench.getKey().getKey();
+                if (matchesEnchantmentPattern(cleanLine, rawKey)) return true;
+
+                if (ecoEnchantsHook != null && ecoEnchantsHook.isEcoEnchant(ench)) {
+                    String ecoDisp = ecoEnchantsHook.getDisplayName(ench);
+                    if (ecoDisp != null && matchesEnchantmentPattern(cleanLine, TextUtility.stripColor(ecoDisp).trim())) {
+                        return true;
+                    }
+                }
+
+                for (String customVal : customNames.values()) {
+                    if (customVal != null && !customVal.isBlank()) {
+                        String strippedCustom = TextUtility.stripColor(customVal).trim();
+                        if (matchesEnchantmentPattern(cleanLine, strippedCustom)) return true;
+                    }
+                }
+            }
+        }
+
+        for (String customVal : customNames.values()) {
+            if (customVal != null && !customVal.isBlank()) {
+                String strippedCustom = TextUtility.stripColor(customVal).trim();
+                if (matchesEnchantmentPattern(cleanLine, strippedCustom)) return true;
+            }
+        }
+
+        for (String known : KNOWN_ENCHANTMENT_NAMES) {
+            if (matchesEnchantmentPattern(cleanLine, known)) return true;
+        }
+
+        if (formats != null) {
+            for (LoreFormat lf : formats.values()) {
+                if (lf != null && lf.getEnchantmentCustomNames() != null) {
+                    for (String customVal : lf.getEnchantmentCustomNames().values()) {
+                        if (customVal != null && !customVal.isBlank()) {
+                            String strippedCustom = TextUtility.stripColor(customVal).trim();
+                            if (matchesEnchantmentPattern(cleanLine, strippedCustom)) return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (ecoEnchantsHook != null && ecoEnchantsHook.isAvailable()) {
+            try {
+                for (EcoEnchantsHook.EcoEnchantCandidate cand : ecoEnchantsHook.getAllCandidates()) {
+                    if (cand == null) continue;
+                    if (matchesEnchantmentPattern(cleanLine, cand.getId())) return true;
+                    if (cand.getRawDisplayName() != null && matchesEnchantmentPattern(cleanLine, TextUtility.stripColor(cand.getRawDisplayName()).trim())) return true;
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        try {
+            for (org.bukkit.enchantments.Enchantment ench : org.bukkit.Registry.ENCHANTMENT) {
+                if (ench == null) continue;
+                String rawKey = ench.getKey().getKey();
+                if (matchesEnchantmentPattern(cleanLine, rawKey)) return true;
+                String enchName = formatEnchantmentName(ench);
+                if (matchesEnchantmentPattern(cleanLine, enchName)) return true;
+            }
+        } catch (Throwable ignored) {
+            try {
+                for (org.bukkit.enchantments.Enchantment ench : org.bukkit.enchantments.Enchantment.values()) {
+                    if (ench == null) continue;
+                    String rawKey = ench.getKey().getKey();
+                    if (matchesEnchantmentPattern(cleanLine, rawKey)) return true;
+                    String enchName = formatEnchantmentName(ench);
+                    if (matchesEnchantmentPattern(cleanLine, enchName)) return true;
+                }
+            } catch (Throwable ignored2) {}
+        }
+
+        // Generic pattern fallback: line ending with roman numeral or level digit
+        if (cleanLine.matches("(?i)^[A-Za-zÀ-ỹ\\s'-]+\\s+(?:[IVXLCDMivxlcdm]+|[0-9]+|\\([IVXLCDM0-9ivxlcdm]+\\)|\\[[IVXLCDM0-9ivxlcdm]+\\])$")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public List<Component> updateEnchantmentLinesInLore(List<Component> currentLore, ItemDefinition def,
+                                                        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
+        LoreFormat format = getFormat(def);
+        List<String> rawNewEnch = generateEnchantmentLines(def, format, activeEnchants);
+        List<Component> newComps = TextUtility.formatLore(rawNewEnch);
+
+        if (currentLore == null || currentLore.isEmpty()) {
+            return newComps;
+        }
+
+        int firstIdx = -1;
+        int lastIdx = -1;
+        for (int i = 0; i < currentLore.size(); i++) {
+            String plain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(currentLore.get(i)));
+            if (isEnchantmentLine(plain, activeEnchants, def)) {
+                if (firstIdx == -1) firstIdx = i;
+                lastIdx = i;
+            }
+        }
+
+        List<Component> updated = new ArrayList<>(currentLore);
+
+        if (firstIdx != -1) {
+            for (int i = lastIdx; i >= firstIdx; i--) {
+                updated.remove(i);
+            }
+            updated.addAll(firstIdx, newComps);
+            return updated;
+        } else {
+            if (newComps.isEmpty()) {
+                return currentLore;
+            }
+            int insertIdx = -1;
+            for (int i = 0; i < updated.size(); i++) {
+                String plain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(updated.get(i))).toLowerCase(Locale.ROOT);
+                if (plain.contains("socket") || plain.contains("◆") || plain.contains("◇")
+                        || plain.contains("requires") || plain.contains("yêu cầu")
+                        || plain.contains("set:") || plain.contains("bộ:")) {
+                    insertIdx = i;
+                    break;
+                }
+            }
+
+            if (insertIdx != -1) {
+                updated.addAll(insertIdx, newComps);
+            } else if (!updated.isEmpty()) {
+                String lastPlain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(updated.get(updated.size() - 1)));
+                if (lastPlain.contains("----") || lastPlain.contains("━━━━")) {
+                    updated.addAll(updated.size() - 1, newComps);
+                } else {
+                    updated.addAll(newComps);
+                }
+            } else {
+                updated.addAll(newComps);
+            }
+            return updated;
+        }
+    }
+
+    public List<Component> mergeCustomLore(List<Component> currentLore, List<Component> baseLore,
+                                           ItemDefinition def, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
+        if (currentLore == null || currentLore.isEmpty()) return baseLore != null ? baseLore : Collections.emptyList();
+        if (baseLore == null || baseLore.isEmpty()) return currentLore;
+
+        Set<String> baseSerialized = new HashSet<>();
+        for (Component c : baseLore) {
+            baseSerialized.add(TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(c)).trim());
+        }
+
+        List<Component> customLines = new ArrayList<>();
+        for (Component c : currentLore) {
+            String plain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(c)).trim();
+            if (plain.isEmpty()) continue;
+            if (plain.contains("----") || plain.contains("━━━━")) continue;
+            if (isEnchantmentLine(plain, activeEnchants, def)) continue;
+            if (baseSerialized.contains(plain)) continue;
+
+            customLines.add(c);
+        }
+
+        if (customLines.isEmpty()) {
+            return baseLore;
+        }
+
+        List<Component> merged = new ArrayList<>(baseLore);
+        if (!merged.isEmpty()) {
+            String lastPlain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(merged.get(merged.size() - 1)));
+            if (lastPlain.contains("----") || lastPlain.contains("━━━━")) {
+                merged.addAll(merged.size() - 1, customLines);
+                return merged;
+            }
+        }
+        merged.addAll(customLines);
+        return merged;
     }
 
     public boolean hasEnchantmentsPlaceholder(ItemDefinition def) {
@@ -979,6 +1432,25 @@ public class DynamicLoreEngine {
         return false;
     }
 
+    /**
+     * Resolves the effective enchantments for an item, filtering out cosmetic dummy glow
+     * (e.g. LUCK_OF_THE_SEA 1 when def.isGlow() is true and item definition does not naturally possess it).
+     */
+    public Map<org.bukkit.enchantments.Enchantment, Integer> getEffectiveEnchantments(ItemMeta meta, ItemDefinition def) {
+        if (meta == null) return Collections.emptyMap();
+        Map<org.bukkit.enchantments.Enchantment, Integer> enchants = new LinkedHashMap<>(meta.getEnchants());
+        if (meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storageMeta) {
+            enchants.putAll(storageMeta.getStoredEnchants());
+        }
+        if (def != null && def.isGlow()) {
+            boolean defHasLuck = def.getEnchantments() != null && def.getEnchantments().containsKey(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA);
+            if (!defHasLuck && Integer.valueOf(1).equals(enchants.get(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA))) {
+                enchants.remove(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA);
+            }
+        }
+        return enchants;
+    }
+
     public boolean synchronizeItemEnchantments(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
         if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
@@ -992,24 +1464,40 @@ public class DynamicLoreEngine {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
 
-        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = new LinkedHashMap<>(meta.getEnchants());
-        if (meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storageMeta) {
-            activeEnchants.putAll(storageMeta.getStoredEnchants());
+        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = getEffectiveEnchantments(meta, def);
+
+        List<Component> currentLore = meta.lore();
+        if (hasEnchantmentsPlaceholder(def)) {
+            String socketsRaw = pdcManager.getSocketsData(item);
+            List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
+            long expire = pdcManager.getExpireTime(item);
+            String oldSetState = pdcManager.getSetState(item);
+            boolean isBonusActive = "active".equalsIgnoreCase(oldSetState);
+            List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, null);
+            List<Component> baseLore = TextUtility.formatLore(rawLore);
+            meta.lore(mergeCustomLore(currentLore, baseLore, def, activeEnchants));
+        } else if (currentLore != null && !currentLore.isEmpty()) {
+            meta.lore(updateEnchantmentLinesInLore(currentLore, def, activeEnchants));
+        } else {
+            String socketsRaw = pdcManager.getSocketsData(item);
+            List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
+            long expire = pdcManager.getExpireTime(item);
+            String oldSetState = pdcManager.getSetState(item);
+            boolean isBonusActive = "active".equalsIgnoreCase(oldSetState);
+            List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, null);
+            meta.lore(TextUtility.formatLore(rawLore));
         }
 
-        String socketsRaw = pdcManager.getSocketsData(item);
-        List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
-        long expire = pdcManager.getExpireTime(item);
-
-        List<String> rawLore = buildLore(def, sockets, expire, activeEnchants);
-        meta.lore(TextUtility.formatLore(rawLore));
-
         // When lore displays enchantments, suppress vanilla client tooltip so client does not duplicate
-        if (hasEnchantmentsPlaceholder(def)) {
+        boolean hideTooltip = def.isHideEnchantments() || hasEnchantmentsPlaceholder(def);
+        if (!hideTooltip && plugin != null && plugin.getConfig() != null) {
+            hideTooltip = plugin.getConfig().getBoolean("enchantments.hide-vanilla-tooltip", true);
+        }
+        if (hideTooltip) {
             meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
         }
 
-        pdcManager.setEnchantHash(meta, activeEnchants.hashCode());
+        pdcManager.setEnchantHash(meta, computeEnchantmentHash(def, activeEnchants));
         item.setItemMeta(meta);
         return true;
     }
@@ -1017,12 +1505,18 @@ public class DynamicLoreEngine {
     public boolean checkAndSynchronizeEnchantments(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
         if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
+        if (registry == null) return false;
 
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
 
-        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = meta.getEnchants();
-        int currentHash = activeEnchants.hashCode();
+        ItemType type = pdcManager.getType(item);
+        String id = pdcManager.getId(item);
+        ItemDefinition def = registry.get(type, id);
+        if (def == null) return false;
+
+        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = getEffectiveEnchantments(meta, def);
+        int currentHash = computeEnchantmentHash(def, activeEnchants);
         int storedHash = pdcManager.getEnchantHash(meta);
 
         if (currentHash != storedHash) {
@@ -1048,10 +1542,7 @@ public class DynamicLoreEngine {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
 
-        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = new LinkedHashMap<>(meta.getEnchants());
-        if (meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storageMeta) {
-            activeEnchants.putAll(storageMeta.getStoredEnchants());
-        }
+        Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = getEffectiveEnchantments(meta, def);
 
         String socketsRaw = pdcManager.getSocketsData(item);
         List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
@@ -1060,11 +1551,16 @@ public class DynamicLoreEngine {
         List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, player);
         meta.lore(TextUtility.formatLore(rawLore));
 
-        if (hasEnchantmentsPlaceholder(def)) {
+        boolean hideTooltip = def.isHideEnchantments() || hasEnchantmentsPlaceholder(def);
+        if (!hideTooltip && plugin != null && plugin.getConfig() != null) {
+            hideTooltip = plugin.getConfig().getBoolean("enchantments.hide-vanilla-tooltip", true);
+        }
+        if (hideTooltip) {
             meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
         }
 
         pdcManager.setSetState(meta, isBonusActive ? "active" : "inactive");
+        pdcManager.setEnchantHash(meta, computeEnchantmentHash(def, activeEnchants));
         item.setItemMeta(meta);
         return true;
     }

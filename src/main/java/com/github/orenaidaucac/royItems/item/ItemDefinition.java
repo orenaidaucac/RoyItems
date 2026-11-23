@@ -1,8 +1,10 @@
 package com.github.orenaidaucac.royItems.item;
 
+import com.github.orenaidaucac.royItems.extraction.EnchantExtractionConfig;
 import com.github.orenaidaucac.royItems.mechanics.PotionEffectData;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
+import com.github.orenaidaucac.royItems.voucher.EcoEnchantReward;
 import com.github.orenaidaucac.royItems.voucher.VoucherCurrencyReward;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.enchantments.Enchantment;
@@ -85,8 +87,11 @@ public class ItemDefinition {
     private Boolean preventAnvilRename = null; // null = follow global config in config.yml
 
     // Voucher / Consumable commands & Currency rewards
+    private boolean consumable = true;
     private List<String> commands = new ArrayList<>();
     private VoucherCurrencyReward currencyReward = null;
+    private EcoEnchantReward ecoEnchantReward = null;
+    private EnchantExtractionConfig removeEnchantsConfig = null;
 
     public ItemDefinition(ItemType type, String id) {
         this.type = type;
@@ -258,6 +263,9 @@ public class ItemDefinition {
     public Boolean getPreventAnvilRename() { return preventAnvilRename; }
     public void setPreventAnvilRename(Boolean preventAnvilRename) { this.preventAnvilRename = preventAnvilRename; }
 
+    public boolean isConsumable() { return consumable; }
+    public void setConsumable(boolean consumable) { this.consumable = consumable; }
+
     public List<String> getCommands() { return commands; }
     public void setCommands(List<String> commands) {
         this.commands = (commands != null) ? new ArrayList<>(commands) : new ArrayList<>();
@@ -265,4 +273,11 @@ public class ItemDefinition {
 
     public VoucherCurrencyReward getCurrencyReward() { return currencyReward; }
     public void setCurrencyReward(VoucherCurrencyReward currencyReward) { this.currencyReward = currencyReward; }
+
+    public EcoEnchantReward getEcoEnchantReward() { return ecoEnchantReward; }
+    public void setEcoEnchantReward(EcoEnchantReward ecoEnchantReward) { this.ecoEnchantReward = ecoEnchantReward; }
+
+    public EnchantExtractionConfig getRemoveEnchantsConfig() { return removeEnchantsConfig; }
+    public void setRemoveEnchantsConfig(EnchantExtractionConfig removeEnchantsConfig) { this.removeEnchantsConfig = removeEnchantsConfig; }
+    public boolean hasRemoveEnchants() { return removeEnchantsConfig != null && removeEnchantsConfig.isEnabled(); }
 }

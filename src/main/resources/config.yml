@@ -199,6 +199,15 @@ enchantments:
   # Display sorting order: VANILLA_FIRST, ECO_FIRST, ALPHABETICAL, LEVEL_DESC, LEVEL_ASC
   order: "VANILLA_FIRST"
 
+  # Real-time synchronization check interval in ticks for active hand items (10 ticks = 0.5s)
+  # Automatically updates enchantment lore when modified via console/admin /enchant commands while idle
+  check-interval-ticks: 10
+
+  # Optional global custom display name overrides for specific enchantments
+  # custom-names:
+  #   sharpness: "&cSắc Bén"
+  #   unbreaking: "&aBền Bỉ"
+
 # ==============================================================================
 # ANVIL MECHANICS & RESTRICTIONS
 # ==============================================================================
@@ -357,6 +366,36 @@ voucher:
     # Title display format upon final reward
     title-finish: "<green><bold>REWARD UNLOCKED!</bold></green>"
     subtitle-finish: "<yellow>+ #symbol##amount# <gold>#currency#</gold></yellow>"
+
+  ecoenchants-gacha:
+    # Enable animated rolling title for random EcoEnchants book voucher rewards
+    enabled: true
+    # Duration of the rolling animation in ticks (30 ticks = 1.5 seconds)
+    duration-ticks: 30
+    # Interval between enchantment name cycling in ticks (2 ticks = 10 rolls/second)
+    interval-ticks: 2
+    # Title display timing in ticks for the reveal phase (20 ticks = 1 second)
+    times:
+      fade-in-ticks: 5
+      stay-ticks: 50
+      fade-out-ticks: 15
+    # Rolling sound effect
+    sound-roll: "BLOCK_NOTE_BLOCK_PLING"
+    sound-roll-pitch-min: 1.0
+    sound-roll-pitch-max: 1.8
+    # Finished / reveal sound effect
+    sound-reveal: "UI_TOAST_CHALLENGE_COMPLETE"
+    sound-reveal-volume: 1.0
+    sound-reveal-pitch: 1.2
+    # Particle effect when the reward is revealed
+    particle: "FIREWORK"
+    particle-count: 35
+    # Title display format during rolling
+    title-rolling: "<gold><bold>✦ ECOENCHANTS GACHA ✦</bold></gold>"
+    subtitle-rolling: "<gray>Rolling: </gray>#enchantment# <yellow>#level#</yellow> <dark_gray>(#rarity#)</dark_gray>"
+    # Title display format upon final reveal
+    title-reveal: "<green><bold>★ ENCHANTMENT UNLOCKED ★</bold></green>"
+    subtitle-reveal: "#enchantment# <yellow>#level#</yellow> <dark_gray>•</dark_gray> #rarity#"
 
 # ==============================================================================
 # CURRENCIES DISPLAY & FORMATTING

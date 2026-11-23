@@ -7,18 +7,31 @@ import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.orenaidaucac.royItems.dummy.DummyManager;
 import com.github.orenaidaucac.royItems.dummy.TrainingDummy;
 import com.github.orenaidaucac.royItems.gui.GuiHelper;
+import com.github.orenaidaucac.royItems.integration.EcoEnchantsHook;
 import com.github.orenaidaucac.royItems.item.ItemBuilder;
+import com.github.orenaidaucac.royItems.item.ItemDefinition;
+import com.github.orenaidaucac.royItems.item.ItemType;
+import com.github.orenaidaucac.royItems.lore.DynamicLoreEngine;
+import com.github.orenaidaucac.royItems.lore.LoreFormat;
 import com.github.orenaidaucac.royItems.socket.GemSocketManager;
 import com.github.orenaidaucac.royItems.station.RecipeIngredient;
+import com.github.orenaidaucac.royItems.station.StationRecipe;
+import org.bukkit.inventory.ItemStack;
 import com.github.orenaidaucac.royItems.stat.DefenseManager;
 import com.github.orenaidaucac.royItems.stat.PlayerStatCache;
 import com.github.orenaidaucac.royItems.stat.StatModifier;
 import com.github.orenaidaucac.royItems.stat.StatType;
 import com.github.orenaidaucac.royItems.voucher.CurrencyDisplayInfo;
+import com.github.orenaidaucac.royItems.voucher.EcoEnchantReward;
 import com.github.orenaidaucac.royItems.voucher.VoucherCurrencyReward;
 import com.github.orenaidaucac.royItems.voucher.VoucherManager;
+import com.github.orenaidaucac.royItems.extraction.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.plugin.Plugin;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -2148,7 +2161,7 @@ class RoyItemsUnitTest {
     void testVersionSynchronization() {
         com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
                 new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
-        assertEquals("2026.1.8", expansion.getVersion());
+        assertEquals("2026.1.9", expansion.getVersion());
     }
 
     @Test
@@ -3081,5 +3094,1388 @@ class RoyItemsUnitTest {
         airClick.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
         airClick.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
         assertEquals(org.bukkit.event.Event.Result.DENY, airClick.useItemInHand());
+    }
+
+    @Test
+    void testEcoEnchantRewardModel() {
+        // Test basic creation and clamping
+        EcoEnchantReward reward = new EcoEnchantReward("common", "normal", 1, 3);
+        assertEquals("common", reward.getRarity());
+        assertEquals("normal", reward.getType());
+        assertEquals(1, reward.getMinLevel());
+        assertEquals(3, reward.getMaxLevel());
+        assertTrue(reward.hasFilter());
+
+        // Test level bounds swap if min > max
+        EcoEnchantReward inverted = new EcoEnchantReward("rare", null, 5, 2);
+        assertEquals(2, inverted.getMinLevel());
+        assertEquals(5, inverted.getMaxLevel());
+
+        // Test clamping of negative minLevel
+        EcoEnchantReward negativeMin = new EcoEnchantReward(null, "spell", -5, 0);
+        assertEquals(1, negativeMin.getMinLevel());
+        assertEquals(Integer.MAX_VALUE, negativeMin.getMaxLevel());
+    }
+
+    @Test
+    void testEcoEnchantsToRomanAndStripColor() {
+        // Test Roman numerals
+        assertEquals("I", EcoEnchantsHook.toRoman(1));
+        assertEquals("II", EcoEnchantsHook.toRoman(2));
+        assertEquals("III", EcoEnchantsHook.toRoman(3));
+        assertEquals("IV", EcoEnchantsHook.toRoman(4));
+        assertEquals("V", EcoEnchantsHook.toRoman(5));
+        assertEquals("VI", EcoEnchantsHook.toRoman(6));
+        assertEquals("VII", EcoEnchantsHook.toRoman(7));
+        assertEquals("VIII", EcoEnchantsHook.toRoman(8));
+        assertEquals("IX", EcoEnchantsHook.toRoman(9));
+        assertEquals("X", EcoEnchantsHook.toRoman(10));
+        assertEquals("0", EcoEnchantsHook.toRoman(0));
+        assertEquals("-1", EcoEnchantsHook.toRoman(-1));
+
+        // Test stripColor
+        assertEquals("Common", EcoEnchantsHook.stripColor("<green>Common</green>"));
+        assertEquals("Sương Nguyện", EcoEnchantsHook.stripColor("&#8ACDB5Sương Nguyện"));
+        assertEquals("Sương Nguyện", EcoEnchantsHook.stripColor("§a§lSương Nguyện"));
+        assertEquals("Dấu Kiếm", EcoEnchantsHook.stripColor("<#8ACDB5>Dấu Kiếm"));
+        assertEquals("Tro Thức", EcoEnchantsHook.stripColor("{#B8B2A6}Tro Thức"));
+    }
+
+    @Test
+    void testEcoEnchantCandidateFormatting() {
+        EcoEnchantsHook.EcoEnchantCandidate candidate = new EcoEnchantsHook.EcoEnchantCandidate(
+                null,
+                "sw_dau_kiem",
+                "&#8ACDB5Dấu Kiếm",
+                "2",
+                "&#8ACDB5Sương Nguyện",
+                "1",
+                "",
+                3,
+                null
+        );
+
+        assertEquals("sw_dau_kiem", candidate.getId());
+        assertEquals("&#8ACDB5Dấu Kiếm", candidate.getRawDisplayName());
+        assertEquals("2", candidate.getRarityId());
+        assertEquals("&#8ACDB5Sương Nguyện", candidate.getRarityDisplayName());
+        assertEquals(3, candidate.getMaxLevel());
+
+        // Formatted name should append Roman numerals while preserving hex color
+        assertEquals("&#8ACDB5Dấu Kiếm I", candidate.getFormattedName(1));
+        assertEquals("&#8ACDB5Dấu Kiếm II", candidate.getFormattedName(2));
+        assertEquals("&#8ACDB5Dấu Kiếm III", candidate.getFormattedName(3));
+
+        // Single level enchantment (maxLevel == 1) should not append numeral for level 1
+        EcoEnchantsHook.EcoEnchantCandidate singleLevel = new EcoEnchantsHook.EcoEnchantCandidate(
+                null, "mending", "Mending", "common", "Common", "normal", "<green>", 1, null
+        );
+        assertEquals("<green>Mending", singleLevel.getFormattedName(1));
+    }
+
+    @Test
+    void testItemConfigManagerEcoEnchantsParsing() {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("items.voucher_1.type", "VOUCHER");
+        yaml.set("items.voucher_1.material", "ENCHANTED_BOOK");
+        yaml.set("items.voucher_1.ecoenchants.rarity", "common");
+        yaml.set("items.voucher_1.ecoenchants.min-level", 1);
+        yaml.set("items.voucher_1.ecoenchants.max-level", 3);
+
+        ItemDefinition def = new ItemDefinition(ItemType.VOUCHER, "voucher_1");
+        ConfigurationSection sec = yaml.getConfigurationSection("items.voucher_1");
+        assertNotNull(sec);
+        if (sec.contains("ecoenchants")) {
+            ConfigurationSection ecoSec = sec.getConfigurationSection("ecoenchants");
+            String rarity = ecoSec.getString("rarity");
+            String type = ecoSec.getString("type");
+            int minLevel = ecoSec.getInt("min-level", 1);
+            int maxLevel = ecoSec.getInt("max-level", Integer.MAX_VALUE);
+            def.setEcoEnchantReward(new EcoEnchantReward(rarity, type, minLevel, maxLevel));
+        }
+
+        assertNotNull(def.getEcoEnchantReward());
+        assertEquals("common", def.getEcoEnchantReward().getRarity());
+        assertNull(def.getEcoEnchantReward().getType());
+        assertEquals(1, def.getEcoEnchantReward().getMinLevel());
+        assertEquals(3, def.getEcoEnchantReward().getMaxLevel());
+    }
+
+    @Test
+    void testDynamicLoreEngineEcoEnchantsLore() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "skywitch_blade");
+        def.setLoreFormat("default");
+
+        // Subclass EcoEnchantsHook for deterministic testing
+        EcoEnchantsHook mockHook = new EcoEnchantsHook() {
+            @Override
+            public boolean isEcoEnchant(Enchantment ench) {
+                return true;
+            }
+
+            @Override
+            public String getFormattedName(Enchantment ench, int level) {
+                return "&#8ACDB5Dấu Kiếm III";
+            }
+
+            @Override
+            public String getDisplayName(Enchantment ench) {
+                return "&#8ACDB5Dấu Kiếm";
+            }
+        };
+        engine.setEcoEnchantsHook(mockHook);
+
+        Enchantment ench = Enchantment.UNBREAKING;
+
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentFormat("&7%name% %level%");
+
+        Map<Enchantment, Integer> active = Map.of(ench, 3);
+        List<String> lines = engine.generateEnchantmentLines(def, format, active);
+
+        assertNotNull(lines);
+        assertEquals(1, lines.size());
+        assertEquals("&#8ACDB5Dấu Kiếm III", lines.get(0));
+    }
+
+    @Test
+    void testGlobalConfigEnchantmentInheritance() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        YamlConfiguration globalConfig = new YamlConfiguration();
+        globalConfig.set("enchantments.default-format", "&b✦ %name% &f%level%");
+        globalConfig.set("enchantments.curse-format", "&c☠ %name% &f%level%");
+        globalConfig.set("enchantments.level-style", "ROMAN");
+        engine.loadConfig(globalConfig);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        LoreFormat emptyFormat = new LoreFormat(engine.getGlobalEnchantmentFormat());
+
+        // Vanilla Sharpness 5
+        Map<Enchantment, Integer> active1 = Map.of(Enchantment.SHARPNESS, 5);
+        List<String> lines1 = engine.generateEnchantmentLines(def, emptyFormat, active1);
+        assertEquals(1, lines1.size());
+        assertEquals("&b✦ Sharpness &fV", lines1.get(0));
+
+        // Vanilla Curse of Binding 1 (single-level curse, level 1 omitted)
+        Map<Enchantment, Integer> active2 = Map.of(Enchantment.BINDING_CURSE, 1);
+        List<String> lines2 = engine.generateEnchantmentLines(def, emptyFormat, active2);
+        assertEquals(1, lines2.size());
+        assertEquals("&c☠ Curse of Binding", lines2.get(0));
+    }
+
+    @Test
+    void testLocalLoreFormatOverridesGlobalConfig() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        YamlConfiguration globalConfig = new YamlConfiguration();
+        globalConfig.set("enchantments.default-format", "&b✦ %name% &f%level%");
+        engine.loadConfig(globalConfig);
+
+        YamlConfiguration localConfig = new YamlConfiguration();
+        localConfig.set("enchantments-format.format", "&e⚔ %name% [%level%]");
+
+        LoreFormat localFormat = LoreFormat.fromConfig("weapon", localConfig, engine.getGlobalEnchantmentFormat());
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        Map<Enchantment, Integer> active = Map.of(Enchantment.SHARPNESS, 5);
+        List<String> lines = engine.generateEnchantmentLines(def, localFormat, active);
+
+        assertEquals(1, lines.size());
+        assertEquals("&e⚔ Sharpness [V]", lines.get(0));
+    }
+
+    @Test
+    void testEcoEnchantCustomFormatAndDeduplication() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        EcoEnchantsHook mockHook = new EcoEnchantsHook() {
+            @Override
+            public boolean isEcoEnchant(Enchantment ench) {
+                return true;
+            }
+
+            @Override
+            public String getDisplayName(Enchantment ench) {
+                return "&#8ACDB5Dấu Kiếm";
+            }
+
+            @Override
+            public int getMaxLevel(Enchantment ench) {
+                return 5;
+            }
+
+            @Override
+            public String getRarityDisplayName(Enchantment ench) {
+                return "&#8ACDB5Sương Nguyện";
+            }
+        };
+        engine.setEcoEnchantsHook(mockHook);
+
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentFormat("&b✦ %name% &f%level%");
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        Map<Enchantment, Integer> active = Map.of(Enchantment.UNBREAKING, 3);
+        List<String> lines = engine.generateEnchantmentLines(def, format, active);
+
+        assertEquals(1, lines.size());
+        assertEquals("&b✦ &#8ACDB5Dấu Kiếm &fIII", lines.get(0));
+    }
+
+    @Test
+    void testSingleLevelEnchantmentRemovesBrackets() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentFormat("&7• %name% &e[%level%]");
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        Map<Enchantment, Integer> active = Map.of(Enchantment.MENDING, 1);
+        List<String> lines = engine.generateEnchantmentLines(def, format, active);
+
+        assertEquals(1, lines.size());
+        assertEquals("&7• Mending", lines.get(0));
+    }
+
+    @Test
+    void testCustomNamesOverride() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        EcoEnchantsHook mockHook = new EcoEnchantsHook() {
+            @Override
+            public boolean isEcoEnchant(Enchantment ench) {
+                return ench.equals(Enchantment.UNBREAKING);
+            }
+
+            @Override
+            public String getDisplayName(Enchantment ench) {
+                return "&#8ACDB5Dấu Kiếm";
+            }
+        };
+        engine.setEcoEnchantsHook(mockHook);
+
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentFormat("&7%name% %level%");
+        format.setEnchantmentCustomNames(Map.of(
+                "sharpness", "&cSắc Bén",
+                "unbreaking", "&dKiếm Thần"
+        ));
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        Map<Enchantment, Integer> active = new LinkedHashMap<>();
+        active.put(Enchantment.SHARPNESS, 5);
+        active.put(Enchantment.UNBREAKING, 3);
+
+        List<String> lines = engine.generateEnchantmentLines(def, format, active);
+        assertEquals(2, lines.size());
+        assertEquals("&cSắc Bén V", lines.get(0));
+        assertEquals("&dKiếm Thần III", lines.get(1));
+    }
+
+    @Test
+    void testLevelStyleNumber() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentFormat("&7• %name% &f%level%");
+        format.setEnchantmentLevelStyle("NUMBER");
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        Map<Enchantment, Integer> active = Map.of(Enchantment.SHARPNESS, 5);
+
+        List<String> lines = engine.generateEnchantmentLines(def, format, active);
+        assertEquals(1, lines.size());
+        assertEquals("&7• Sharpness &f5", lines.get(0));
+    }
+
+    @Test
+    void testMixedVanillaAndEcoEnchantsSorting() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        EcoEnchantsHook mockHook = new EcoEnchantsHook() {
+            @Override
+            public boolean isEcoEnchant(Enchantment ench) {
+                return ench.equals(Enchantment.UNBREAKING);
+            }
+
+            @Override
+            public String getDisplayName(Enchantment ench) {
+                return "&#8ACDB5Dấu Kiếm";
+            }
+        };
+        engine.setEcoEnchantsHook(mockHook);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "custom_sword");
+        Map<Enchantment, Integer> active = new LinkedHashMap<>();
+        active.put(Enchantment.UNBREAKING, 3);
+        active.put(Enchantment.SHARPNESS, 5);
+
+        // 1. VANILLA_FIRST
+        LoreFormat vanillaFirst = new LoreFormat();
+        vanillaFirst.setEnchantmentOrder("VANILLA_FIRST");
+        List<String> lines1 = engine.generateEnchantmentLines(def, vanillaFirst, active);
+        assertTrue(lines1.get(0).contains("Sharpness"));
+        assertTrue(lines1.get(1).contains("Dấu Kiếm"));
+
+        // 2. ECO_FIRST
+        LoreFormat ecoFirst = new LoreFormat();
+        ecoFirst.setEnchantmentOrder("ECO_FIRST");
+        List<String> lines2 = engine.generateEnchantmentLines(def, ecoFirst, active);
+        assertTrue(lines2.get(0).contains("Dấu Kiếm"));
+        assertTrue(lines2.get(1).contains("Sharpness"));
+    }
+
+    @Test
+    void testTextUtilityAdventureComponentColorsWithVietnameseAndHex() {
+        String input = "&b✦ &#8ACDB5Dấu Kiếm &fIII";
+        net.kyori.adventure.text.Component component = TextUtility.format(input);
+        assertNotNull(component);
+
+        String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component);
+        assertEquals("✦ Dấu Kiếm III", plain);
+    }
+
+    @Test
+    void testDynamicEnchantmentLoreUpdateAndPreserveCustomLines() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "legendary_sword");
+        Map<Enchantment, Integer> active = new LinkedHashMap<>();
+        active.put(Enchantment.SHARPNESS, 5);
+        active.put(Enchantment.UNBREAKING, 3);
+
+        // Current lore on item has a description, old enchantment lines, and a custom player line
+        List<Component> currentLore = new ArrayList<>(List.of(
+                TextUtility.format("&7A mighty blade"),
+                TextUtility.format("&7Sharpness V"),
+                TextUtility.format("&7Unbreaking III"),
+                TextUtility.format("&8[Empty Socket]"),
+                TextUtility.format("&eOwner: Steve")
+        ));
+
+        // Format is updated: symbol "✦ ", format "&b✦ %name% &f%level%"
+        LoreFormat newFormat = new LoreFormat();
+        newFormat.setEnchantmentFormat("&b✦ %name% &f%level%");
+        newFormat.setEnchantmentLevelStyle("ROMAN");
+
+        engine.setGlobalEnchantmentFormat(newFormat);
+
+        List<Component> updated = engine.updateEnchantmentLinesInLore(currentLore, def, active);
+
+        assertNotNull(updated);
+        assertEquals(5, updated.size());
+
+        List<String> plainLines = updated.stream()
+                .map(c -> net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(c))
+                .toList();
+
+        assertEquals("A mighty blade", plainLines.get(0));
+        assertEquals("✦ Sharpness V", plainLines.get(1));
+        assertEquals("✦ Unbreaking III", plainLines.get(2));
+        assertEquals("[Empty Socket]", plainLines.get(3));
+        assertEquals("Owner: Steve", plainLines.get(4));
+    }
+
+    @Test
+    void testMergeCustomLoreOnLiveUpdate() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "excalibur");
+        Map<Enchantment, Integer> active = Map.of(Enchantment.SHARPNESS, 5);
+
+        List<Component> currentLore = List.of(
+                TextUtility.format("&7Old Description"),
+                TextUtility.format("&7Sharpness V"),
+                TextUtility.format("&aKills: 1500")
+        );
+
+        List<Component> baseLore = List.of(
+                TextUtility.format("&7New Definition Description"),
+                TextUtility.format("&b✦ Sharpness V"),
+                TextUtility.format("&8&m------------------------")
+        );
+
+        List<Component> merged = engine.mergeCustomLore(currentLore, baseLore, def, active);
+
+        List<String> plainLines = merged.stream()
+                .map(c -> net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(c))
+                .toList();
+
+        assertTrue(plainLines.contains("Kills: 1500"));
+        assertEquals("------------------------", plainLines.get(plainLines.size() - 1));
+        assertEquals("Kills: 1500", plainLines.get(plainLines.size() - 2));
+    }
+
+    @Test
+    void testComputeEnchantmentHashFormatSensitivity() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "dragon_blade");
+        Map<Enchantment, Integer> active = Map.of(Enchantment.SHARPNESS, 5);
+
+        int hash1 = engine.computeEnchantmentHash(def, active);
+
+        // Change global enchantment format
+        LoreFormat updatedFormat = new LoreFormat();
+        updatedFormat.setEnchantmentFormat("&c%name% - Level %level%");
+        engine.setGlobalEnchantmentFormat(updatedFormat);
+
+        int hash2 = engine.computeEnchantmentHash(def, active);
+
+        assertNotEquals(hash1, hash2, "Enchantment hash must change when format changes!");
+    }
+
+    @Test
+    void testAutomaticLanguageMigration() throws Exception {
+        java.io.File tempFolder = java.nio.file.Files.createTempDirectory("royitems_test_lang").toFile();
+        java.io.File langFolder = new java.io.File(tempFolder, "lang");
+        langFolder.mkdirs();
+
+        java.io.File testFile = new java.io.File(langFolder, "en-US.yml");
+        String oldContent = """
+                config-version: 1
+                prefix: "&6RoyItems &8» &f"
+
+                messages:
+                  no-permission: "&cYou do not have permission to execute this command."
+                  player-only: "&cThis command can only be executed by in-game players."
+                """;
+        java.nio.file.Files.writeString(testFile.toPath(), oldContent, java.nio.charset.StandardCharsets.UTF_8);
+
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger("RoyItemsTest");
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> {
+                    if ("getDataFolder".equals(method.getName())) return tempFolder;
+                    if ("getLogger".equals(method.getName())) return logger;
+                    if ("getResource".equals(method.getName())) {
+                        String name = (String) args[0];
+                        return getClass().getClassLoader().getResourceAsStream(name);
+                    }
+                    if ("getConfig".equals(method.getName())) {
+                        YamlConfiguration cfg = new YamlConfiguration();
+                        cfg.set("language", "en-US");
+                        return cfg;
+                    }
+                    return null;
+                }
+        );
+
+        com.github.orenaidaucac.royItems.core.message.MessageManager mm = new com.github.orenaidaucac.royItems.core.message.MessageManager(mockPlugin);
+
+        YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(testFile);
+
+        assertEquals("&cYou do not have permission to execute this command.", diskConfig.getString("messages.no-permission"));
+        assertEquals("&cThis command can only be executed by in-game players.", diskConfig.getString("messages.player-only"));
+
+        assertTrue(diskConfig.contains("messages.anvil-rename-blocked"), "Missing key anvil-rename-blocked must be migrated!");
+        assertTrue(diskConfig.contains("messages.voucher-ecoenchants-reward"), "Missing key voucher-ecoenchants-reward must be migrated!");
+        assertTrue(diskConfig.contains("messages.voucher-inventory-full-dropped"), "Missing key voucher-inventory-full-dropped must be migrated!");
+
+        int keyCountBefore = diskConfig.getConfigurationSection("messages").getKeys(false).size();
+        mm.migrateLanguageFiles();
+        YamlConfiguration diskConfigAfter = YamlConfiguration.loadConfiguration(testFile);
+        int keyCountAfter = diskConfigAfter.getConfigurationSection("messages").getKeys(false).size();
+        assertEquals(keyCountBefore, keyCountAfter, "Migration must be 100% idempotent!");
+
+        testFile.delete();
+        langFolder.delete();
+        tempFolder.delete();
+    }
+
+    @Test
+    void testMessageManagerFallbackAndSingleWarning() {
+        java.util.List<String> logWarnings = new ArrayList<>();
+        java.util.logging.Logger logger = new java.util.logging.Logger("TestLogger", null) {
+            @Override
+            public void warning(String msg) {
+                logWarnings.add(msg);
+            }
+        };
+
+        java.io.File tempFolder = null;
+        try {
+            tempFolder = java.nio.file.Files.createTempDirectory("royitems_test_fallback").toFile();
+            java.io.File finalTempFolder = tempFolder;
+            Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                    Plugin.class.getClassLoader(),
+                    new Class<?>[]{Plugin.class},
+                    (proxy, method, args) -> {
+                        if ("getDataFolder".equals(method.getName())) return finalTempFolder;
+                        if ("getLogger".equals(method.getName())) return logger;
+                        if ("getResource".equals(method.getName())) {
+                            String name = (String) args[0];
+                            return getClass().getClassLoader().getResourceAsStream(name);
+                        }
+                        if ("getConfig".equals(method.getName())) {
+                            YamlConfiguration cfg = new YamlConfiguration();
+                            cfg.set("language", "vi-VN");
+                            return cfg;
+                        }
+                        return null;
+                    }
+            );
+
+            com.github.orenaidaucac.royItems.core.message.MessageManager mm = new com.github.orenaidaucac.royItems.core.message.MessageManager(mockPlugin);
+
+            String nonExistentInActive = "some-key-that-only-exists-in-fallback";
+            try {
+                java.lang.reflect.Field fallbackField = com.github.orenaidaucac.royItems.core.message.MessageManager.class.getDeclaredField("fallbackConfig");
+                fallbackField.setAccessible(true);
+                YamlConfiguration fb = (YamlConfiguration) fallbackField.get(mm);
+                if (fb != null) {
+                    fb.set("messages." + nonExistentInActive, "Fallback Value");
+                }
+            } catch (Exception ignored) {}
+
+            String result = mm.getRawMessage(nonExistentInActive, "Default");
+            assertEquals("Fallback Value", result);
+            assertEquals(1, logWarnings.size(), "Should log warning exactly once on fallback!");
+
+            mm.getRawMessage(nonExistentInActive, "Default");
+            assertEquals(1, logWarnings.size(), "Should NOT log duplicate warning for already warned key!");
+        } catch (Exception e) {
+            fail("Exception in testMessageManagerFallbackAndSingleWarning: " + e.getMessage());
+        } finally {
+            if (tempFolder != null) {
+                for (java.io.File f : tempFolder.listFiles()) {
+                    if (f.isDirectory()) for (java.io.File sf : f.listFiles()) sf.delete();
+                    f.delete();
+                }
+                tempFolder.delete();
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Configuration parsing and eligibility filtering")
+    void testEnchantExtractionConfigEligibility() {
+        // 1. Default configuration checks
+        EnchantExtractionConfig defaultConfig = new EnchantExtractionConfig();
+        assertFalse(defaultConfig.isEnabled());
+        assertEquals(EnchantExtractionConfig.ExtractionType.BOTH, defaultConfig.getType());
+        assertEquals(100.0, defaultConfig.getChance());
+        assertTrue(defaultConfig.getEcoRarities().isEmpty());
+        assertTrue(defaultConfig.getEcoTypes().isEmpty());
+
+        // 2. YAML parsing
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("remove-enchants.enabled", true);
+        yaml.set("remove-enchants.type", "BOTH");
+        yaml.set("remove-enchants.chance", 85.0);
+        yaml.set("remove-enchants.ecoenchants.rarity", List.of("legendary", "epic"));
+        yaml.set("remove-enchants.ecoenchants.type", List.of("combat", "special"));
+
+        EnchantExtractionConfig config = EnchantExtractionConfig.fromConfig(yaml.getConfigurationSection("remove-enchants"));
+        assertTrue(config.isEnabled());
+        assertEquals(EnchantExtractionConfig.ExtractionType.BOTH, config.getType());
+        assertEquals(85.0, config.getChance());
+        assertEquals(List.of("legendary", "epic"), config.getEcoRarities());
+        assertEquals(List.of("combat", "special"), config.getEcoTypes());
+
+        // 3. Chance clamping
+        config.setChance(-5.0);
+        assertEquals(0.0, config.getChance());
+        config.setChance(120.0);
+        assertEquals(100.0, config.getChance());
+        config.setChance(75.5);
+        assertEquals(75.5, config.getChance());
+
+        // 4. Type parsing resilience
+        assertEquals(EnchantExtractionConfig.ExtractionType.VANILLA_ENCHANTS, EnchantExtractionConfig.ExtractionType.fromString("vanilla_enchants"));
+        assertEquals(EnchantExtractionConfig.ExtractionType.VANILLA_ENCHANTS, EnchantExtractionConfig.ExtractionType.fromString("VANILLA"));
+        assertEquals(EnchantExtractionConfig.ExtractionType.ECOENCHANTS, EnchantExtractionConfig.ExtractionType.fromString("ecoenchants"));
+        assertEquals(EnchantExtractionConfig.ExtractionType.ECOENCHANTS, EnchantExtractionConfig.ExtractionType.fromString("ECO"));
+        assertEquals(EnchantExtractionConfig.ExtractionType.BOTH, EnchantExtractionConfig.ExtractionType.fromString("both"));
+        assertEquals(EnchantExtractionConfig.ExtractionType.BOTH, EnchantExtractionConfig.ExtractionType.fromString(null));
+        assertEquals(EnchantExtractionConfig.ExtractionType.BOTH, EnchantExtractionConfig.ExtractionType.fromString("unknown_val"));
+
+        // 5. Mock EcoEnchantsHook for eligibility tests
+        EcoEnchantsHook mockHook = new EcoEnchantsHook() {
+            @Override
+            public boolean isEcoEnchant(Enchantment ench) {
+                return ench != null && ench.equals(Enchantment.PROTECTION);
+            }
+
+            @Override
+            public String getRarityId(Enchantment ench) {
+                return "legendary";
+            }
+
+            @Override
+            public String getRarityDisplayName(Enchantment ench) {
+                return "<gold>Legendary</gold>";
+            }
+
+            @Override
+            public String getTypeId(Enchantment ench) {
+                return "combat";
+            }
+        };
+
+        Enchantment vanillaEnch = Enchantment.UNBREAKING;
+        Enchantment ecoEnch = Enchantment.PROTECTION;
+
+        // When type is BOTH:
+        // Vanilla enchantment must ALWAYS be eligible even with eco rarity/type filters!
+        assertTrue(config.isEnchantmentEligible(vanillaEnch, mockHook));
+        // Eco enchantment with matching legendary/combat must be eligible
+        assertTrue(config.isEnchantmentEligible(ecoEnch, mockHook));
+
+        // If eco rarity does not match
+        config.setEcoRarities(List.of("common"));
+        assertFalse(config.isEnchantmentEligible(ecoEnch, mockHook));
+        assertTrue(config.isEnchantmentEligible(vanillaEnch, mockHook), "Vanilla enchants must never be blocked by Eco filters!");
+
+        // When type is VANILLA_ENCHANTS:
+        config.setType(EnchantExtractionConfig.ExtractionType.VANILLA_ENCHANTS);
+        config.setEcoRarities(Collections.emptyList());
+        assertTrue(config.isEnchantmentEligible(vanillaEnch, mockHook));
+        assertFalse(config.isEnchantmentEligible(ecoEnch, mockHook));
+
+        // When type is ECOENCHANTS:
+        config.setType(EnchantExtractionConfig.ExtractionType.ECOENCHANTS);
+        assertFalse(config.isEnchantmentEligible(vanillaEnch, mockHook));
+        assertTrue(config.isEnchantmentEligible(ecoEnch, mockHook));
+
+        // 6. ItemDefinition integration
+        ItemDefinition itemDef = new ItemDefinition(ItemType.CONSUMABLE, "test_scroll");
+        assertFalse(itemDef.hasRemoveEnchants());
+        itemDef.setRemoveEnchantsConfig(config);
+        assertTrue(itemDef.hasRemoveEnchants());
+        config.setEnabled(false);
+        assertFalse(itemDef.hasRemoveEnchants());
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: GUI configuration parsing from remove-enchants-gui.yml")
+    void testExtractionGuiConfigLoading() {
+        java.io.InputStream in = getClass().getClassLoader().getResourceAsStream("gui/remove-enchants-gui.yml");
+        assertNotNull(in, "gui/remove-enchants-gui.yml must exist in resources");
+
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        ExtractionGuiConfig guiConfig = new ExtractionGuiConfig();
+        guiConfig.load(yaml);
+
+        assertNotNull(guiConfig.getTitle());
+        assertTrue(guiConfig.getTitle().contains("Enchantment Extraction"));
+        assertEquals(5, guiConfig.getRows());
+        assertEquals(4, guiConfig.getTargetSlot());
+        assertNotNull(guiConfig.getTargetPreviewName());
+        assertFalse(guiConfig.getTargetPreviewLore().isEmpty());
+
+        assertEquals(14, guiConfig.getEnchantSlots().size());
+        assertEquals(org.bukkit.Material.ENCHANTED_BOOK, guiConfig.getIconMaterial());
+        assertNotNull(guiConfig.getIconName());
+        assertTrue(guiConfig.getIconName().contains("%enchantment_name%"));
+        assertFalse(guiConfig.getIconLore().isEmpty());
+
+        assertNotNull(guiConfig.getPreviousPage());
+        assertEquals(38, guiConfig.getPreviousPage().getSlot());
+        assertNotNull(guiConfig.getNextPage());
+        assertEquals(42, guiConfig.getNextPage().getSlot());
+        assertNotNull(guiConfig.getCloseButton());
+        assertEquals(40, guiConfig.getCloseButton().getSlot());
+        assertEquals(org.bukkit.Material.BARRIER, guiConfig.getCloseButton().getMaterial());
+
+        assertFalse(guiConfig.getDecorations().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Language migration adds all 8 extraction keys safely")
+    void testLanguageMigrationWithExtractionKeys() throws Exception {
+        java.io.File tempFolder = java.nio.file.Files.createTempDirectory("royitems_test_extraction_lang").toFile();
+        java.io.File langFolder = new java.io.File(tempFolder, "lang");
+        langFolder.mkdirs();
+
+        java.io.File testFile = new java.io.File(langFolder, "vi-VN.yml");
+        String oldContent = """
+                config-version: 1
+                prefix: "&6RoyItems &8» &f"
+
+                messages:
+                  no-permission: "&cBạn không có quyền thực hiện lệnh này."
+                  player-only: "&cLệnh này chỉ có thể được thực hiện bởi người chơi."
+                """;
+        java.nio.file.Files.writeString(testFile.toPath(), oldContent, java.nio.charset.StandardCharsets.UTF_8);
+
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger("RoyItemsTestExtraction");
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> {
+                    if ("getDataFolder".equals(method.getName())) return tempFolder;
+                    if ("getLogger".equals(method.getName())) return logger;
+                    if ("getResource".equals(method.getName())) {
+                        String name = (String) args[0];
+                        return getClass().getClassLoader().getResourceAsStream(name);
+                    }
+                    if ("getConfig".equals(method.getName())) {
+                        YamlConfiguration cfg = new YamlConfiguration();
+                        cfg.set("language", "vi-VN");
+                        return cfg;
+                    }
+                    return null;
+                }
+        );
+
+        com.github.orenaidaucac.royItems.core.message.MessageManager mm = new com.github.orenaidaucac.royItems.core.message.MessageManager(mockPlugin);
+
+        YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(testFile);
+
+        // Verify preserved original keys
+        assertEquals("&cBạn không có quyền thực hiện lệnh này.", diskConfig.getString("messages.no-permission"));
+        assertEquals("&cLệnh này chỉ có thể được thực hiện bởi người chơi.", diskConfig.getString("messages.player-only"));
+
+        // Verify all 8 extraction keys were migrated into the disk file
+        assertTrue(diskConfig.contains("messages.extract-no-enchantments"), "Missing extract-no-enchantments");
+        assertTrue(diskConfig.contains("messages.extract-no-valid-enchantments"), "Missing extract-no-valid-enchantments");
+        assertTrue(diskConfig.contains("messages.extract-success-book"), "Missing extract-success-book");
+        assertTrue(diskConfig.contains("messages.extract-success-no-book"), "Missing extract-success-no-book");
+        assertTrue(diskConfig.contains("messages.extract-inventory-full-dropped"), "Missing extract-inventory-full-dropped");
+        assertTrue(diskConfig.contains("messages.extract-cancelled"), "Missing extract-cancelled");
+        assertTrue(diskConfig.contains("messages.extract-in-progress"), "Missing extract-in-progress");
+        assertTrue(diskConfig.contains("messages.extract-item-invalid"), "Missing extract-item-invalid");
+        assertTrue(diskConfig.contains("messages.extract-item-not-whitelisted"), "Missing extract-item-not-whitelisted");
+
+        // Verify idempotency
+        int keyCountBefore = diskConfig.getConfigurationSection("messages").getKeys(false).size();
+        mm.migrateLanguageFiles();
+        YamlConfiguration diskConfigAfter = YamlConfiguration.loadConfiguration(testFile);
+        int keyCountAfter = diskConfigAfter.getConfigurationSection("messages").getKeys(false).size();
+        assertEquals(keyCountBefore, keyCountAfter, "Migration must be 100% idempotent!");
+
+        testFile.delete();
+        langFolder.delete();
+        tempFolder.delete();
+    }
+
+    @Test
+    @DisplayName("Consumable: Right-click consumption control and remove-enchants protection")
+    void testConsumableRightClickFlag() {
+        ItemDefinition def = new ItemDefinition(ItemType.CONSUMABLE, "test_potion");
+        // Default is true
+        assertTrue(def.isConsumable());
+
+        // Configurable to false
+        def.setConsumable(false);
+        assertFalse(def.isConsumable());
+
+        // YAML parsing in ItemConfigManager logic
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("consumable", false);
+        def.setConsumable(yaml.getBoolean("consumable", true));
+        assertFalse(def.isConsumable());
+
+        yaml.set("consumable", true);
+        def.setConsumable(yaml.getBoolean("consumable", true));
+        assertTrue(def.isConsumable());
+
+        // When remove-enchants is enabled, it must never be consumable
+        EnchantExtractionConfig extractionConfig = new EnchantExtractionConfig();
+        extractionConfig.setEnabled(true);
+        def.setRemoveEnchantsConfig(extractionConfig);
+        assertTrue(def.hasRemoveEnchants());
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Item Whitelist parsing and group matching")
+    void testEnchantExtractionWhitelist() {
+        EnchantExtractionConfig config = new EnchantExtractionConfig();
+        // 1. Empty whitelist allows all (backwards compatibility)
+        assertTrue(config.getItemWhitelist().isEmpty());
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_SWORD, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.DIRT, null));
+
+        // 2. Set whitelist to SWORD and AXE
+        config.setItemWhitelist(List.of("SWORD", "AXE"));
+        assertEquals(List.of("SWORD", "AXE"), config.getItemWhitelist());
+
+        // Group matching: Swords
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_SWORD, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.NETHERITE_SWORD, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.WOODEN_SWORD, null));
+
+        // Group matching: Axes
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_AXE, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.NETHERITE_AXE, null));
+
+        // Non-whitelisted items
+        assertFalse(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_PICKAXE, null));
+        assertFalse(config.isItemWhitelisted(org.bukkit.Material.BOW, null));
+        assertFalse(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_CHESTPLATE, null));
+        assertFalse(config.isItemWhitelisted(org.bukkit.Material.DIRT, null));
+
+        // Custom item with ItemType matching
+        ItemDefinition roySword = new ItemDefinition(ItemType.SWORD, "custom_blade");
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.STICK, roySword));
+
+        // Armor group alias matching
+        config.setItemWhitelist(List.of("ARMOR"));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_HELMET, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.NETHERITE_CHESTPLATE, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.IRON_LEGGINGS, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.GOLDEN_BOOTS, null));
+        assertTrue(config.isItemWhitelisted(org.bukkit.Material.ELYTRA, null));
+        assertFalse(config.isItemWhitelisted(org.bukkit.Material.DIAMOND_SWORD, null));
+
+        // YAML parsing
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("item-whitelist", List.of("SWORD", "BOW", "CROSSBOW"));
+        EnchantExtractionConfig parsedConfig = EnchantExtractionConfig.fromConfig(yaml);
+        assertEquals(List.of("SWORD", "BOW", "CROSSBOW"), parsedConfig.getItemWhitelist());
+        assertTrue(parsedConfig.isItemWhitelisted(org.bukkit.Material.BOW, null));
+        assertTrue(parsedConfig.isItemWhitelisted(org.bukkit.Material.CROSSBOW, null));
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Glow effect discrimination and dummy enchantment filtering")
+    void testGlowEnchantmentFiltering() {
+        ItemDefinition glowingDef = new ItemDefinition(ItemType.SWORD, "glow_sword");
+        glowingDef.setGlow(true);
+
+        // Dummy LUCK_OF_THE_SEA 1 check
+        assertTrue(ExtractionManager.isDummyGlow(glowingDef, Enchantment.LUCK_OF_THE_SEA, 1));
+        assertFalse(ExtractionManager.isDummyGlow(glowingDef, Enchantment.SHARPNESS, 5));
+        assertFalse(ExtractionManager.isDummyGlow(glowingDef, Enchantment.LUCK_OF_THE_SEA, 2));
+
+        // If the item actually had LUCK_OF_THE_SEA configured as a real enchantment
+        glowingDef.setEnchantments(Map.of(Enchantment.LUCK_OF_THE_SEA, 1));
+        assertFalse(ExtractionManager.isDummyGlow(glowingDef, Enchantment.LUCK_OF_THE_SEA, 1));
+
+        // Non-glowing item
+        ItemDefinition normalDef = new ItemDefinition(ItemType.SWORD, "normal_sword");
+        normalDef.setGlow(false);
+        assertFalse(ExtractionManager.isDummyGlow(normalDef, Enchantment.LUCK_OF_THE_SEA, 1));
+
+        // Filter out dummy glow from map
+        glowingDef.setEnchantments(Collections.emptyMap());
+        Map<Enchantment, Integer> map = new HashMap<>();
+        map.put(Enchantment.LUCK_OF_THE_SEA, 1);
+        map.put(Enchantment.SHARPNESS, 5);
+
+        ExtractionManager.filterDummyGlowEnchantments(map, glowingDef);
+        assertEquals(1, map.size());
+        assertTrue(map.containsKey(Enchantment.SHARPNESS));
+        assertFalse(map.containsKey(Enchantment.LUCK_OF_THE_SEA));
+
+        // Only dummy glow in map
+        Map<Enchantment, Integer> onlyGlowMap = new HashMap<>();
+        onlyGlowMap.put(Enchantment.LUCK_OF_THE_SEA, 1);
+        ExtractionManager.filterDummyGlowEnchantments(onlyGlowMap, glowingDef);
+        assertTrue(onlyGlowMap.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Two extraction consumables cannot extract each other")
+    void testConsumableStackingAndExtractionConflict() {
+        ItemDefinition scrollDef1 = new ItemDefinition(ItemType.CONSUMABLE, "extraction_scroll_1");
+        EnchantExtractionConfig cfg1 = new EnchantExtractionConfig();
+        cfg1.setEnabled(true);
+        scrollDef1.setRemoveEnchantsConfig(cfg1);
+
+        ItemDefinition scrollDef2 = new ItemDefinition(ItemType.CONSUMABLE, "extraction_scroll_2");
+        EnchantExtractionConfig cfg2 = new EnchantExtractionConfig();
+        cfg2.setEnabled(true);
+        scrollDef2.setRemoveEnchantsConfig(cfg2);
+
+        assertTrue(scrollDef1.hasRemoveEnchants());
+        assertTrue(scrollDef2.hasRemoveEnchants());
+
+        // Neither can target the other for extraction
+        assertTrue(scrollDef1.hasRemoveEnchants());
+        assertTrue(scrollDef2.hasRemoveEnchants());
+        assertFalse(scrollDef1.getRemoveEnchantsConfig().getItemWhitelist().contains("CONSUMABLE"));
+    }
+
+    @Test
+    @DisplayName("Real-Time Enchantment Lore: Effective Enchantments filters dummy cosmetic glow")
+    void testRealTimeEffectiveEnchantmentsFiltersDummyGlow() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition glowingDef = new ItemDefinition(ItemType.SWORD, "glow_blade");
+        glowingDef.setGlow(true);
+
+        // Mock ItemMeta with dummy glow (LUCK_OF_THE_SEA 1)
+        Map<Enchantment, Integer> metaEnchants = new LinkedHashMap<>();
+        metaEnchants.put(Enchantment.LUCK_OF_THE_SEA, 1);
+
+        org.bukkit.inventory.meta.ItemMeta mockMeta = (org.bukkit.inventory.meta.ItemMeta) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.meta.ItemMeta.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.meta.ItemMeta.class},
+                (proxy, method, args) -> {
+                    if ("getEnchants".equals(method.getName())) return metaEnchants;
+                    return null;
+                }
+        );
+
+        Map<Enchantment, Integer> effective = engine.getEffectiveEnchantments(mockMeta, glowingDef);
+        assertTrue(effective.isEmpty(), "Dummy glow LUCK_OF_THE_SEA must be filtered out when def.isGlow() is true");
+
+        // Now add a real enchantment
+        metaEnchants.put(Enchantment.SHARPNESS, 5);
+        effective = engine.getEffectiveEnchantments(mockMeta, glowingDef);
+        assertEquals(1, effective.size());
+        assertEquals(5, effective.get(Enchantment.SHARPNESS));
+        assertFalse(effective.containsKey(Enchantment.LUCK_OF_THE_SEA));
+    }
+
+    @Test
+    @DisplayName("Real-Time Enchantment Lore: Exact #enchantments# placement and bar pruning")
+    void testRealTimeBuildLoreEnchantmentPlacementAndBarPruning() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        LoreFormat format = new LoreFormat();
+        format.setFormat(List.of(
+                "&7Category: &f#type#",
+                "#bar#",
+                "#stats#",
+                "#bar#",
+                "#enchantments#",
+                "#sockets#",
+                "#bar#",
+                "#description#"
+        ));
+        format.setBar("&8------------------------");
+        format.setEnchantmentFormat("&b✦ %name% &f%level%");
+        format.setEnchantmentLevelStyle("ROMAN");
+        engine.setGlobalEnchantmentFormat(format);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "excalibur");
+        def.setName("&6Excalibur");
+        def.setLore(List.of("&7The legendary holy sword."));
+        def.setStats(Map.of(StatType.ATTACK_DAMAGE, new StatModifier(15.0, 0.0)));
+
+        // 1. Without enchantments
+        List<String> loreWithoutEnch = engine.buildLore(def, Collections.emptyList(), 0L, Collections.emptyMap());
+        assertNotNull(loreWithoutEnch);
+        // Ensure no enchantments rendered
+        for (String line : loreWithoutEnch) {
+            assertFalse(line.contains("Sharpness"));
+        }
+        // Verify no double bars
+        for (int i = 0; i < loreWithoutEnch.size() - 1; i++) {
+            assertFalse(loreWithoutEnch.get(i).contains("----") && loreWithoutEnch.get(i + 1).contains("----"),
+                    "No consecutive bars allowed when enchantments are absent");
+        }
+
+        // 2. With real-time enchantments added (Sharpness V and Unbreaking III)
+        Map<Enchantment, Integer> active = new LinkedHashMap<>();
+        active.put(Enchantment.SHARPNESS, 5);
+        active.put(Enchantment.UNBREAKING, 3);
+
+        List<String> loreWithEnch = engine.buildLore(def, Collections.emptyList(), 0L, active);
+        assertNotNull(loreWithEnch);
+
+        List<String> plainWithEnch = loreWithEnch.stream().map(TextUtility::stripColor).toList();
+        assertTrue(plainWithEnch.contains("✦ Sharpness V"));
+        assertTrue(plainWithEnch.contains("✦ Unbreaking III"));
+
+        int statIdx = -1;
+        int enchIdx = -1;
+        int descIdx = -1;
+        for (int i = 0; i < plainWithEnch.size(); i++) {
+            String line = plainWithEnch.get(i);
+            if (line.contains("attack-damage") || line.contains("+15")) statIdx = i;
+            if (line.contains("✦ Sharpness V")) enchIdx = i;
+            if (line.contains("legendary holy sword")) descIdx = i;
+        }
+
+        assertTrue(statIdx != -1, "Stat line must exist");
+        assertTrue(enchIdx != -1, "Enchantment line must exist");
+        assertTrue(descIdx != -1, "Description line must exist");
+        assertTrue(statIdx < enchIdx, "Enchantments must be placed AFTER stats according to format");
+        assertTrue(enchIdx < descIdx, "Enchantments must be placed BEFORE description according to format");
+    }
+
+    @Test
+    @DisplayName("Real-Time Enchantment Lore: isEnchantmentLine recognizes Vanilla, EcoEnchants, custom names, and Roman numerals")
+    void testRealTimeIsEnchantmentLineRecognition() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "test_blade");
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentCustomNames(Map.of("sharpness", "&cSắc Bén", "unbreaking", "&aBền Bỉ"));
+        engine.setGlobalEnchantmentFormat(format);
+
+        Map<Enchantment, Integer> active = Map.of(Enchantment.SHARPNESS, 5);
+
+        // Valid enchantment lines
+        assertTrue(engine.isEnchantmentLine("Sharpness V", active, def));
+        assertTrue(engine.isEnchantmentLine("✦ Sharpness V", active, def));
+        assertTrue(engine.isEnchantmentLine("✦ Sắc Bén V", active, def));
+        assertTrue(engine.isEnchantmentLine("✦ Bền Bỉ III", Collections.emptyMap(), def)); // recognized from custom-names even if removed
+        assertTrue(engine.isEnchantmentLine("Protection IV", Collections.emptyMap(), def)); // recognized from known list
+        assertTrue(engine.isEnchantmentLine("✦ Lifesteal III", Collections.emptyMap(), def)); // recognized from roman numeral pattern
+        assertTrue(engine.isEnchantmentLine("Curse of Binding", Collections.emptyMap(), def));
+
+        // Invalid lines that must NOT be treated as enchantments
+        assertFalse(engine.isEnchantmentLine("------------------------", active, def));
+        assertFalse(engine.isEnchantmentLine("━━━━━━", active, def));
+        assertFalse(engine.isEnchantmentLine("[Empty Socket]", active, def));
+        assertFalse(engine.isEnchantmentLine("Socket: (1/2)", active, def));
+        assertFalse(engine.isEnchantmentLine("Requires: Level 10", active, def));
+        assertFalse(engine.isEnchantmentLine("Attack Damage: +15", active, def));
+        assertFalse(engine.isEnchantmentLine("Owner: Steve", active, def));
+        assertFalse(engine.isEnchantmentLine("Kills: 1500", active, def));
+    }
+
+    @Test
+    @DisplayName("Real-Time Enchantment Lore: Upgrade, replace, and remove enchantments cleanly")
+    void testRealTimeEnchantmentUpgradeAndDisenchant() {
+        Plugin mockPlugin = (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> null
+        );
+        DynamicLoreEngine engine = new DynamicLoreEngine(mockPlugin);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "sharp_blade");
+        LoreFormat format = new LoreFormat();
+        format.setEnchantmentFormat("&b✦ %name% &f%level%");
+        format.setEnchantmentLevelStyle("ROMAN");
+        engine.setGlobalEnchantmentFormat(format);
+
+        // 1. Initial lore with Sharpness IV and custom player lines
+        List<Component> currentLore = new ArrayList<>(List.of(
+                TextUtility.format("&7A sharp blade"),
+                TextUtility.format("&b✦ Sharpness IV"),
+                TextUtility.format("&8[Empty Socket]"),
+                TextUtility.format("&eOwner: Steve")
+        ));
+
+        // 2. Upgrade to Sharpness V in real time
+        Map<Enchantment, Integer> activeUpgraded = Map.of(Enchantment.SHARPNESS, 5);
+        List<Component> upgradedLore = engine.updateEnchantmentLinesInLore(currentLore, def, activeUpgraded);
+        List<String> plainUpgraded = upgradedLore.stream().map(c -> net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(c)).toList();
+
+        assertEquals(4, plainUpgraded.size());
+        assertEquals("✦ Sharpness V", plainUpgraded.get(1));
+        assertFalse(plainUpgraded.contains("✦ Sharpness IV"));
+        assertTrue(plainUpgraded.contains("Owner: Steve"));
+
+        // 3. Disenchant at grindstone (all enchants removed)
+        List<Component> disenchantedLore = engine.updateEnchantmentLinesInLore(upgradedLore, def, Collections.emptyMap());
+        List<String> plainDisenchanted = disenchantedLore.stream().map(c -> net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(c)).toList();
+
+        assertEquals(3, plainDisenchanted.size());
+        assertFalse(plainDisenchanted.contains("✦ Sharpness V"));
+        assertFalse(plainDisenchanted.contains("✦ Sharpness IV"));
+        assertEquals("A sharp blade", plainDisenchanted.get(0));
+        assertEquals("[Empty Socket]", plainDisenchanted.get(1));
+        assertEquals("Owner: Steve", plainDisenchanted.get(2));
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Shift-Click Mass Crafting with Non-Item Outputs exceeds 64 limit")
+    void testShiftClickMassCraftingExceeds64Limit() {
+        RecipeIngredient input = RecipeIngredient.parse("money=10");
+        RecipeIngredient output = RecipeIngredient.parse("point=5");
+        assertNotNull(input);
+        assertNotNull(output);
+
+        StationRecipe recipe = new StationRecipe(
+                "exchange_money_points",
+                List.of(input),
+                List.of(output),
+                null,
+                List.of(10),
+                1,
+                false,
+                false,
+                false,
+                0
+        );
+
+        // Mock integration where player has 10,000 money
+        com.github.orenaidaucac.royItems.integration.VaultHook mockVault = new com.github.orenaidaucac.royItems.integration.VaultHook() {
+            @Override public double getBalance(org.bukkit.entity.Player player) { return 10000.0; }
+            @Override public boolean hasMoney(org.bukkit.entity.Player player, double amount) { return amount <= 10000.0; }
+            @Override public boolean withdraw(org.bukkit.entity.Player player, double amount) { return true; }
+        };
+
+        com.github.orenaidaucac.royItems.integration.IntegrationManager mockIntegration = new com.github.orenaidaucac.royItems.integration.IntegrationManager(null) {
+            @Override public com.github.orenaidaucac.royItems.integration.VaultHook getVaultHook() { return mockVault; }
+        };
+
+        org.bukkit.entity.Player mockPlayer = (org.bukkit.entity.Player)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.entity.Player.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.entity.Player.class},
+                        (proxy, method, args) -> null
+                );
+
+        int maxCrafts = com.github.orenaidaucac.royItems.station.CraftingStationGui.calculateMaxCrafts(
+                mockPlayer, recipe, null, null, null, mockIntegration
+        );
+
+        // 10,000 / 10 = 1,000 crafts! Far exceeds old 64 hardcoded cap!
+        assertEquals(1000, maxCrafts);
+    }
+
+    static class TestItemStack extends ItemStack {
+        private final org.bukkit.Material mat;
+        private final int amt;
+        private final int maxStack;
+
+        TestItemStack(org.bukkit.Material mat, int amt, int maxStack) {
+            super();
+            this.mat = mat;
+            this.amt = amt;
+            this.maxStack = maxStack;
+        }
+
+        TestItemStack(org.bukkit.Material mat, int amt) {
+            this(mat, amt, 64);
+        }
+
+        @Override public org.bukkit.Material getType() { return mat; }
+        @Override public int getAmount() { return amt; }
+        @Override public int getMaxStackSize() { return maxStack; }
+        @Override public boolean isSimilar(ItemStack other) {
+            return other != null && other.getType() == mat;
+        }
+        @Override public ItemStack clone() {
+            return new TestItemStack(mat, amt, maxStack);
+        }
+    }
+
+    private org.bukkit.entity.Player createMockInventoryPlayer(ItemStack[] storage) {
+        org.bukkit.inventory.PlayerInventory mockInv = (org.bukkit.inventory.PlayerInventory) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.PlayerInventory.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.PlayerInventory.class},
+                (proxy, method, args) -> {
+                    String name = method.getName();
+                    if ("getStorageContents".equals(name)) return storage;
+                    if ("getContents".equals(name)) return storage;
+                    if ("setItem".equals(name)) {
+                        int idx = (int) args[0];
+                        if (idx >= 0 && idx < storage.length) storage[idx] = (ItemStack) args[1];
+                        return null;
+                    }
+                    if ("getItem".equals(name)) {
+                        int idx = (int) args[0];
+                        return (idx >= 0 && idx < storage.length) ? storage[idx] : null;
+                    }
+                    return null;
+                }
+        );
+
+        return (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.entity.Player.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.Player.class},
+                (proxy, method, args) -> {
+                    String name = method.getName();
+                    if ("getInventory".equals(name)) return mockInv;
+                    if ("isOnline".equals(name)) return true;
+                    if ("getName".equals(name)) return "TestPlayer";
+                    if ("getUniqueId".equals(name)) return UUID.randomUUID();
+                    return null;
+                }
+        );
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Inventory capacity limits mass crafting when space is restricted")
+    void testShiftClickMassCraftingInventoryCapacity() {
+        RecipeIngredient input = RecipeIngredient.parse("money=10");
+        RecipeIngredient output = RecipeIngredient.parse("vanilla[type=DIAMOND,amount=1]");
+        StationRecipe recipe = new StationRecipe("money_to_diamond", List.of(input), List.of(output), null, List.of(0), 1, false, false, false, 0);
+
+        // Player has plenty of money (10,000 money = 1,000 diamonds)
+        com.github.orenaidaucac.royItems.integration.VaultHook mockVault = new com.github.orenaidaucac.royItems.integration.VaultHook() {
+            @Override public double getBalance(org.bukkit.entity.Player player) { return 10000.0; }
+            @Override public boolean hasMoney(org.bukkit.entity.Player player, double amount) { return amount <= 10000.0; }
+        };
+        com.github.orenaidaucac.royItems.integration.IntegrationManager mockIntegration = new com.github.orenaidaucac.royItems.integration.IntegrationManager(null) {
+            @Override public com.github.orenaidaucac.royItems.integration.VaultHook getVaultHook() { return mockVault; }
+        };
+
+        // 1. Inventory has exactly 2 empty slots (34 slots full of dirt, 2 null slots)
+        ItemStack[] storage = new ItemStack[36];
+        for (int i = 0; i < 34; i++) {
+            storage[i] = new TestItemStack(org.bukkit.Material.DIRT, 64);
+        }
+        // slots 34 and 35 are null (empty)
+        org.bukkit.entity.Player player = createMockInventoryPlayer(storage);
+
+        // With 2 empty slots of maxStack 64, player can craft at most 2 * 64 = 128 diamonds!
+        int maxCrafts = com.github.orenaidaucac.royItems.station.CraftingStationGui.calculateMaxCrafts(
+                player, recipe, null, null, null, mockIntegration
+        );
+        assertEquals(128, maxCrafts, "2 empty slots of stack 64 must allow exactly 128 crafts");
+
+        // 2. Inventory is 100% full (36 slots full of dirt, 0 empty slots)
+        for (int i = 0; i < 36; i++) {
+            storage[i] = new TestItemStack(org.bukkit.Material.DIRT, 64);
+        }
+        int maxWhenFull = com.github.orenaidaucac.royItems.station.CraftingStationGui.calculateMaxCrafts(
+                player, recipe, null, null, null, mockIntegration
+        );
+        assertEquals(0, maxWhenFull, "When inventory is full, max crafts must be 0 (never drop items)");
+        assertFalse(com.github.orenaidaucac.royItems.station.CraftingStationGui.simulateCanFit(
+                player, recipe, 1, null, null, null, mockIntegration
+        ), "simulateCanFit must be false when inventory cannot fit 1 item");
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Unstackable output items (max stack = 1) cap crafts at empty slot count")
+    void testShiftClickMassCraftingUnstackableItems() {
+        RecipeIngredient input = RecipeIngredient.parse("money=50");
+        RecipeIngredient output = RecipeIngredient.parse("vanilla[type=DIAMOND_SWORD,amount=1]");
+        StationRecipe recipe = new StationRecipe("buy_swords", List.of(input), List.of(output), null, List.of(0), 1, false, false, false, 0);
+
+        com.github.orenaidaucac.royItems.integration.VaultHook mockVault = new com.github.orenaidaucac.royItems.integration.VaultHook() {
+            @Override public double getBalance(org.bukkit.entity.Player player) { return 50000.0; }
+            @Override public boolean hasMoney(org.bukkit.entity.Player player, double amount) { return amount <= 50000.0; }
+        };
+        com.github.orenaidaucac.royItems.integration.IntegrationManager mockIntegration = new com.github.orenaidaucac.royItems.integration.IntegrationManager(null) {
+            @Override public com.github.orenaidaucac.royItems.integration.VaultHook getVaultHook() { return mockVault; }
+        };
+
+        // Inventory has 31 filled slots, 5 empty slots
+        ItemStack[] storage = new ItemStack[36];
+        for (int i = 0; i < 31; i++) {
+            storage[i] = new TestItemStack(org.bukkit.Material.DIRT, 64);
+        }
+        org.bukkit.entity.Player player = createMockInventoryPlayer(storage);
+
+        // Even though player has enough money for 1,000 swords, with only 5 empty slots and maxStack=1, max crafts is 5!
+        int maxCrafts = com.github.orenaidaucac.royItems.station.CraftingStationGui.calculateMaxCrafts(
+                player, recipe, null, null, null, mockIntegration
+        );
+        assertEquals(5, maxCrafts, "5 empty slots with maxStack=1 must cap crafts at exactly 5");
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Consuming inputs from inventory frees slots for output items")
+    void testShiftClickConsumingInputsFreesInventorySlots() {
+        // Recipe: 64 Cobblestone (vanilla) -> 1 Stone (vanilla, maxStack=64)
+        RecipeIngredient input = RecipeIngredient.parse("vanilla[type=COBBLESTONE,amount=64]");
+        RecipeIngredient output = RecipeIngredient.parse("vanilla[type=STONE,amount=1]");
+        StationRecipe recipe = new StationRecipe("compress_cobble", List.of(input), List.of(output), null, List.of(0), 1, false, false, false, 0);
+
+        // Player inventory is completely full: 36 slots of 64 Cobblestone each (2304 cobblestones total, 0 empty slots!)
+        ItemStack[] storage = new ItemStack[36];
+        for (int i = 0; i < 36; i++) {
+            storage[i] = new TestItemStack(org.bukkit.Material.COBBLESTONE, 64);
+        }
+        org.bukkit.entity.Player player = createMockInventoryPlayer(storage);
+
+        // Consuming each 64 cobblestone frees 1 slot. 36 crafts produces 36 Stone, which easily fits in the freed slots!
+        int maxCrafts = com.github.orenaidaucac.royItems.station.CraftingStationGui.calculateMaxCrafts(
+                player, recipe, null, null, null, null
+        );
+        assertEquals(36, maxCrafts, "Consuming 36 stacks of cobblestone frees slots allowing all 36 crafts");
+    }
+
+    @Test
+    @DisplayName("Crafting Station: Multiplied atomic ingredient deduction and hasEnough")
+    void testRecipeIngredientMultipliers() {
+        RecipeIngredient money = RecipeIngredient.parse("money=25");
+        RecipeIngredient exp = RecipeIngredient.parse("exp=100");
+        RecipeIngredient point = RecipeIngredient.parse("point=50");
+
+        assertNotNull(money);
+        assertNotNull(exp);
+        assertNotNull(point);
+
+        com.github.orenaidaucac.royItems.integration.VaultHook mockVault = new com.github.orenaidaucac.royItems.integration.VaultHook() {
+            private double balance = 500.0;
+            @Override public double getBalance(org.bukkit.entity.Player player) { return balance; }
+            @Override public boolean hasMoney(org.bukkit.entity.Player player, double amount) { return balance >= amount; }
+            @Override public boolean withdraw(org.bukkit.entity.Player player, double amount) {
+                if (balance >= amount) { balance -= amount; return true; }
+                return false;
+            }
+        };
+        com.github.orenaidaucac.royItems.integration.IntegrationManager mockIntegration = new com.github.orenaidaucac.royItems.integration.IntegrationManager(null) {
+            @Override public com.github.orenaidaucac.royItems.integration.VaultHook getVaultHook() { return mockVault; }
+        };
+
+        // Test hasEnough with multiplier
+        assertTrue(money.hasEnough(null, null, null, mockIntegration, 10)); // 25 * 10 = 250 <= 500
+        assertTrue(money.hasEnough(null, null, null, mockIntegration, 20)); // 25 * 20 = 500 <= 500
+        assertFalse(money.hasEnough(null, null, null, mockIntegration, 21)); // 25 * 21 = 525 > 500
+
+        // Test take with multiplier (atomic deduction)
+        assertTrue(money.take(null, null, null, mockIntegration, 8)); // 25 * 8 = 200 withdrawn, 300 left
+        assertEquals(300.0, mockVault.getBalance(null));
+        assertFalse(money.take(null, null, null, mockIntegration, 15)); // 25 * 15 = 375 > 300, fails safely without deducting
+        assertEquals(300.0, mockVault.getBalance(null)); // Zero loss transaction safety
     }
 }

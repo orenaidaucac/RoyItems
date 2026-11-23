@@ -23,6 +23,7 @@ messages:
   requirement-failed: "&cВы не соответствуете требованиям для использования этого предмета!"
   cooldown-active: "&cЭтот предмет перезаряжается! (Осталось &f#time# сек.&c)"
   editor-locked: "&cЭтот предмет в данный момент редактируется другим администратором!"
+  anvil-rename-blocked: "&cВы не можете переименовывать предметы RoyItems с помощью наковальни."
 
   # Уведомления об обновлениях (для администраторов при входе и перезагрузке)
   update-available:
@@ -60,6 +61,7 @@ messages:
   station-delete-failed: "&cСтанция &f#station# &cне существует или не может быть удалена!"
   craft-success: "&aУспешно создано &f#amount#x &aпо рецепту &e#recipe#&a!"
   craft-failed-ingredients: "&cУ вас недостаточно материалов для создания по этому рецепту!"
+  craft-failed-inventory-full: "&cВаш инвентарь полон! Невозможно создать предмет."
   craft-countdown-start: "&eСоздание &f#recipe#&e... Пожалуйста, не закрывайте меню! (&f#time#с&e)"
   craft-completed: "&aСоздание &e#recipe# &aзавершено!"
   craft-failed: "&cСоздание не удалось из-за нехватки ингредиентов!"
@@ -78,3 +80,18 @@ messages:
   voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНе удалось выдать награду. Транзакция была безопасно отменена."
   voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНекорректная конфигурация ваучера. Обратитесь к администратору."
   voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЭкономическая система для #currency# в данный момент недоступна."
+  voucher-ecoenchants-reward: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aВы активировали &e#item# &aи получили &f#enchantment# <yellow>#level#</yellow> &7(#rarity#)&a!"
+  voucher-ecoenchants-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cПлагин EcoEnchants в настоящее время не установлен или недоступен на этом сервере."
+  voucher-ecoenchants-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНе найдено подходящих чар EcoEnchants для данной конфигурации ваучера."
+  voucher-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eВаш инвентарь полон, поэтому награда была сброшена вам под ноги!"
+
+  # Система извлечения чар (Enchantment Extraction)
+  extract-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНа этом предмете нет чар для извлечения!"
+  extract-no-valid-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cНи одни чары на этом предмете не соответствуют условиям извлечения!"
+  extract-success-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aЧары &f#enchantment# <yellow>#level#</yellow> &aуспешно извлечены, книга получена!"
+  extract-success-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eЧары &f#enchantment# <yellow>#level#</yellow> &eизвлечены, но книга была уничтожена по шансу (&c#chance#%&e)!"
+  extract-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eВаш инвентарь полон, поэтому книга чар выпала вам под ноги!"
+  extract-cancelled: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &7Извлечение чар отменено."
+  extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cОперация извлечения уже выполняется. Пожалуйста, подождите!"
+  extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЦелевой предмет изменился или больше недействителен!"
+  extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЭтот предмет не входит в белый список для извлечения чар!"

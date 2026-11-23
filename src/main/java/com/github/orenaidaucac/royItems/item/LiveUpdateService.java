@@ -248,10 +248,13 @@ public class LiveUpdateService {
             // 2. Expiration Time (always preserved for an existing active item)
             long expire = pdcManager.getExpireTime(current);
 
-            // 3. Active Enchantments resolution (Vanilla + EcoEnchants)
+            // 3. Active Enchantments resolution (Vanilla + EcoEnchants + Stored Enchants)
             Map<Enchantment, Integer> activeEnchants = new java.util.LinkedHashMap<>();
             if (config.isPreserveEnchantments()) {
                 activeEnchants.putAll(curMeta.getEnchants());
+                if (curMeta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storageMeta) {
+                    activeEnchants.putAll(storageMeta.getStoredEnchants());
+                }
             }
             if (def.getEnchantments() != null) {
                 for (Map.Entry<Enchantment, Integer> e : def.getEnchantments().entrySet()) {
@@ -259,58 +262,83 @@ public class LiveUpdateService {
                 }
             }
 
-            // 4. Item Tier
+            // 4. Item Tier & Set bonus state
             String oldTier = pdcManager.getTier(current);
+            String oldSetState = pdcManager.getSetState(current);
+            boolean isBonusActive = "active".equalsIgnoreCase(oldSetState);
 
-            // 5. Build base updated item with active enchantments
-            ItemStack updated = itemBuilder.build(def, current.getAmount(), sockets, expire, activeEnchants);
+            // 5. Build base updated item with active enchantments and set bonus state
+            ItemStack updated = itemBuilder.build(def, current.getAmount(), sockets, expire, activeEnchants, isBonusActive, null);
             ItemMeta updMeta = updated.getItemMeta();
             if (updMeta == null) return current;
 
-            // 5. Display Name preservation
+            // 6. Display Name preservation
             if (config.isPreserveDisplayName() && curMeta.hasDisplayName()) {
                 updMeta.displayName(curMeta.displayName());
             }
 
-            // 6. Lore preservation
+            // 7. Lore preservation and Enchantment live update
+            com.github.orenaidaucac.royItems.lore.DynamicLoreEngine loreEngine = itemBuilder.getLoreEngine();
             if (config.isPreserveLore() && curMeta.hasLore()) {
-                updMeta.lore(curMeta.lore());
+                if (loreEngine != null) {
+                    updMeta.lore(loreEngine.updateEnchantmentLinesInLore(curMeta.lore(), def, activeEnchants));
+                } else {
+                    updMeta.lore(curMeta.lore());
+                }
+            } else if (curMeta.hasLore()) {
+                if (loreEngine != null && updMeta.hasLore()) {
+                    updMeta.lore(loreEngine.mergeCustomLore(curMeta.lore(), updMeta.lore(), def, activeEnchants));
+                }
             }
 
-            // 7. Custom Model Data preservation
+            // 8. Custom Model Data preservation
             if (config.isPreserveCustomModelData() && curMeta.hasCustomModelData()) {
                 updMeta.setCustomModelData(curMeta.getCustomModelData());
             }
 
-            // 8. Custom Attribute preservation (if true, keep old item attributes; if false, keeps fresh definition attributes)
+            // 9. Custom Attribute preservation (if true, keep old item attributes; if false, keeps fresh definition attributes)
             if (config.isPreserveAttributes() && curMeta.hasAttributeModifiers()) {
                 updMeta.setAttributeModifiers(curMeta.getAttributeModifiers());
             }
 
-            // 9. Third-party PDC / custom NBT preservation
+            // 10. Third-party PDC / custom NBT preservation
             if (config.isPreservePDC()) {
                 curMeta.getPersistentDataContainer().copyTo(updMeta.getPersistentDataContainer(), false);
             }
 
-            // 10. Re-tag core RoyItems PDC data to guarantee definition and preserve rules are 100% authoritative
+            // 11. Re-tag core RoyItems PDC data to guarantee definition and preserve rules are 100% authoritative
             pdcManager.tagItem(updMeta, def.getType(), def.getId(), def.getVersion(), expire,
                     config.isPreserveGems() ? socketsRaw : null);
-            pdcManager.setEnchantHash(updMeta, activeEnchants.hashCode());
+
+            int enchantHash = (loreEngine != null) ? loreEngine.computeEnchantmentHash(def, activeEnchants) : activeEnchants.hashCode();
+            pdcManager.setEnchantHash(updMeta, enchantHash);
+
             if (config.isPreserveTier() && oldTier != null && !oldTier.isEmpty()) {
                 pdcManager.tagTier(updMeta, oldTier);
             } else if (def.getItemTier() != null && !def.getItemTier().isEmpty()) {
                 pdcManager.tagTier(updMeta, def.getItemTier());
             }
 
+            if (oldSetState != null && !oldSetState.isEmpty()) {
+                pdcManager.setSetState(updMeta, oldSetState);
+            }
+
             updated.setItemMeta(updMeta);
 
-            // 11. Enchantments preservation (merge custom player enchantments)
+            // 12. Enchantments preservation (merge custom player enchantments)
             if (config.isPreserveEnchantments()) {
                 Map<Enchantment, Integer> curEnchants = curMeta.getEnchants();
                 if (!curEnchants.isEmpty()) {
                     for (Map.Entry<Enchantment, Integer> entry : curEnchants.entrySet()) {
                         updated.addUnsafeEnchantment(entry.getKey(), entry.getValue());
                     }
+                }
+                if (curMeta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta curStorage
+                        && updated.getItemMeta() instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta updStorage) {
+                    for (Map.Entry<Enchantment, Integer> entry : curStorage.getStoredEnchants().entrySet()) {
+                        updStorage.addStoredEnchant(entry.getKey(), entry.getValue(), true);
+                    }
+                    updated.setItemMeta(updStorage);
                 }
             }
 

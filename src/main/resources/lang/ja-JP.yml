@@ -23,6 +23,7 @@ messages:
   requirement-failed: "&cこのアイテムを装備するための要件を満たしていません！"
   cooldown-active: "&cこのアイテムは現在クールダウン中です！ (残り &f#time#秒&c)"
   editor-locked: "&cこのアイテムは現在、別の管理者によって編集中です！"
+  anvil-rename-blocked: "&c金床を使用してRoyItemsのアイテムの名前を変更することはできません。"
 
   # アップデート通知 (参加時およびリロード時の管理者向け)
   update-available:
@@ -60,6 +61,7 @@ messages:
   station-delete-failed: "&cステーション &f#station# &cは存在しないか、削除できませんでした！"
   craft-success: "&aレシピ &e#recipe# &aを &f#amount#x &a個作成しました！"
   craft-failed-ingredients: "&cこのレシピを作成するための素材が不足しています！"
+  craft-failed-inventory-full: "&cインベントリがいっぱいです！アイテムをクラフトできません。"
   craft-countdown-start: "&e&f#recipe# &eを作成中... メニューを閉じないでください！ (&f#time#秒&e)"
   craft-completed: "&a&e#recipe# &aの作成が完了しました！"
   craft-failed: "&c素材が不足しているため作成に失敗しました！"
@@ -78,3 +80,18 @@ messages:
   voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c報酬の付与に失敗しました。アイテム保護のため処理は安全に中止されました。"
   voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのバウチャーの設定が無効です。管理者に連絡してください。"
   voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c#currency# の経済システムは現在利用できません。"
+  voucher-ecoenchants-reward: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a&e#item#&aを引き換え、&f#enchantment# <yellow>#level#</yellow> &7(#rarity#)&aを受け取りました！"
+  voucher-ecoenchants-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEcoEnchantsはこのサーバーにインストールされていないか、現在利用できません。"
+  voucher-ecoenchants-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのバウチャー設定に一致するEcoEnchantsのエンチャントが見つかりませんでした。"
+  voucher-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eインベントリがいっぱいため、報酬が足元にドロップされました！"
+
+  # エンチャント抽出システム
+  extract-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのアイテムには抽出可能なエンチャントが付与されていません！"
+  extract-no-valid-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c抽出条件に一致するエンチャントがアイテムに見つかりませんでした！"
+  extract-success-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aエンチャント &f#enchantment# <yellow>#level#</yellow> &aの抽出に成功し、エンチャント本を受け取りました！"
+  extract-success-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eエンチャント &f#enchantment# <yellow>#level#</yellow> &eを抽出しましたが、確率により本は消失しました (&c#chance#%&e)！"
+  extract-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eインベントリがいっぱいため、エンチャント本は足元にドロップされました！"
+  extract-cancelled: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &7エンチャントの抽出をキャンセルしました。"
+  extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cすでに抽出処理が進行中です。しばらくお待ちください！"
+  extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c対象のアイテムが変更されたか、無効になりました！"
+  extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのアイテムは抽出ホワイトリストに含まれていません！"

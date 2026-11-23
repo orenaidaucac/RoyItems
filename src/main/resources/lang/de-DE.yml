@@ -23,6 +23,7 @@ messages:
   requirement-failed: "&cDu erfüllst nicht die Voraussetzungen, um diesen Gegenstand zu führen!"
   cooldown-active: "&cDieser Gegenstand hat noch Abklingzeit! (Noch &f#time#s&c)"
   editor-locked: "&cDieser Gegenstand wird derzeit von einem anderen Administrator bearbeitet!"
+  anvil-rename-blocked: "&cDu kannst RoyItems-Gegenstände nicht im Amboss umbenennen."
 
   # Update-Benachrichtigungen (Admin beim Beitreten und Neuladen)
   update-available:
@@ -60,6 +61,7 @@ messages:
   station-delete-failed: "&cStation &f#station# &cexistiert nicht oder konnte nicht gelöscht werden!"
   craft-success: "&aErfolgreich &f#amount#x &aRezept &e#recipe# &ahergestellt!"
   craft-failed-ingredients: "&cDu hast nicht genügend Materialien für dieses Rezept!"
+  craft-failed-inventory-full: "&cDein Inventar ist voll! Gegenstand kann nicht hergestellt werden."
   craft-countdown-start: "&eHerstellung von &f#recipe#&e... Bitte Menü nicht schließen! (&f#time#s&e)"
   craft-completed: "&aHerstellung von &e#recipe# &aabgeschlossen!"
   craft-failed: "&cHerstellung fehlgeschlagen wegen fehlender Materialien!"
@@ -78,3 +80,18 @@ messages:
   voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cTransaktion fehlgeschlagen. Der Vorgang wurde sicher abgebrochen."
   voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cUngültige Gutschein-Konfiguration. Bitte kontaktiere einen Administrator."
   voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDas Wirtschaftssystem für #currency# ist derzeit nicht verfügbar."
+  voucher-ecoenchants-reward: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aDu hast &e#item# &aeingelöst und &f#enchantment# <yellow>#level#</yellow> &7(#rarity#)&a erhalten!"
+  voucher-ecoenchants-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEcoEnchants ist auf diesem Server derzeit nicht installiert oder verfügbar."
+  voucher-ecoenchants-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cKeine passenden EcoEnchants-Verzauberungen für diese Gutschein-Konfiguration gefunden."
+  voucher-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eDein Inventar war voll, daher wurde deine Belohnung vor deine Füße fallen gelassen!"
+
+  # Verzauberungs-Extraktionssystem
+  extract-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDieser Gegenstand besitzt keine Verzauberungen zum Entfernen!"
+  extract-no-valid-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cKeine Verzauberung auf diesem Gegenstand entspricht den Extraktionskriterien!"
+  extract-success-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aVerzauberung &f#enchantment# <yellow>#level#</yellow> &aerfolgreich entfernt und das Zauberbuch erhalten!"
+  extract-success-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eVerzauberung &f#enchantment# <yellow>#level#</yellow> &eentfernt, aber das Buch ging verloren (&c#chance#%&e)!"
+  extract-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eDein Inventar war voll, das Zauberbuch wurde vor deine Füße fallen gelassen!"
+  extract-cancelled: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &7Extraktion der Verzauberung abgebrochen."
+  extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEin Extraktionsvorgang wird bereits verarbeitet. Bitte warten!"
+  extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDer Zielgegenstand wurde verändert oder ist nicht mehr gültig!"
+  extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDieser Gegenstand befindet sich nicht auf der Extraktions-Whitelist!"

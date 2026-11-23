@@ -3,6 +3,7 @@ package com.github.orenaidaucac.royItems.voucher;
 import com.github.orenaidaucac.royItems.core.message.MessageManager;
 import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
+import com.github.orenaidaucac.royItems.integration.EcoEnchantsHook;
 import com.github.orenaidaucac.royItems.integration.IntegrationManager;
 import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.mechanics.CooldownManager;
@@ -34,7 +35,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * High-performance, anti-dupe, atomic Voucher Manager.
  * Handles command executions with placeholders, multi-currency reward deposits
- * (Vault/VaultUnlocked, PlayerPoints, ExcellentEconomy), and animated Title Gacha rolling for random rewards.
+ * (Vault/VaultUnlocked, PlayerPoints, ExcellentEconomy), animated Title Gacha rolling for random currency,
+ * and professional 3-phase animated Title Gacha for EcoEnchants random book rewards.
  */
 public class VoucherManager implements Listener {
 
@@ -48,6 +50,26 @@ public class VoucherManager implements Listener {
     // Concurrency control: players currently rolling a random gacha voucher
     private final Set<UUID> activeGachaPlayers = ConcurrentHashMap.newKeySet();
 
+    // Disconnect & crash safety for pending EcoEnchants rewards
+    private static class PendingEcoReward {
+        final UUID playerUuid;
+        final ItemStack book;
+        final ItemDefinition def;
+        final EcoEnchantsHook.EcoEnchantCandidate winner;
+        final int level;
+        volatile PlatformScheduler.TaskHandle task;
+
+        PendingEcoReward(UUID playerUuid, ItemStack book, ItemDefinition def,
+                         EcoEnchantsHook.EcoEnchantCandidate winner, int level) {
+            this.playerUuid = playerUuid;
+            this.book = book;
+            this.def = def;
+            this.winner = winner;
+            this.level = level;
+        }
+    }
+    private final Map<UUID, PendingEcoReward> pendingEcoRewards = new ConcurrentHashMap<>();
+
     // Same-tick / multi-packet anti-dupe debounce guard (e.g. HAND + OFF_HAND / InteractEntity + InteractAtEntity)
     private static final long VOUCHER_USE_DEBOUNCE_MS = 120L;
     private final Map<UUID, Long> lastVoucherUseMillis = new ConcurrentHashMap<>();
@@ -56,7 +78,7 @@ public class VoucherManager implements Listener {
     // Cache of configured currency display metadata
     private final Map<String, CurrencyDisplayInfo> currencyDisplayMap = new ConcurrentHashMap<>();
 
-    // Gacha title animation settings
+    // Currency Gacha title animation settings
     private boolean gachaEnabled = true;
     private int durationTicks = 30; // 1.5 seconds default
     private int intervalTicks = 2;  // 10 rolls/sec default
@@ -72,6 +94,26 @@ public class VoucherManager implements Listener {
     private String subtitleRolling = "<yellow>#symbol##amount# <gray>(#currency#)</gray></yellow>";
     private String titleFinish = "<green><bold>REWARD UNLOCKED!</bold></green>";
     private String subtitleFinish = "<yellow>+ #symbol##amount# <gold>#currency#</gold></yellow>";
+
+    // EcoEnchants Gacha title animation settings (3-phase: Rolling -> Reveal -> Reward)
+    private boolean ecoGachaEnabled = true;
+    private int ecoDurationTicks = 30;
+    private int ecoIntervalTicks = 2;
+    private int ecoFadeInTicks = 5;
+    private int ecoStayTicks = 50;
+    private int ecoFadeOutTicks = 15;
+    private String ecoSoundRollName = "BLOCK_NOTE_BLOCK_PLING";
+    private float ecoSoundRollPitchMin = 1.0f;
+    private float ecoSoundRollPitchMax = 1.8f;
+    private String ecoSoundRevealName = "UI_TOAST_CHALLENGE_COMPLETE";
+    private float ecoSoundRevealVolume = 1.0f;
+    private float ecoSoundRevealPitch = 1.2f;
+    private String ecoParticleName = "FIREWORK";
+    private int ecoParticleCount = 35;
+    private String ecoTitleRolling = "<gold><bold>✦ ECOENCHANTS GACHA ✦</bold></gold>";
+    private String ecoSubtitleRolling = "<gray>Rolling: </gray>#enchantment# <yellow>#level#</yellow> <dark_gray>(#rarity#)</dark_gray>";
+    private String ecoTitleReveal = "<green><bold>★ ENCHANTMENT UNLOCKED ★</bold></green>";
+    private String ecoSubtitleReveal = "#enchantment# <yellow>#level#</yellow> <dark_gray>•</dark_gray> #rarity#";
 
     public VoucherManager(Plugin plugin, PlatformScheduler scheduler,
                           CooldownManager cooldownManager, RequirementChecker requirementChecker,
@@ -92,7 +134,7 @@ public class VoucherManager implements Listener {
     public void loadConfig(FileConfiguration config) {
         if (config == null) return;
 
-        // 1. Voucher Gacha Settings
+        // 1. Currency Gacha Settings
         ConfigurationSection gachaSec = config.getConfigurationSection("voucher.gacha");
         if (gachaSec != null) {
             this.gachaEnabled = gachaSec.getBoolean("enabled", true);
@@ -112,7 +154,30 @@ public class VoucherManager implements Listener {
             this.subtitleFinish = gachaSec.getString("subtitle-finish", "<yellow>+ #symbol##amount# <gold>#currency#</gold></yellow>");
         }
 
-        // 2. Currencies mapping
+        // 2. EcoEnchants Gacha Settings
+        ConfigurationSection ecoSec = config.getConfigurationSection("voucher.ecoenchants-gacha");
+        if (ecoSec != null) {
+            this.ecoGachaEnabled = ecoSec.getBoolean("enabled", true);
+            this.ecoDurationTicks = Math.max(10, ecoSec.getInt("duration-ticks", 30));
+            this.ecoIntervalTicks = Math.max(1, ecoSec.getInt("interval-ticks", 2));
+            this.ecoFadeInTicks = Math.max(0, ecoSec.getInt("times.fade-in-ticks", 5));
+            this.ecoStayTicks = Math.max(10, ecoSec.getInt("times.stay-ticks", 50));
+            this.ecoFadeOutTicks = Math.max(0, ecoSec.getInt("times.fade-out-ticks", 15));
+            this.ecoSoundRollName = ecoSec.getString("sound-roll", "BLOCK_NOTE_BLOCK_PLING");
+            this.ecoSoundRollPitchMin = (float) ecoSec.getDouble("sound-roll-pitch-min", 1.0);
+            this.ecoSoundRollPitchMax = (float) ecoSec.getDouble("sound-roll-pitch-max", 1.8);
+            this.ecoSoundRevealName = ecoSec.getString("sound-reveal", "UI_TOAST_CHALLENGE_COMPLETE");
+            this.ecoSoundRevealVolume = (float) ecoSec.getDouble("sound-reveal-volume", 1.0);
+            this.ecoSoundRevealPitch = (float) ecoSec.getDouble("sound-reveal-pitch", 1.2);
+            this.ecoParticleName = ecoSec.getString("particle", "FIREWORK");
+            this.ecoParticleCount = ecoSec.getInt("particle-count", 35);
+            this.ecoTitleRolling = ecoSec.getString("title-rolling", "<gold><bold>✦ ECOENCHANTS GACHA ✦</bold></gold>");
+            this.ecoSubtitleRolling = ecoSec.getString("subtitle-rolling", "<gray>Rolling: </gray>#enchantment# <yellow>#level#</yellow> <dark_gray>(#rarity#)</dark_gray>");
+            this.ecoTitleReveal = ecoSec.getString("title-reveal", "<green><bold>★ ENCHANTMENT UNLOCKED ★</bold></green>");
+            this.ecoSubtitleReveal = ecoSec.getString("subtitle-reveal", "#enchantment# <yellow>#level#</yellow> <dark_gray>•</dark_gray> #rarity#");
+        }
+
+        // 3. Currencies mapping
         currencyDisplayMap.clear();
         ConfigurationSection currSec = config.getConfigurationSection("currencies");
         if (currSec != null) {
@@ -263,7 +328,7 @@ public class VoucherManager implements Listener {
             return;
         }
 
-        // 3. Currency validation
+        // 3. Currency validation (if configured)
         VoucherCurrencyReward reward = def.getCurrencyReward();
         if (reward != null) {
             if (!reward.isValid()) {
@@ -278,7 +343,43 @@ public class VoucherManager implements Listener {
             }
         }
 
-        // 4. Atomic live-hand verification & safe item consumption
+        // 4. EcoEnchants validation & upfront deterministic reward selection
+        EcoEnchantReward ecoReward = def.getEcoEnchantReward();
+        EcoEnchantsHook.EcoEnchantCandidate chosenCandidate = null;
+        int chosenLevel = 1;
+        ItemStack winningBook = null;
+        List<EcoEnchantsHook.EcoEnchantCandidate> candidates = null;
+
+        if (ecoReward != null) {
+            if (integrationManager == null || !integrationManager.hasEcoEnchants()) {
+                messageManager.send(player, "voucher-ecoenchants-unavailable",
+                        "&cEcoEnchants is not currently installed or available on this server.");
+                return;
+            }
+
+            EcoEnchantsHook hook = integrationManager.getEcoEnchantsHook();
+            candidates = hook.getCandidatesByFilter(ecoReward.getRarity(), ecoReward.getType(), ecoReward.getMinLevel());
+            if (candidates == null || candidates.isEmpty()) {
+                messageManager.send(player, "voucher-ecoenchants-no-enchantments",
+                        "&cNo matching EcoEnchants enchantments found for this voucher configuration.");
+                return;
+            }
+
+            // Upfront deterministic winner selection: outcome cannot be altered or duped during rolling
+            chosenCandidate = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+            int maxPossible = Math.min(ecoReward.getMaxLevel(), chosenCandidate.getMaxLevel());
+            chosenLevel = (maxPossible <= ecoReward.getMinLevel())
+                    ? ecoReward.getMinLevel()
+                    : ThreadLocalRandom.current().nextInt(ecoReward.getMinLevel(), maxPossible + 1);
+
+            winningBook = hook.createEnchantedBook(chosenCandidate.getEnchantment(), chosenLevel);
+            if (winningBook == null) {
+                messageManager.send(player, "voucher-invalid-config", "&cFailed to create enchanted book reward.");
+                return;
+            }
+        }
+
+        // 5. Atomic live-hand verification & safe item consumption
         EquipmentSlot activeHand = (hand == EquipmentSlot.OFF_HAND) ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND;
         ItemStack liveItem = player.getInventory().getItem(activeHand);
         if (liveItem == null || liveItem.getType().isAir() || liveItem.getAmount() <= 0) {
@@ -307,7 +408,7 @@ public class VoucherManager implements Listener {
         }
         player.updateInventory();
 
-        // 5. Calculate reward amount & deposit currency atomically
+        // 6. Calculate reward amount & deposit currency atomically (if currency reward present)
         double rewardAmount = 0.0;
         CurrencyDisplayInfo cInfo = null;
 
@@ -324,21 +425,29 @@ public class VoucherManager implements Listener {
             }
         }
 
-        // 6. Apply cooldown only after consumption & currency deposit succeed
+        // 7. Apply cooldown only after consumption & currency deposit succeed
         if (def.getCooldown() > 0 && cooldownManager != null) {
             cooldownManager.setCooldown(player, def.getId(), def.getCooldown());
         }
 
-        // 7. Execute configured commands safely with placeholder substitution
-        executeCommands(player, def.getCommands(), rewardAmount, cInfo);
-
-        // 8. Visual / Title feedback
-        boolean isRandomGacha = (reward != null && reward.isRandom() && gachaEnabled);
-        if (isRandomGacha) {
-            startGachaAnimation(player, def, reward, rewardAmount, cInfo);
+        // 8. Visual / Title feedback & Reward Delivery
+        if (winningBook != null) {
+            if (ecoGachaEnabled) {
+                startEcoEnchantsGachaAnimation(player, def, chosenCandidate, chosenLevel, winningBook, candidates);
+            } else {
+                deliverEcoEnchantsInstant(player, def, chosenCandidate, chosenLevel, winningBook);
+            }
         } else {
-            finishVoucherInstant(player, def, rewardAmount, cInfo);
+            boolean isRandomGacha = (reward != null && reward.isRandom() && gachaEnabled);
+            if (isRandomGacha) {
+                startGachaAnimation(player, def, reward, rewardAmount, cInfo);
+            } else {
+                finishVoucherInstant(player, def, rewardAmount, cInfo);
+            }
         }
+
+        // 9. Execute configured commands safely with placeholder substitution
+        executeCommands(player, def.getCommands(), rewardAmount, cInfo);
     }
 
     /**
@@ -407,7 +516,7 @@ public class VoucherManager implements Listener {
     }
 
     /**
-     * Starts animated Title Gacha rolling for random range voucher rewards.
+     * Starts animated Title Gacha rolling for random range currency voucher rewards.
      */
     private void startGachaAnimation(Player player, ItemDefinition def, VoucherCurrencyReward reward,
                                      double finalAmount, CurrencyDisplayInfo cInfo) {
@@ -447,7 +556,8 @@ public class VoucherManager implements Listener {
                 Component cTitle = TextUtility.format(rollTitle, false);
                 Component cSub = TextUtility.format(rollSub, false);
 
-                player.showTitle(Title.title(cTitle, cSub, Title.Times.times(Duration.ZERO, Duration.ofMillis(300), Duration.ofMillis(100))));
+                Duration stayDuration = Duration.ofMillis(intervalTicks * 50L + 100L);
+                player.showTitle(Title.title(cTitle, cSub, Title.Times.times(Duration.ZERO, stayDuration, Duration.ofMillis(50))));
 
                 // Play rolling sound with dynamic pitch
                 float pitch = (float) (soundRollPitchMin + (Math.random() * (soundRollPitchMax - soundRollPitchMin)));
@@ -489,6 +599,155 @@ public class VoucherManager implements Listener {
     }
 
     /**
+     * Starts animated 3-phase Title Gacha for EcoEnchants random book rewards (Rolling -> Reveal -> Reward).
+     */
+    private void startEcoEnchantsGachaAnimation(Player player, ItemDefinition def,
+                                               EcoEnchantsHook.EcoEnchantCandidate winner,
+                                               int finalLevel, ItemStack book,
+                                               List<EcoEnchantsHook.EcoEnchantCandidate> candidates) {
+        UUID uuid = player.getUniqueId();
+        activeGachaPlayers.add(uuid);
+
+        PendingEcoReward pending = new PendingEcoReward(uuid, book, def, winner, finalLevel);
+        pendingEcoRewards.put(uuid, pending);
+
+        final int totalRolls = Math.max(1, ecoDurationTicks / ecoIntervalTicks);
+        final int[] rollsRemaining = new int[]{totalRolls};
+        final Sound rollSound = parseSound(ecoSoundRollName, Sound.BLOCK_NOTE_BLOCK_PLING);
+        final Sound revealSound = parseSound(ecoSoundRevealName, Sound.UI_TOAST_CHALLENGE_COMPLETE);
+        final Particle particle = parseParticle(ecoParticleName, Particle.FIREWORK);
+
+        PlatformScheduler.TaskHandle task = scheduler.runEntityTimer(player, handle -> {
+            if (!player.isOnline() || !activeGachaPlayers.contains(uuid)) {
+                if (handle != null) handle.cancel();
+                activeGachaPlayers.remove(uuid);
+                PendingEcoReward removed = pendingEcoRewards.remove(uuid);
+                if (removed != null && removed.book != null && player.isOnline()) {
+                    giveItemSafely(player, removed.book);
+                }
+                return;
+            }
+
+            rollsRemaining[0]--;
+
+            if (rollsRemaining[0] > 0) {
+                // Phase 1: Rolling step - cycle through random valid candidate enchantments
+                EcoEnchantsHook.EcoEnchantCandidate preview = (candidates != null && !candidates.isEmpty())
+                        ? candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()))
+                        : winner;
+                int previewLevel = Math.max(1, ThreadLocalRandom.current().nextInt(1, preview.getMaxLevel() + 1));
+                String romanLevel = EcoEnchantsHook.toRoman(previewLevel);
+
+                String rollTitle = ecoTitleRolling
+                        .replace("#enchantment#", preview.getRawDisplayName())
+                        .replace("%enchantment%", preview.getRawDisplayName())
+                        .replace("#level#", romanLevel)
+                        .replace("%level%", romanLevel)
+                        .replace("#rarity#", preview.getRarityDisplayName())
+                        .replace("%rarity%", preview.getRarityDisplayName())
+                        .replace("#rarity-id#", preview.getRarityId())
+                        .replace("#type#", preview.getTypeId());
+
+                String rollSub = ecoSubtitleRolling
+                        .replace("#enchantment#", preview.getRawDisplayName())
+                        .replace("%enchantment%", preview.getRawDisplayName())
+                        .replace("#level#", romanLevel)
+                        .replace("%level%", romanLevel)
+                        .replace("#rarity#", preview.getRarityDisplayName())
+                        .replace("%rarity%", preview.getRarityDisplayName())
+                        .replace("#rarity-id#", preview.getRarityId())
+                        .replace("#type#", preview.getTypeId());
+
+                Component cTitle = TextUtility.format(rollTitle, false);
+                Component cSub = TextUtility.format(rollSub, false);
+
+                // Anti-flicker: stay slightly exceeds interval
+                Duration stayDuration = Duration.ofMillis(ecoIntervalTicks * 50L + 100L);
+                player.showTitle(Title.title(cTitle, cSub, Title.Times.times(Duration.ZERO, stayDuration, Duration.ofMillis(50))));
+
+                // Play rolling sound with dynamic pitch
+                float pitch = (float) (ecoSoundRollPitchMin + (Math.random() * (ecoSoundRollPitchMax - ecoSoundRollPitchMin)));
+                player.playSound(player.getLocation(), rollSound, 0.7f, pitch);
+
+            } else {
+                // Phase 2: Reveal & Phase 3: Reward
+                if (handle != null) handle.cancel();
+                activeGachaPlayers.remove(uuid);
+                PendingEcoReward removed = pendingEcoRewards.remove(uuid);
+
+                String romanFinal = EcoEnchantsHook.toRoman(finalLevel);
+
+                String finTitle = ecoTitleReveal
+                        .replace("#enchantment#", winner.getRawDisplayName())
+                        .replace("%enchantment%", winner.getRawDisplayName())
+                        .replace("#level#", romanFinal)
+                        .replace("%level%", romanFinal)
+                        .replace("#raw-level#", String.valueOf(finalLevel))
+                        .replace("#rarity#", winner.getRarityDisplayName())
+                        .replace("%rarity%", winner.getRarityDisplayName())
+                        .replace("#rarity-id#", winner.getRarityId())
+                        .replace("#type#", winner.getTypeId());
+
+                String finSub = ecoSubtitleReveal
+                        .replace("#enchantment#", winner.getRawDisplayName())
+                        .replace("%enchantment%", winner.getRawDisplayName())
+                        .replace("#level#", romanFinal)
+                        .replace("%level%", romanFinal)
+                        .replace("#raw-level#", String.valueOf(finalLevel))
+                        .replace("#rarity#", winner.getRarityDisplayName())
+                        .replace("%rarity%", winner.getRarityDisplayName())
+                        .replace("#rarity-id#", winner.getRarityId())
+                        .replace("#type#", winner.getTypeId());
+
+                Component cTitle = TextUtility.format(finTitle, false);
+                Component cSub = TextUtility.format(finSub, false);
+
+                Title.Times times = Title.Times.times(
+                        Duration.ofMillis(ecoFadeInTicks * 50L),
+                        Duration.ofMillis(ecoStayTicks * 50L),
+                        Duration.ofMillis(ecoFadeOutTicks * 50L)
+                );
+                player.showTitle(Title.title(cTitle, cSub, times));
+
+                // Sound & particle burst
+                Location loc = player.getLocation().add(0, 1.2, 0);
+                player.playSound(loc, revealSound, ecoSoundRevealVolume, ecoSoundRevealPitch);
+                try {
+                    player.getWorld().spawnParticle(particle, loc, ecoParticleCount, 0.5, 0.5, 0.5, 0.08);
+                } catch (Throwable ignored) {}
+
+                // Phase 3: Safe Delivery
+                ItemStack toDeliver = (removed != null && removed.book != null) ? removed.book : book;
+                giveItemSafely(player, toDeliver);
+
+                // Send success message to chat
+                sendEcoSuccessMessage(player, def, winner, finalLevel);
+            }
+        }, 0L, ecoIntervalTicks);
+
+        pending.task = task;
+    }
+
+    /**
+     * Instant reward completion for EcoEnchants vouchers when animation is disabled.
+     */
+    private void deliverEcoEnchantsInstant(Player player, ItemDefinition def,
+                                           EcoEnchantsHook.EcoEnchantCandidate winner,
+                                           int finalLevel, ItemStack book) {
+        Location loc = player.getLocation().add(0, 1, 0);
+        Sound sound = parseSound(ecoSoundRevealName, Sound.UI_TOAST_CHALLENGE_COMPLETE);
+        Particle particle = parseParticle(ecoParticleName, Particle.FIREWORK);
+
+        player.playSound(loc, sound, ecoSoundRevealVolume, ecoSoundRevealPitch);
+        try {
+            player.getWorld().spawnParticle(particle, loc, ecoParticleCount, 0.5, 0.5, 0.5, 0.1);
+        } catch (Throwable ignored) {}
+
+        giveItemSafely(player, book);
+        sendEcoSuccessMessage(player, def, winner, finalLevel);
+    }
+
+    /**
      * Instant reward completion for fixed vouchers or command-only vouchers.
      */
     private void finishVoucherInstant(Player player, ItemDefinition def, double amount, CurrencyDisplayInfo cInfo) {
@@ -521,6 +780,39 @@ public class VoucherManager implements Listener {
         messageManager.send(player, "voucher-redeemed-currency",
                 "&aYou redeemed &e#item# &aand received &e#symbol##amount# #currency#&a!",
                 placeholders);
+    }
+
+    private void sendEcoSuccessMessage(Player player, ItemDefinition def,
+                                       EcoEnchantsHook.EcoEnchantCandidate winner, int level) {
+        String itemName = (def.getName() != null && !def.getName().isBlank()) ? def.getName() : def.getId();
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("item", itemName);
+        placeholders.put("enchantment", winner.getRawDisplayName());
+        placeholders.put("level", EcoEnchantsHook.toRoman(level));
+        placeholders.put("raw_level", String.valueOf(level));
+        placeholders.put("rarity", winner.getRarityDisplayName());
+        placeholders.put("rarity_id", winner.getRarityId());
+        placeholders.put("type", winner.getTypeId());
+
+        messageManager.send(player, "voucher-ecoenchants-reward",
+                "&aYou redeemed &e#item# &aand received &f#enchantment# <yellow>#level#</yellow> &7(#rarity#)&a!",
+                placeholders);
+    }
+
+    /**
+     * Safely delivers an item to a player's inventory, dropping naturally at player's location if full.
+     */
+    public void giveItemSafely(Player player, ItemStack item) {
+        if (player == null || item == null || item.getType().isAir()) return;
+        HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(item);
+        if (!leftover.isEmpty()) {
+            for (ItemStack drop : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), drop);
+            }
+            messageManager.send(player, "voucher-inventory-full-dropped",
+                    "&eYour inventory was full, so your reward was dropped at your feet!");
+        }
+        player.updateInventory();
     }
 
     /**
@@ -571,6 +863,13 @@ public class VoucherManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
+        PendingEcoReward pending = pendingEcoRewards.remove(uuid);
+        if (pending != null) {
+            if (pending.task != null) pending.task.cancel();
+            if (pending.book != null) {
+                giveItemSafely(event.getPlayer(), pending.book);
+            }
+        }
         activeGachaPlayers.remove(uuid);
         lastVoucherUseMillis.remove(uuid);
     }
@@ -582,9 +881,21 @@ public class VoucherManager implements Listener {
     public void clearPlayer(UUID uuid) {
         activeGachaPlayers.remove(uuid);
         lastVoucherUseMillis.remove(uuid);
+        PendingEcoReward pending = pendingEcoRewards.remove(uuid);
+        if (pending != null && pending.task != null) {
+            pending.task.cancel();
+        }
     }
 
     public void cleanup() {
+        for (PendingEcoReward pending : pendingEcoRewards.values()) {
+            if (pending.task != null) pending.task.cancel();
+            Player p = Bukkit.getPlayer(pending.playerUuid);
+            if (p != null && p.isOnline() && pending.book != null) {
+                giveItemSafely(p, pending.book);
+            }
+        }
+        pendingEcoRewards.clear();
         activeGachaPlayers.clear();
         lastVoucherUseMillis.clear();
         currencyDisplayMap.clear();

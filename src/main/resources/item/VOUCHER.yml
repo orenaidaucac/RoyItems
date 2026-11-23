@@ -33,6 +33,18 @@
 #          value:
 #            min: 1000
 #            max: 20000
+#
+# EcoEnchants Random Book Voucher Modes:
+#   1. By Rarity ID:
+#        ecoenchants:
+#          rarity: common
+#          min-level: 1
+#          max-level: 3
+#   2. By Type ID:
+#        ecoenchants:
+#          type: normal
+#          min-level: 1
+#          max-level: 5
 # ==============================================================================
 
 # Example 1: Command Voucher (Grants Rank & Items)
@@ -138,4 +150,44 @@ coins_gacha:
     value:
       min: 500
       max: 10000
+  version: 1
+
+# Example 6: EcoEnchants Random Book Voucher by Rarity (Triggers 3-phase Title Gacha!)
+eco_common_voucher:
+  material: ENCHANTED_BOOK
+  name: "&a&lEcoEnchants Common Book Voucher"
+  lore:
+    - "&7Right-click to roll a random"
+    - "&aCommon &7EcoEnchants enchanted book."
+    - ""
+    - "&d✦ Features animated Title Gacha rolling!"
+    - "&eClick &8» &fRight-Click to redeem"
+  lore-format: default
+  glow: true
+  cooldown: 5.0
+  item-tier: rare
+  ecoenchants:
+    rarity: common
+    min-level: 1
+    max-level: 3
+  version: 1
+
+# Example 7: EcoEnchants Random Book Voucher by Type
+eco_normal_voucher:
+  material: ENCHANTED_BOOK
+  name: "&b&lEcoEnchants Normal Spell Voucher"
+  lore:
+    - "&7Right-click to claim a random"
+    - "&bNormal &7type EcoEnchants enchanted book."
+    - ""
+    - "&d✦ Features animated Title Gacha rolling!"
+    - "&eClick &8» &fRight-Click to redeem"
+  lore-format: default
+  glow: true
+  cooldown: 5.0
+  item-tier: epic
+  ecoenchants:
+    type: normal
+    min-level: 1
+    max-level: 5
   version: 1

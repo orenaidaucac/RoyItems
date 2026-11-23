@@ -1,0 +1,123 @@
+# ==============================================================================
+#             ROYITEMS — ENCHANTMENT EXTRACTION GUI CONFIGURATION
+# ==============================================================================
+# Configure the layout, materials, texts, navigation, and decoration items
+# for the Enchantment Extraction GUI.
+#
+# Supports:
+#   - MiniMessage, Hex (#RRGGBB), Legacy (&), Gradients, and Vietnamese Unicode
+#   - PlaceholderAPI placeholders (e.g. %player_name%)
+#   - Internal placeholders:
+#       %enchantment%        - Enchantment technical ID (e.g. sharpness, telepathy)
+#       %enchantment_name%   - Formatted display name (e.g. Sharpness, Dấu Kiếm)
+#       %level%              - Enchantment raw level number (e.g. 5)
+#       %level_roman%        - Enchantment Roman numeral (e.g. V)
+#       %rarity%             - Enchantment rarity display name
+#       %type%               - Enchantment type category (e.g. Vanilla, Normal, Special)
+#       %chance%             - Configured book return chance percentage (0 - 100)
+#       %item%               - Target item ID
+#       %item_name%          - Target item formatted display name
+# ==============================================================================
+
+title: "<gradient:#FFD166:#06D6A0>&lEnchantment Extraction</gradient>"
+rows: 5
+
+# Slot where the target item preview is rendered (0-based: 4 = top center)
+target-item-slot: 4
+
+target-preview:
+  name: "<gold>Target: %item_name%"
+  lore:
+    - "&7Extracting enchantments from this equipment."
+    - "&7Click an enchantment below to extract it into a book."
+    - ""
+    - "&eConsumable Cost: &f1x Extraction Scroll"
+
+# Slots where eligible enchantment icons are placed (14 slots per page)
+enchant-slots:
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+
+# Format for each clickable enchantment icon
+enchant-icon:
+  material: ENCHANTED_BOOK
+  custom-model-data: 0
+  name: "<gold>%enchantment_name% <yellow>%level_roman%</yellow></gold>"
+  lore:
+    - "&7Type: &f%type%"
+    - "&7Rarity: %rarity%"
+    - "&7Return Chance: <green>%chance%%</green>"
+    - ""
+    - "&e▸ Click to extract this enchantment!"
+
+# Navigation controls
+navigation:
+  previous-page:
+    slot: 38
+    material: ARROW
+    name: "<yellow>&l« Previous Page</yellow>"
+    lore:
+      - "&7Click to view previous enchantments."
+  next-page:
+    slot: 42
+    material: ARROW
+    name: "<yellow>&lNext Page »</yellow>"
+    lore:
+      - "&7Click to view more enchantments."
+  close:
+    slot: 40
+    material: BARRIER
+    name: "<red>&lCancel Extraction</red>"
+    lore:
+      - "&7Click to cancel and exit."
+      - "&7No items will be consumed."
+
+# Decorative background items
+decorations:
+  border:
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+    slots:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 17
+      - 18
+      - 26
+      - 27
+      - 35
+      - 36
+      - 37
+      - 39
+      - 41
+      - 43
+      - 44
+  divider:
+    material: GRAY_STAINED_GLASS_PANE
+    name: " "
+    slots:
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16

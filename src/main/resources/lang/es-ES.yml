@@ -23,6 +23,7 @@ messages:
   requirement-failed: "&c¡No cumples con los requisitos para usar este objeto!"
   cooldown-active: "&c¡Este objeto está en enfriamiento! (Quedan &f#time#s&c)"
   editor-locked: "&c¡Este objeto está siendo editado actualmente por otro administrador!"
+  anvil-rename-blocked: "&cNo puedes cambiar el nombre de los objetos de RoyItems usando un yunque."
 
   # Notificaciones de actualización (Administradores al unirse y al recargar)
   update-available:
@@ -60,6 +61,7 @@ messages:
   station-delete-failed: "&c¡La estación &f#station# &cno existe o no se pudo eliminar!"
   craft-success: "&a¡Fabricado con éxito &f#amount#x &areceta &e#recipe#&a!"
   craft-failed-ingredients: "&c¡No tienes suficientes materiales para fabricar esta receta!"
+  craft-failed-inventory-full: "&c¡Tu inventario está lleno! No se pueden fabricar objetos."
   craft-countdown-start: "&eFabricando &f#recipe#&e... ¡Por favor no cierres el menú! (&f#time#s&e)"
   craft-completed: "&a¡Fabricación completada para &e#recipe#&a!"
   craft-failed: "&c¡La fabricación falló por falta de materiales!"
@@ -78,3 +80,18 @@ messages:
   voucher-transaction-failed: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cError al depositar la recompensa. La transacción se canceló de forma segura."
   voucher-invalid-config: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cConfiguración del vale no válida. Por favor contacta a un administrador."
   voucher-currency-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEl proveedor de economía para #currency# no está disponible actualmente."
+  voucher-ecoenchants-reward: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Has canjeado &e#item# &ay recibido &f#enchantment# <yellow>#level#</yellow> &7(#rarity#)&a!"
+  voucher-ecoenchants-unavailable: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEcoEnchants no está instalado o disponible actualmente en este servidor."
+  voucher-ecoenchants-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cNo se encontraron encantamientos de EcoEnchants para esta configuración de vale."
+  voucher-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e¡Tu inventario estaba lleno, así que la recompensa se soltó a tus pies!"
+
+  # Sistema de Extracción de Encantamientos
+  extract-no-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Este objeto no tiene ningún encantamiento para extraer!"
+  extract-no-valid-enchantments: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Ningún encantamiento en este objeto cumple con los criterios de extracción!"
+  extract-success-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Se extrajo con éxito el encantamiento &f#enchantment# <yellow>#level#</yellow> &ay recibiste el libro encantado!"
+  extract-success-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e¡Se extrajo &f#enchantment# <yellow>#level#</yellow>&e, pero el libro se perdió por probabilidad (&c#chance#%&e)!"
+  extract-inventory-full-dropped: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e¡Tu inventario estaba lleno, el libro encantado se soltó a tus pies!"
+  extract-cancelled: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &7Extracción de encantamiento cancelada."
+  extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Ya hay una extracción en curso! Por favor espera."
+  extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡El objeto de destino ha cambiado o ya no es válido!"
+  extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Este objeto no está en la lista blanca de extracción!"

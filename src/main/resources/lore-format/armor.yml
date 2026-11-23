@@ -3,6 +3,7 @@ format:
   - "#bar#"
   - "#stats#"
   - "#bar#"
+  - "#enchantments#"
   - "#sockets#"
   - "#bar#"
   - "#description#"

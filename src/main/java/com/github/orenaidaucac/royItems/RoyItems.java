@@ -72,6 +72,7 @@ public final class RoyItems extends JavaPlugin {
     private VoucherManager voucherManager;
     private com.github.orenaidaucac.royItems.station.CraftingStationManager craftingStationManager;
     private com.github.orenaidaucac.royItems.dummy.DummyManager dummyManager;
+    private com.github.orenaidaucac.royItems.extraction.ExtractionManager extractionManager;
 
     public static RoyItems getInstance() {
         return instance;
@@ -81,6 +82,7 @@ public final class RoyItems extends JavaPlugin {
     public ItemPDCManager getItemPDCManager() { return itemPDCManager; }
     public DynamicLoreEngine getDynamicLoreEngine() { return dynamicLoreEngine; }
     public com.github.orenaidaucac.royItems.dummy.DummyManager getDummyManager() { return dummyManager; }
+    public com.github.orenaidaucac.royItems.extraction.ExtractionManager getExtractionManager() { return extractionManager; }
     public ItemRegistry getItemRegistry() { return itemRegistry; }
     public ItemBuilder getItemBuilder() { return itemBuilder; }
     public ItemConfigManager getItemConfigManager() { return itemConfigManager; }
@@ -196,6 +198,10 @@ public final class RoyItems extends JavaPlugin {
                 this, itemRegistry, itemPDCManager, itemBuilder, integrationManager);
         this.craftingStationManager.initialize();
 
+        // 9.6. Enchantment Extraction System
+        this.extractionManager = new com.github.orenaidaucac.royItems.extraction.ExtractionManager(
+                this, itemRegistry, itemPDCManager, dynamicLoreEngine, integrationManager, messageManager);
+
         // 10. Update Checker (Asynchronous & Admin-Only Notification)
         this.updateChecker = new UpdateChecker(this, platformScheduler);
         this.updateChecker.checkForUpdates(null);
@@ -267,6 +273,11 @@ public final class RoyItems extends JavaPlugin {
             craftingStationManager.cleanup();
         }
 
+        // 4.8. Cleanup Enchantment Extraction System
+        if (extractionManager != null) {
+            extractionManager.closeAll();
+        }
+
         // 5. Cleanup Player Stat Attribute Modifiers
         if (statManager != null) {
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -295,6 +306,9 @@ public final class RoyItems extends JavaPlugin {
         }
         if (craftingStationManager != null) {
             craftingStationManager.closeAllOpenGuis();
+        }
+        if (extractionManager != null) {
+            extractionManager.closeAll();
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {
@@ -332,6 +346,9 @@ public final class RoyItems extends JavaPlugin {
         }
         if (craftingStationManager != null) {
             craftingStationManager.loadAll();
+        }
+        if (extractionManager != null) {
+            extractionManager.loadConfig();
         }
 
         // 2. Reload main config, combat defense engine, and update checker
@@ -422,14 +439,22 @@ public final class RoyItems extends JavaPlugin {
         } else if (messageManager != null && sender != null) {
             messageManager.send(sender, "reload-success", "&aAll configurations, items, and lore templates reloaded successfully!");
         }
+
+        // 8.5. Fire public RoyItemsReloadEvent for external integrations (such as RoyMC-VirtualStorage)
+        try {
+            getServer().getPluginManager().callEvent(new com.github.orenaidaucac.royItems.api.event.RoyItemsReloadEvent());
+        } catch (Throwable t) {
+            getLogger().log(java.util.logging.Level.WARNING, "Failed to dispatch RoyItemsReloadEvent", t);
+        }
     }
 
     private void registerListeners() {
         var pm = getServer().getPluginManager();
         pm.registerEvents(new CombatListener(statManager, defenseManager, integrationManager.getMythicMobsHook()), this);
-        pm.registerEvents(new com.github.orenaidaucac.royItems.lore.EnchantmentListener(itemPDCManager, dynamicLoreEngine, platformScheduler), this);
+        pm.registerEvents(new com.github.orenaidaucac.royItems.lore.EnchantmentListener(this, itemPDCManager, dynamicLoreEngine, platformScheduler), this);
         pm.registerEvents(new PlayerEquipmentListener(statManager, platformScheduler, liveUpdateService, requirementChecker, itemPDCManager, itemRegistry), this);
         pm.registerEvents(new GemSocketListener(gemSocketManager, itemPDCManager, statManager), this);
+        pm.registerEvents(new com.github.orenaidaucac.royItems.extraction.EnchantExtractionListener(extractionManager, itemPDCManager, itemRegistry), this);
         pm.registerEvents(voucherManager, this);
         pm.registerEvents(new SpecialItemListener(itemPDCManager, itemRegistry, cooldownManager, requirementChecker, integrationManager, voucherManager), this);
         this.itemProtectionListener = new ItemProtectionListener(itemPDCManager, itemRegistry, messageManager);

@@ -12,3 +12,27 @@ titan_elixir:
       slot: MAIN_HAND
   item-tier: uncommon
   version: 1
+
+extraction_scroll:
+  material: PAPER
+  name: "<gradient:#FFD166:#06D6A0>&lExtraction Scroll</gradient>"
+  lore:
+    - "&7Drag and drop this scroll onto an enchanted"
+    - "&7equipment to extract an enchantment into a book."
+    - ""
+    - "&eExtraction Chance: &a100%"
+  lore-format: default
+  glow: true
+  consumable: false
+  remove-enchants:
+    enabled: true
+    type: BOTH
+    item-whitelist:
+      - SWORD
+      - AXE
+    ecoenchants:
+      rarity: []
+      type: []
+    chance: 100
+  item-tier: rare
+  version: 1
