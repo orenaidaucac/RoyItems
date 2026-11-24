@@ -167,7 +167,7 @@ public class MessageManager {
         // 4. Construct migration snippet preserving comments and indentation
         StringBuilder snippet = new StringBuilder();
         snippet.append("\n  # ----------------------------------------------------------------------------\n");
-        snippet.append("  # Automatically migrated keys (RoyItems v2026.1.9)\n");
+        snippet.append("  # Automatically migrated keys (RoyItems v2026.1.10)\n");
         snippet.append("  # ----------------------------------------------------------------------------\n");
 
         for (String key : missingKeys) {

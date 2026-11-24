@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c이미 추출 작업이 진행 중입니다. 잠시만 기다려 주세요!"
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c대상 아이템이 변경되었거나 더 이상 유효하지 않습니다!"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c이 아이템은 추출 화이트리스트에 포함되어 있지 않습니다!"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c이 아이템에는 기본 설정된 마법 부여만 포함되어 있어 추출할 수 없습니다!"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c이 아이템의 기본 설정 마법 부여는 추출할 수 없습니다!"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a&f#enchantment# &a의 추가 레벨을 추출하여 기본 레벨 <yellow>#level#</yellow> 로 되돌렸습니다! 마법 부여된 책 <yellow>#book_level#</yellow> 을(를) 획득했습니다."
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e&f#enchantment# &e을(를) 기본 레벨 <yellow>#level#</yellow> (으)로 되돌렸지만, 확률(&c#chance#%&e)로 인해 책을 잃었습니다!"

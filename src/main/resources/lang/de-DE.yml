@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cEin Extraktionsvorgang wird bereits verarbeitet. Bitte warten!"
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDer Zielgegenstand wurde verändert oder ist nicht mehr gültig!"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDieser Gegenstand befindet sich nicht auf der Extraktions-Whitelist!"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cDieser Gegenstand enthält nur Standard-Verzauberungen, die nicht entfernt werden können!"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cStandard-Verzauberungen dieses Gegenstands können nicht entfernt werden!"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aZusätzliche Stufen von &f#enchantment# &awurden entfernt und auf Standard <yellow>#level#</yellow> zurückgesetzt! Buch <yellow>#book_level#</yellow> erhalten."
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e&f#enchantment# &ewurde auf Standard <yellow>#level#</yellow> zurückgesetzt, das Buch ging jedoch verloren (&c#chance#%&e)!"

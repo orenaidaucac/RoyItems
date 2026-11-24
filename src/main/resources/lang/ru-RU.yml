@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cОперация извлечения уже выполняется. Пожалуйста, подождите!"
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЦелевой предмет изменился или больше недействителен!"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЭтот предмет не входит в белый список для извлечения чар!"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cЭтот предмет содержит только стандартные зачарования, которые нельзя снять!"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cВы не можете снять стандартные зачарования этого предмета!"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aУспешно снят дополнительный уровень &f#enchantment#&a, сброшен до стандартного уровня <yellow>#level#</yellow>! Получена книга <yellow>#book_level#</yellow>."
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e&f#enchantment# &eсброшен до стандартного уровня <yellow>#level#</yellow>&e, но книга была утеряна из-за шанса (&c#chance#%&e)!"

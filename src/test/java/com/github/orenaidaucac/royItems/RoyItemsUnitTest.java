@@ -2161,7 +2161,7 @@ class RoyItemsUnitTest {
     void testVersionSynchronization() {
         com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
                 new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
-        assertEquals("2026.1.9", expansion.getVersion());
+        assertEquals("2026.1.10", expansion.getVersion());
     }
 
     @Test
@@ -4959,5 +4959,166 @@ class RoyItemsUnitTest {
         };
         listener.onInventoryClick(placeGrindCombine);
         assertTrue(placeGrindCombine.isCancelled(), "Combining second item with RoyItem in Grindstone must be cancelled");
+    }
+
+    static class TestEnchantedItemStack extends TestItemStack {
+        private final Map<Enchantment, Integer> enchants = new LinkedHashMap<>();
+
+        TestEnchantedItemStack(org.bukkit.Material mat, int amt) {
+            super(mat, amt);
+        }
+
+        @Override
+        public Map<Enchantment, Integer> getEnchantments() {
+            return new LinkedHashMap<>(enchants);
+        }
+
+        @Override
+        public boolean containsEnchantment(Enchantment ench) {
+            return enchants.containsKey(ench);
+        }
+
+        @Override
+        public int getEnchantmentLevel(Enchantment ench) {
+            return enchants.getOrDefault(ench, 0);
+        }
+
+        @Override
+        public void addUnsafeEnchantment(Enchantment ench, int level) {
+            enchants.put(ench, level);
+        }
+
+        @Override
+        public int removeEnchantment(Enchantment ench) {
+            Integer removed = enchants.remove(ench);
+            return removed != null ? removed : 0;
+        }
+
+        @Override
+        public boolean hasItemMeta() {
+            return false;
+        }
+
+        @Override
+        public org.bukkit.inventory.meta.ItemMeta getItemMeta() {
+            return null;
+        }
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Protection of default configured enchantments and glow")
+    void testExtractionDefaultEnchantmentProtection() {
+        ExtractionManager manager = new ExtractionManager(null, null, null, null, null, null);
+
+        // 1. Config toggles default values
+        assertTrue(manager.isProtectDefaultEnchantments());
+        assertFalse(manager.isAllowDowngradeToDefault());
+        assertEquals("DIFFERENCE", manager.getDowngradeBookLevel());
+
+        // 2. Setup extraction config
+        EnchantExtractionConfig extractConfig = new EnchantExtractionConfig();
+        extractConfig.setEnabled(true);
+        extractConfig.setType(EnchantExtractionConfig.ExtractionType.BOTH);
+
+        // 3. Setup ItemDefinition with default configured enchantments (SHARPNESS 3)
+        ItemDefinition swordDef = new ItemDefinition(ItemType.SWORD, "mythic_sword");
+        swordDef.setEnchantments(Map.of(Enchantment.SHARPNESS, 3));
+
+        // Case A: Item has only default enchantment (SHARPNESS 3)
+        TestEnchantedItemStack itemOnlyDefault = new TestEnchantedItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        itemOnlyDefault.addUnsafeEnchantment(Enchantment.SHARPNESS, 3);
+
+        assertFalse(manager.hasRemovableEnchantments(itemOnlyDefault, swordDef, extractConfig),
+                "Item with only default enchantments must have NO removable enchantments when protection is active");
+
+        // Case B: Item has default enchantment (SHARPNESS 3) AND player-added enchantment (FIRE_ASPECT 2)
+        TestEnchantedItemStack itemWithPlayerEnch = new TestEnchantedItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        itemWithPlayerEnch.addUnsafeEnchantment(Enchantment.SHARPNESS, 3);
+        itemWithPlayerEnch.addUnsafeEnchantment(Enchantment.FIRE_ASPECT, 2);
+
+        assertTrue(manager.hasRemovableEnchantments(itemWithPlayerEnch, swordDef, extractConfig),
+                "Item with player-added FIRE_ASPECT must have removable enchantments");
+
+        // Case C: Upgraded default enchantment (SHARPNESS 5 vs default 3)
+        TestEnchantedItemStack itemUpgraded = new TestEnchantedItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        itemUpgraded.addUnsafeEnchantment(Enchantment.SHARPNESS, 5);
+
+        // Under Option 2 (allowDowngradeToDefault = false): locked!
+        manager.setAllowDowngradeToDefault(false);
+        assertFalse(manager.hasRemovableEnchantments(itemUpgraded, swordDef, extractConfig),
+                "Under Option 2, upgraded default enchantments must be locked from extraction");
+
+        // Under Option 1 (allowDowngradeToDefault = true): downgradable!
+        manager.setAllowDowngradeToDefault(true);
+        assertTrue(manager.hasRemovableEnchantments(itemUpgraded, swordDef, extractConfig),
+                "Under Option 1, upgraded default enchantments can be downgraded back to default level");
+
+        // Case D: Vanilla item (no definition)
+        TestEnchantedItemStack vanillaSword = new TestEnchantedItemStack(org.bukkit.Material.IRON_SWORD, 1);
+        vanillaSword.addUnsafeEnchantment(Enchantment.SHARPNESS, 3);
+        assertTrue(manager.hasRemovableEnchantments(vanillaSword, null, extractConfig),
+                "Vanilla items must allow extraction of any eligible enchantment");
+
+        // Case E: RoyItem with no default enchantments
+        ItemDefinition unenchantedDef = new ItemDefinition(ItemType.SWORD, "plain_sword");
+        unenchantedDef.setEnchantments(Collections.emptyMap());
+        assertTrue(manager.hasRemovableEnchantments(vanillaSword, unenchantedDef, extractConfig),
+                "RoyItem without configured enchantments must allow extraction of any player-added enchantment");
+
+        // Case F: Protection disabled
+        manager.setProtectDefaultEnchantments(false);
+        assertTrue(manager.hasRemovableEnchantments(itemOnlyDefault, swordDef, extractConfig),
+                "When protectDefaultEnchantments is false, default enchantments can be extracted");
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: Glow effect is maintained and filtered from extractable enchants")
+    void testExtractionGlowEffectHandling() {
+        ItemDefinition glowDef = new ItemDefinition(ItemType.SWORD, "glowing_blade");
+        glowDef.setGlow(true);
+
+        // Item with dummy glow (LUCK_OF_THE_SEA 1)
+        Map<Enchantment, Integer> enchants = new HashMap<>();
+        enchants.put(Enchantment.LUCK_OF_THE_SEA, 1);
+        ExtractionManager.filterDummyGlowEnchantments(enchants, glowDef);
+        assertTrue(enchants.isEmpty(), "Dummy glow (LUCK_OF_THE_SEA 1) must be filtered from extractable enchantments");
+
+        // Item with REAL LUCK_OF_THE_SEA configured
+        ItemDefinition realLuckDef = new ItemDefinition(ItemType.SWORD, "fishing_rod");
+        realLuckDef.setGlow(true);
+        realLuckDef.setEnchantments(Map.of(Enchantment.LUCK_OF_THE_SEA, 1));
+        Map<Enchantment, Integer> realEnchants = new HashMap<>();
+        realEnchants.put(Enchantment.LUCK_OF_THE_SEA, 1);
+        ExtractionManager.filterDummyGlowEnchantments(realEnchants, realLuckDef);
+        assertFalse(realEnchants.isEmpty(), "Real configured LUCK_OF_THE_SEA must not be filtered out as dummy glow");
+
+        // Test dummy glow check method
+        assertTrue(ExtractionManager.isDummyGlow(glowDef, Enchantment.LUCK_OF_THE_SEA, 1));
+        assertFalse(ExtractionManager.isDummyGlow(realLuckDef, Enchantment.LUCK_OF_THE_SEA, 1));
+        assertFalse(ExtractionManager.isDummyGlow(glowDef, Enchantment.SHARPNESS, 1));
+
+        // Test maintainGlowEffect
+        TestEnchantedItemStack testItem = new TestEnchantedItemStack(org.bukkit.Material.DIAMOND_SWORD, 1);
+        ExtractionManager.maintainGlowEffect(testItem);
+    }
+
+    @Test
+    @DisplayName("Enchantment Extraction: New localization keys exist in all language files")
+    void testExtractionLocalizationKeysExist() {
+        for (String lang : List.of("en-US.yml", "vi-VN.yml", "de-DE.yml", "es-ES.yml", "ja-JP.yml", "ko-KR.yml", "ru-RU.yml")) {
+            java.io.InputStream in = getClass().getClassLoader().getResourceAsStream("lang/" + lang);
+            assertNotNull(in, "Language file lang/" + lang + " must exist");
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+
+            assertNotNull(yaml.getString("messages.extract-only-default-enchants"),
+                    "Missing messages.extract-only-default-enchants in " + lang);
+            assertNotNull(yaml.getString("messages.extract-default-enchant-blocked"),
+                    "Missing messages.extract-default-enchant-blocked in " + lang);
+            assertNotNull(yaml.getString("messages.extract-success-downgrade-book"),
+                    "Missing messages.extract-success-downgrade-book in " + lang);
+            assertNotNull(yaml.getString("messages.extract-success-downgrade-no-book"),
+                    "Missing messages.extract-success-downgrade-no-book in " + lang);
+        }
     }
 }

@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cAn extraction transaction is already in progress. Please wait!"
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cThe target item has changed or is no longer valid!"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cThis item is not in the extraction whitelist!"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cThis item only contains default configured enchantments that cannot be removed!"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cYou cannot extract default configured enchantments from this item!"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aSuccessfully extracted extra levels from &f#enchantment#&a, reset to default level <yellow>#level#</yellow>! Received enchanted book <yellow>#book_level#</yellow>."
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eReset &f#enchantment# &eto default level <yellow>#level#</yellow>&e, but the book was lost due to chance (&c#chance#%&e)!"

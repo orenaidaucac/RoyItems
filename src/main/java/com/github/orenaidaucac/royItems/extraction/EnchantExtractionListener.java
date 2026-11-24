@@ -96,7 +96,9 @@ public class EnchantExtractionListener implements Listener {
 
         // 9. All checks passed: this is an authoritative Enchantment Extraction request
         event.setCancelled(true);
-        extractionManager.openExtractionGui(player, target, event.getSlot(), cursor);
+        if (!extractionManager.openExtractionGui(player, target, event.getSlot(), cursor)) {
+            player.updateInventory();
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/Minecraft-1.21.x%20%7C%201.21.4%2B-2ea44f?style=for-the-badge&logo=minecraft&logoColor=white" alt="Minecraft" />
   <img src="https://img.shields.io/badge/Platforms-Paper%20%7C%20Purpur%20%7C%20Folia%20%7C%20Leaf%20%7C%20Spigot-f38ba8?style=for-the-badge" alt="Platforms" />
   <img src="https://img.shields.io/badge/Java-21%2B-ea76cb?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
-  <img src="https://img.shields.io/badge/Release-v2026.1.9-blue?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/Release-v2026.1.10-blue?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/Modrinth-RoyItems-00AF5C?style=for-the-badge&logo=modrinth&logoColor=white" alt="Modrinth" />
   <a href="https://bstats.org/plugin/bukkit/RoyItems/34832"><img src="https://img.shields.io/bstats/servers/34832?style=for-the-badge&logo=chartdotjs&logoColor=white&color=007ec6" alt="bStats Servers" /></a>
   <a href="https://bstats.org/plugin/bukkit/RoyItems/34832"><img src="https://img.shields.io/bstats/players/34832?style=for-the-badge&logo=minecraft&logoColor=white&color=007ec6" alt="bStats Players" /></a>
@@ -78,15 +78,15 @@ Setting up RoyItems takes less than 60 seconds:
    * Server Software: **Paper**, **Purpur**, **Folia**, **Leaf**, or **Spigot** (Minecraft **1.21+**).
    * Java Runtime: **Java 21** or newer.
 2. **Download Release:**
-   * Download the latest `RoyItems-2026.1.9.jar` from Modrinth.
+   * Download the latest `RoyItems-2026.1.10.jar` from Modrinth.
 3. **Verify Dependencies:**
    * RoyItems has **ZERO required dependencies**. You do not need to install any external libraries.
    * If you wish to use economy features, skills, or custom models, ensure your optional soft dependencies (e.g. Vault, Nexo, ExtraStorage) are installed.
 4. **Place in Plugins Directory:**
-   * Place `RoyItems-2026.1.9.jar` into your server's `plugins/` folder.
+   * Place `RoyItems-2026.1.10.jar` into your server's `plugins/` folder.
 5. **Start Your Server:**
    * Boot or restart your server. Check console for:
-     `[RoyItems] Initializing RoyItems v2026.1.9...`
+     `[RoyItems] Initializing RoyItems v2026.1.10...`
      `[RoyItems] Successfully loaded custom items and crafting stations.`
 6. **Customize Configurations:**
    * RoyItems automatically generates clean, default configurations in `plugins/RoyItems/`.

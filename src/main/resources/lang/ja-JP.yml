@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cすでに抽出処理が進行中です。しばらくお待ちください！"
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c対象のアイテムが変更されたか、無効になりました！"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのアイテムは抽出ホワイトリストに含まれていません！"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのアイテムにはデフォルトのエンチャントのみが含まれており、抽出できません！"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cこのアイテムのデフォルトエンチャントは抽出できません！"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a&f#enchantment# &aの追加レベルを抽出し、デフォルトレベル <yellow>#level#</yellow> に戻しました！本 <yellow>#book_level#</yellow> を獲得。"
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &e&f#enchantment# &eをデフォルトレベル <yellow>#level#</yellow> に戻しましたが、確率 (&c#chance#%&e) により本は失われました！"

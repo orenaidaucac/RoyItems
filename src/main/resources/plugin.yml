@@ -1,5 +1,5 @@
 name: RoyItems
-version: '2026.1.9'
+version: '2026.1.10'
 main: com.github.orenaidaucac.royItems.RoyItems
 api-version: '1.21'
 folia-supported: true
@@ -26,7 +26,6 @@ softdepend:
   - PhoenixNPCs
   - PlayerPoints
   - ExcellentEconomy
-  - ExtraStorage
   - RoyMC-VirtualStorage
   - VirtualStorage
   - EcoEnchants

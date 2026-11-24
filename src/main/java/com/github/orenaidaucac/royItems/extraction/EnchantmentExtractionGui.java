@@ -261,6 +261,10 @@ public class EnchantmentExtractionGui {
                  .replace("%enchantment_name%", entry.getName())
                  .replace("%level%", String.valueOf(entry.getLevel()))
                  .replace("%level_roman%", entry.getRomanLevel())
+                 .replace("%target_level%", String.valueOf(entry.getTargetLevel()))
+                 .replace("%target_level_roman%", entry.getTargetRomanLevel())
+                 .replace("%book_level%", String.valueOf(entry.getBookLevel()))
+                 .replace("%book_level_roman%", entry.getRomanBookLevel())
                  .replace("%rarity%", entry.getRarityDisplayName())
                  .replace("%type%", entry.getTypeName())
                  .replace("%chance%", chanceStr);

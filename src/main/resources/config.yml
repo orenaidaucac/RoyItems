@@ -244,6 +244,29 @@ grindstone:
   prevent-disenchant-configured: true
 
 # ==============================================================================
+# ENCHANTMENT EXTRACTION (CONSUMABLE REMOVE-ENCHANTS)
+# ==============================================================================
+enchantment-extraction:
+  # Protect pre-configured default enchantments on RoyItems items.
+  # When true (default):
+  #   - Default enchantments defined in the item's YAML cannot be completely removed.
+  # When false:
+  #   - Players can extract any enchantment matching the scroll's filter.
+  protect-default-enchantments: true
+
+  # Handling when an enchantment is present in default config but was upgraded by player/admin to a higher level:
+  # false (default - Option 2):
+  #   - Completely lock enchantments that exist in default config. Players cannot extract them at all.
+  # true (Option 1):
+  #   - Allow downgrading the enchantment back to its default level, keeping the default level on the item.
+  allow-downgrade-to-default: false
+
+  # Book returned when downgrading an upgraded default enchantment (only applies when allow-downgrade-to-default: true):
+  #   - "DIFFERENCE" / "UPGRADED" (default): Returns book with the extra levels added (e.g., Level 5 -> 3 returns Level 2 book: 5 - 3 = 2).
+  #   - "CURRENT" / "FULL": Returns book with the full level prior to extraction (e.g., Level 5).
+  downgrade-book-level: "DIFFERENCE"
+
+# ==============================================================================
 # MINE RADIUS MECHANICS & EXECUTOR
 # Controls wide-area horizontal plane mining for items with type: TOOL
 # and the mine-radius stat (3x3, 5x5, 7x7, 9x9, 11x11...).

@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cMột thao tác gỡ phù phép đang được xử lý. Vui lòng chờ!"
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cTrang bị mục tiêu đã thay đổi hoặc không còn hợp lệ!"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cTrang bị này không thuộc danh sách được phép tháo gỡ phù phép!"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cTrang bị này chỉ chứa phù phép mặc định, không thể tháo gỡ!"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &cKhông thể tháo gỡ phù phép mặc định của trang bị này!"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aĐã gỡ cấp ép thêm của &f#enchantment#&a, đưa về cấp mặc định <yellow>#level#</yellow> và nhận lại sách cấp <yellow>#book_level#</yellow>!"
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eĐã đưa &f#enchantment# &evề cấp mặc định <yellow>#level#</yellow>&e, nhưng sách đã bị tiêu hủy theo tỷ lệ (&c#chance#%&e)!"

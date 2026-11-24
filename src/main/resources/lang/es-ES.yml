@@ -97,3 +97,7 @@ messages:
   extract-in-progress: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Ya hay una extracción en curso! Por favor espera."
   extract-item-invalid: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡El objeto de destino ha cambiado o ya no es válido!"
   extract-item-not-whitelisted: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Este objeto no está en la lista blanca de extracción!"
+  extract-only-default-enchants: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡Este objeto solo contiene encantamientos predeterminados que no se pueden eliminar!"
+  extract-default-enchant-blocked: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &c¡No puedes extraer los encantamientos predeterminados de este objeto!"
+  extract-success-downgrade-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Se extrajo el nivel adicional de &f#enchantment#&a, restablecido al nivel predeterminado <yellow>#level#</yellow>! Libro <yellow>#book_level#</yellow> recibido."
+  extract-success-downgrade-no-book: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &eSe restableció &f#enchantment# &eal nivel predeterminado <yellow>#level#</yellow>&e, pero el libro se perdió por probabilidad (&c#chance#%&e)!"

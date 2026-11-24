@@ -43,7 +43,7 @@ public class RoyPlaceholderExpansion extends PlaceholderExpansion {
 
     @Override
     public @NotNull String getVersion() {
-        return "2026.1.9";
+        return "2026.1.10";
     }
 
     @Override

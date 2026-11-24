@@ -42,6 +42,10 @@ public class ExtractionManager {
     private final Map<UUID, Gui> openGuis = new ConcurrentHashMap<>();
     private final Set<UUID> processingPlayers = ConcurrentHashMap.newKeySet();
 
+    private boolean protectDefaultEnchantments = true;
+    private boolean allowDowngradeToDefault = false;
+    private String downgradeBookLevel = "DIFFERENCE";
+
     public ExtractionManager(RoyItems plugin, ItemRegistry registry, ItemPDCManager pdcManager,
                              DynamicLoreEngine loreEngine, IntegrationManager integrationManager,
                              MessageManager messageManager) {
@@ -55,6 +59,13 @@ public class ExtractionManager {
     }
 
     public void loadConfig() {
+        if (plugin != null && plugin.getConfig() != null) {
+            this.protectDefaultEnchantments = plugin.getConfig().getBoolean("enchantment-extraction.protect-default-enchantments", true);
+            this.allowDowngradeToDefault = plugin.getConfig().getBoolean("enchantment-extraction.allow-downgrade-to-default", false);
+            this.downgradeBookLevel = plugin.getConfig().getString("enchantment-extraction.downgrade-book-level", "DIFFERENCE");
+        }
+
+        if (plugin == null) return;
         File file = new File(plugin.getDataFolder(), "gui/remove-enchants-gui.yml");
         if (!file.exists()) {
             try {
@@ -89,6 +100,82 @@ public class ExtractionManager {
 
     public boolean hasPlaceholderAPI() {
         return integrationManager != null && integrationManager.hasPlaceholderAPI();
+    }
+
+    public boolean isProtectDefaultEnchantments() {
+        return protectDefaultEnchantments;
+    }
+
+    public void setProtectDefaultEnchantments(boolean protectDefaultEnchantments) {
+        this.protectDefaultEnchantments = protectDefaultEnchantments;
+    }
+
+    public boolean isAllowDowngradeToDefault() {
+        return allowDowngradeToDefault;
+    }
+
+    public void setAllowDowngradeToDefault(boolean allowDowngradeToDefault) {
+        this.allowDowngradeToDefault = allowDowngradeToDefault;
+    }
+
+    public String getDowngradeBookLevel() {
+        return downgradeBookLevel;
+    }
+
+    public void setDowngradeBookLevel(String downgradeBookLevel) {
+        this.downgradeBookLevel = downgradeBookLevel != null ? downgradeBookLevel : "DIFFERENCE";
+    }
+
+    /**
+     * Checks whether an item contains at least one enchantment that can be extracted or downgraded
+     * under the current configuration and extraction settings.
+     */
+    public boolean hasRemovableEnchantments(ItemStack item, ItemDefinition def, EnchantExtractionConfig config) {
+        if (item == null || item.getType().isAir() || config == null || !config.isEnabled()) {
+            return false;
+        }
+
+        Map<Enchantment, Integer> targetEnchants;
+        try {
+            targetEnchants = new LinkedHashMap<>(item.getEnchantments());
+        } catch (Throwable t) {
+            targetEnchants = new LinkedHashMap<>();
+        }
+        try {
+            if (item.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
+                targetEnchants.putAll(storageMeta.getStoredEnchants());
+            }
+        } catch (Throwable ignored) {}
+        filterDummyGlowEnchantments(targetEnchants, def);
+
+        if (targetEnchants.isEmpty()) {
+            return false;
+        }
+
+        EcoEnchantsHook ecoHook = (integrationManager != null) ? integrationManager.getEcoEnchantsHook() : null;
+        Map<Enchantment, Integer> defaultEnchants = (def != null && def.getEnchantments() != null)
+                ? def.getEnchantments() : Collections.emptyMap();
+
+        for (Map.Entry<Enchantment, Integer> entry : targetEnchants.entrySet()) {
+            Enchantment ench = entry.getKey();
+            int currentLevel = entry.getValue();
+
+            if (!config.isEnchantmentEligible(ench, ecoHook)) {
+                continue;
+            }
+
+            if (protectDefaultEnchantments && defaultEnchants.containsKey(ench)) {
+                int defLevel = defaultEnchants.get(ench);
+                if (allowDowngradeToDefault && currentLevel > defLevel) {
+                    return true;
+                }
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -145,32 +232,68 @@ public class ExtractionManager {
 
         // 3. Filter eligible enchantments according to the consumable's configuration
         EcoEnchantsHook ecoHook = (integrationManager != null) ? integrationManager.getEcoEnchantsHook() : null;
+        Map<Enchantment, Integer> defaultEnchants = (targetDef != null && targetDef.getEnchantments() != null)
+                ? targetDef.getEnchantments() : Collections.emptyMap();
+
         List<ExtractionEntry> eligibleEntries = new ArrayList<>();
+        boolean hadDefaultEnchantsBlocked = false;
 
         for (Map.Entry<Enchantment, Integer> entry : targetEnchants.entrySet()) {
             Enchantment ench = entry.getKey();
             int level = entry.getValue();
 
-            if (config.isEnchantmentEligible(ench, ecoHook)) {
-                boolean isEco = (ecoHook != null && ecoHook.isEcoEnchant(ench));
-                String name = isEco ? ecoHook.getDisplayName(ench) : DynamicLoreEngine.formatEnchantmentName(ench);
-                String roman = DynamicLoreEngine.toRoman(level);
-                String rarity = isEco ? ecoHook.getRarityDisplayName(ench) : "Vanilla";
-                if (rarity == null || rarity.isBlank()) rarity = "Vanilla";
-                String typeName = isEco ? (ecoHook.getTypeId(ench) != null ? ecoHook.getTypeId(ench) : "EcoEnchants") : "Vanilla";
-
-                eligibleEntries.add(new ExtractionEntry(
-                        ench, level, isEco, ench.getKey().getKey(), name, roman, rarity, typeName, config.getChance()
-                ));
+            if (!config.isEnchantmentEligible(ench, ecoHook)) {
+                continue;
             }
+
+            boolean isDefault = protectDefaultEnchantments && defaultEnchants.containsKey(ench);
+            if (isDefault) {
+                int defLevel = defaultEnchants.get(ench);
+                if (allowDowngradeToDefault && level > defLevel) {
+                    // Option 1: allow downgrade to default level
+                    int bookLvl = ("CURRENT".equalsIgnoreCase(downgradeBookLevel) || "FULL".equalsIgnoreCase(downgradeBookLevel))
+                            ? level : (level - defLevel);
+                    boolean isEco = (ecoHook != null && ecoHook.isEcoEnchant(ench));
+                    String name = isEco ? ecoHook.getDisplayName(ench) : DynamicLoreEngine.formatEnchantmentName(ench);
+                    String roman = DynamicLoreEngine.toRoman(level);
+                    String rarity = isEco ? ecoHook.getRarityDisplayName(ench) : "Vanilla";
+                    if (rarity == null || rarity.isBlank()) rarity = "Vanilla";
+                    String typeName = isEco ? (ecoHook.getTypeId(ench) != null ? ecoHook.getTypeId(ench) : "EcoEnchants") : "Vanilla";
+
+                    eligibleEntries.add(new ExtractionEntry(
+                            ench, level, isEco, ench.getKey().getKey(), name, roman, rarity, typeName, config.getChance(),
+                            true, defLevel, bookLvl
+                    ));
+                    continue;
+                } else {
+                    hadDefaultEnchantsBlocked = true;
+                    continue; // Option 2 (default) or level <= defLevel: protected!
+                }
+            }
+
+            boolean isEco = (ecoHook != null && ecoHook.isEcoEnchant(ench));
+            String name = isEco ? ecoHook.getDisplayName(ench) : DynamicLoreEngine.formatEnchantmentName(ench);
+            String roman = DynamicLoreEngine.toRoman(level);
+            String rarity = isEco ? ecoHook.getRarityDisplayName(ench) : "Vanilla";
+            if (rarity == null || rarity.isBlank()) rarity = "Vanilla";
+            String typeName = isEco ? (ecoHook.getTypeId(ench) != null ? ecoHook.getTypeId(ench) : "EcoEnchants") : "Vanilla";
+
+            eligibleEntries.add(new ExtractionEntry(
+                    ench, level, isEco, ench.getKey().getKey(), name, roman, rarity, typeName, config.getChance(),
+                    false, 0, level
+            ));
         }
 
         if (eligibleEntries.isEmpty()) {
-            messageManager.send(player, "extract-no-valid-enchantments");
+            if (hadDefaultEnchantsBlocked) {
+                messageManager.send(player, "extract-only-default-enchants");
+            } else {
+                messageManager.send(player, "extract-no-valid-enchantments");
+            }
             return false;
         }
 
-        // 3. Register ongoing session and open TriumphGUI
+        // 4. Register ongoing session and open TriumphGUI
         ExtractionSession session = new ExtractionSession(player.getUniqueId(), targetSlot, targetItem, consumableDef, consumableId);
         activeSessions.put(player.getUniqueId(), session);
 
@@ -222,6 +345,17 @@ public class ExtractionManager {
                 return;
             }
 
+            // CRITICAL SERVER-SIDE PROTECTION: Prevent extracting default configured enchantments
+            if (targetDef != null && protectDefaultEnchantments && targetDef.getEnchantments() != null
+                    && targetDef.getEnchantments().containsKey(entry.getEnchantment())) {
+                int defLevel = targetDef.getEnchantments().get(entry.getEnchantment());
+                if (!allowDowngradeToDefault || entry.getLevel() <= defLevel) {
+                    messageManager.send(player, "extract-default-enchant-blocked");
+                    closeGui(player);
+                    return;
+                }
+            }
+
             // Verify the enchantment is still on the item
             boolean hasEnch = currentTarget.containsEnchantment(entry.getEnchantment());
             if (!hasEnch && currentTarget.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
@@ -246,12 +380,21 @@ public class ExtractionManager {
                 }
             }
 
-            // 3. Remove exactly the selected enchantment from target item
-            if (currentTarget.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
-                storageMeta.removeStoredEnchant(entry.getEnchantment());
-                currentTarget.setItemMeta(storageMeta);
+            // 3. Remove or downgrade the selected enchantment on target item
+            if (entry.isDowngrade()) {
+                if (currentTarget.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
+                    storageMeta.addStoredEnchant(entry.getEnchantment(), entry.getTargetLevel(), true);
+                    currentTarget.setItemMeta(storageMeta);
+                } else {
+                    currentTarget.addEnchantment(entry.getEnchantment(), entry.getTargetLevel());
+                }
             } else {
-                currentTarget.removeEnchantment(entry.getEnchantment());
+                if (currentTarget.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
+                    storageMeta.removeStoredEnchant(entry.getEnchantment());
+                    currentTarget.setItemMeta(storageMeta);
+                } else {
+                    currentTarget.removeEnchantment(entry.getEnchantment());
+                }
             }
 
             // Maintain cosmetic glow if target definition has glow enabled
@@ -262,6 +405,11 @@ public class ExtractionManager {
             // Re-synchronize lore and PDC hash if target is a RoyItem
             if (pdcManager.isRoyItem(currentTarget)) {
                 loreEngine.synchronizeItemEnchantments(currentTarget);
+            }
+
+            // Guarantee glow effect is retained after lore synchronization
+            if (targetDef != null && targetDef.isGlow()) {
+                maintainGlowEffect(currentTarget);
             }
 
             player.getInventory().setItem(session.getTargetSlot(), currentTarget);
@@ -284,14 +432,15 @@ public class ExtractionManager {
 
             Map<String, String> placeholders = new HashMap<>();
             placeholders.put("enchantment", entry.getName());
-            placeholders.put("level", entry.getRomanLevel());
+            placeholders.put("level", entry.isDowngrade() ? entry.getTargetRomanLevel() : entry.getRomanLevel());
+            placeholders.put("book_level", entry.getRomanBookLevel());
             placeholders.put("rarity", entry.getRarityDisplayName());
             placeholders.put("type", entry.getTypeName());
             placeholders.put("chance", String.format(Locale.ROOT, "%.1f", entry.getChance()).replaceAll("\\.0$", ""));
 
             if (returnBook) {
                 // Generate valid enchanted book with preserved metadata
-                ItemStack book = createEnchantedBook(entry.getEnchantment(), entry.getLevel(), entry.isEco());
+                ItemStack book = createEnchantedBook(entry.getEnchantment(), entry.getBookLevel(), entry.isEco());
                 if (book != null) {
                     Map<Integer, ItemStack> leftover = player.getInventory().addItem(book);
                     if (!leftover.isEmpty()) {
@@ -301,10 +450,18 @@ public class ExtractionManager {
                         messageManager.send(player, "extract-inventory-full-dropped", placeholders);
                     }
                 }
-                messageManager.send(player, "extract-success-book", placeholders);
+                if (entry.isDowngrade()) {
+                    messageManager.send(player, "extract-success-downgrade-book", placeholders);
+                } else {
+                    messageManager.send(player, "extract-success-book", placeholders);
+                }
                 player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.0f);
             } else {
-                messageManager.send(player, "extract-success-no-book", placeholders);
+                if (entry.isDowngrade()) {
+                    messageManager.send(player, "extract-success-downgrade-no-book", placeholders);
+                } else {
+                    messageManager.send(player, "extract-success-no-book", placeholders);
+                }
                 player.playSound(player.getLocation(), Sound.BLOCK_GRINDSTONE_USE, 1.0f, 0.8f);
             }
 
@@ -452,7 +609,12 @@ public class ExtractionManager {
      * Preserves or reapplies cosmetic glow on an item without introducing fake extractable enchantments.
      */
     public static void maintainGlowEffect(ItemStack item) {
-        if (item == null || item.getType().isAir()) return;
+        if (item == null) return;
+        try {
+            if (item.getType().isAir()) return;
+        } catch (Throwable ignored) {
+            return;
+        }
         try {
             org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
             if (meta != null) {
@@ -460,14 +622,16 @@ public class ExtractionManager {
                 item.setItemMeta(meta);
             }
         } catch (Throwable ignored) {
-            if (!item.containsEnchantment(Enchantment.LUCK_OF_THE_SEA)) {
-                item.addUnsafeEnchantment(Enchantment.LUCK_OF_THE_SEA, 1);
-                org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
-                if (meta != null) {
-                    meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
-                    item.setItemMeta(meta);
+            try {
+                if (!item.containsEnchantment(Enchantment.LUCK_OF_THE_SEA)) {
+                    item.addUnsafeEnchantment(Enchantment.LUCK_OF_THE_SEA, 1);
+                    org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+                    if (meta != null) {
+                        meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
+                        item.setItemMeta(meta);
+                    }
                 }
-            }
+            } catch (Throwable ignored2) {}
         }
     }
 }

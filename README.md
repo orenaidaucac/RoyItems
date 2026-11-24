@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/Minecraft-1.21.x%20%7C%201.21.4%2B-2ea44f?style=for-the-badge&logo=minecraft&logoColor=white" alt="Minecraft" />
   <img src="https://img.shields.io/badge/Platforms-Paper%20%7C%20Spigot%20%7C%20Purpur%20%7C%20Folia-orange?style=for-the-badge" alt="Platforms" />
   <img src="https://img.shields.io/badge/Java-21%2B-ea76cb?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
-  <img src="https://img.shields.io/badge/Release-v2026.1.9-blue?style=for-the-badge&logo=git" alt="Version" />
+  <img src="https://img.shields.io/badge/Release-v2026.1.10-blue?style=for-the-badge&logo=git" alt="Version" />
   <img src="https://img.shields.io/badge/Modrinth-RoyItems-00AF5C?style=for-the-badge&logo=modrinth&logoColor=white" alt="Modrinth" />
   <a href="https://bstats.org/plugin/bukkit/RoyItems/34832"><img src="https://img.shields.io/bstats/servers/34832?style=for-the-badge&logo=chartdotjs&logoColor=white&color=007ec6" alt="bStats Servers" /></a>
   <a href="https://bstats.org/plugin/bukkit/RoyItems/34832"><img src="https://img.shields.io/bstats/players/34832?style=for-the-badge&logo=minecraft&logoColor=white&color=007ec6" alt="bStats Players" /></a>
@@ -438,4 +438,4 @@ cd RoyItems
 mvn clean package
 ```
 
-The compiled JAR will be output to `target/RoyItems-2026.1.9.jar`.
+The compiled JAR will be output to `target/RoyItems-2026.1.10.jar`.

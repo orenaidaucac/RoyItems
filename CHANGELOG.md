@@ -1,5 +1,44 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.10] - 2026-11-24
+
+### 🌟 Highlights
+* **Smithing Table Corruption Protection:** Completely prevents players from corrupting RoyItems via Netherite upgrades or Armor Trims in Smithing Tables, eliminating PDC data loss and vanilla-ization.
+* **Grindstone Disenchanting Protection:** Prevents stripping pre-configured enchantments from RoyItems and blocks combining items that would erase custom metadata, completely neutralizing EXP exploitation.
+* **Advanced Extraction Protection (`remove-enchants`):** Limits CONSUMABLE enchantment removal strictly to player/admin-added enchantments, providing absolute protection for pre-configured default enchantments and the `glow: true` glint effect.
+* **Flexible Downgrade Configuration (Option 3):** Server administrators can configure whether upgraded default enchantments are locked completely (default) or can be downgraded back to their default tier with configurable book return levels.
+
+---
+
+### ➕ Added
+* **Smithing Table Security (`ItemProtectionListener`):**
+  * Blocks placing, shift-clicking, number-key swapping, or dragging RoyItems into Smithing Table input slots.
+  * Clears result slot (`setResult(null)`) on `PrepareSmithingEvent` with `EventPriority.HIGHEST`.
+  * Configurable toggle `smithing-table.prevent-corrupt: true` and localized message `smithing-table-blocked`.
+* **Grindstone Disenchanting Security:**
+  * Checks pre-configured enchantments via `ItemDefinition.getEnchantments()` at runtime.
+  * Blocks result pickup with 0 EXP awarded (`EventPriority.HIGHEST`).
+  * Blocks combining two items if either item is a RoyItem to prevent PDC wipe.
+  * Configurable toggle `grindstone.prevent-disenchant-configured: true` and localized message `grindstone-disenchant-blocked`.
+* **CONSUMABLE Remove-Enchants Default Enchantment Protection:**
+  * Live dynamic resolution from `ItemRegistry` ensuring real-time accuracy upon `/royitems reload`.
+  * Whitelist and empty removable enchantment check prevents opening the GUI when an item only possesses default enchantments.
+  * Auto-cancellation of drag-and-drop interaction with inventory synchronization (`player.updateInventory()`), preventing dupe exploits and consumable consumption.
+  * Configurable extraction section in `config.yml`: `protect-default-enchantments`, `allow-downgrade-to-default`, and `downgrade-book-level`.
+  * Added 4 new message keys across all 7 supported language files (`en-US`, `vi-VN`, `de-DE`, `es-ES`, `ja-JP`, `ko-KR`, `ru-RU`).
+
+---
+
+### ⚡ Improved
+* **Cosmetic Glow Preservation:**
+  * Automated filtering of dummy glow enchantments (`LUCK_OF_THE_SEA 1`) from the extraction candidate list.
+  * Guaranteed persistence of `glow: true` glint override across extraction, lore synchronization, and item resets.
+* **Server Performance & Safe Reloads:**
+  * Full thread safety on Paper, Purpur, Folia, and Leaf region threads.
+  * Clean reload lifecycle hook in `ExtractionManager.loadConfig()`.
+
+---
+
 ## [2026.1.9] - 2026-11-23
 
 ### 🌟 Highlights
