@@ -23,6 +23,7 @@ public class ItemPDCManager {
     private final NamespacedKey KEY_TIER;
     private final NamespacedKey KEY_ENCHANT_HASH;
     private final NamespacedKey KEY_SET_STATE;
+    private final NamespacedKey KEY_SYNC_HASH;
 
     public ItemPDCManager(Plugin plugin) {
         this.KEY_TYPE = new NamespacedKey(plugin, "item_type");
@@ -34,6 +35,7 @@ public class ItemPDCManager {
         this.KEY_TIER = new NamespacedKey(plugin, "item_tier");
         this.KEY_ENCHANT_HASH = new NamespacedKey(plugin, "item_enchant_hash");
         this.KEY_SET_STATE = new NamespacedKey(plugin, "item_set_state");
+        this.KEY_SYNC_HASH = new NamespacedKey(plugin, "item_sync_hash");
     }
 
     public NamespacedKey getKeyType() { return KEY_TYPE; }
@@ -45,6 +47,23 @@ public class ItemPDCManager {
     public NamespacedKey getKeyTier() { return KEY_TIER; }
     public NamespacedKey getKeyEnchantHash() { return KEY_ENCHANT_HASH; }
     public NamespacedKey getKeySetState() { return KEY_SET_STATE; }
+    public NamespacedKey getKeySyncHash() { return KEY_SYNC_HASH; }
+
+    public int getSyncHash(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return 0;
+        return getSyncHash(item.getItemMeta());
+    }
+
+    public int getSyncHash(ItemMeta meta) {
+        if (meta == null) return 0;
+        Integer hash = meta.getPersistentDataContainer().get(KEY_SYNC_HASH, PersistentDataType.INTEGER);
+        return hash != null ? hash : 0;
+    }
+
+    public void setSyncHash(ItemMeta meta, int hash) {
+        if (meta == null) return;
+        meta.getPersistentDataContainer().set(KEY_SYNC_HASH, PersistentDataType.INTEGER, hash);
+    }
 
     public int getEnchantHash(ItemStack item) {
         if (!isRoyItem(item)) return 0;
@@ -64,20 +83,35 @@ public class ItemPDCManager {
 
     public boolean isRoyItem(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
-        ItemMeta meta = item.getItemMeta();
-        return meta.getPersistentDataContainer().has(KEY_TYPE, PersistentDataType.STRING)
-                && meta.getPersistentDataContainer().has(KEY_ID, PersistentDataType.STRING);
+        return isRoyItem(item.getItemMeta());
+    }
+
+    public boolean isRoyItem(ItemMeta meta) {
+        if (meta == null) return false;
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        return pdc.has(KEY_TYPE, PersistentDataType.STRING)
+                && pdc.has(KEY_ID, PersistentDataType.STRING);
     }
 
     public ItemType getType(ItemStack item) {
-        if (!isRoyItem(item)) return null;
-        String raw = item.getItemMeta().getPersistentDataContainer().get(KEY_TYPE, PersistentDataType.STRING);
+        if (item == null || !item.hasItemMeta()) return null;
+        return getType(item.getItemMeta());
+    }
+
+    public ItemType getType(ItemMeta meta) {
+        if (!isRoyItem(meta)) return null;
+        String raw = meta.getPersistentDataContainer().get(KEY_TYPE, PersistentDataType.STRING);
         return ItemType.fromString(raw);
     }
 
     public String getId(ItemStack item) {
-        if (!isRoyItem(item)) return null;
-        return item.getItemMeta().getPersistentDataContainer().get(KEY_ID, PersistentDataType.STRING);
+        if (item == null || !item.hasItemMeta()) return null;
+        return getId(item.getItemMeta());
+    }
+
+    public String getId(ItemMeta meta) {
+        if (!isRoyItem(meta)) return null;
+        return meta.getPersistentDataContainer().get(KEY_ID, PersistentDataType.STRING);
     }
 
     public UUID getUUID(ItemStack item) {
@@ -92,34 +126,54 @@ public class ItemPDCManager {
     }
 
     public int getVersion(ItemStack item) {
-        if (!isRoyItem(item)) return 0;
-        Integer ver = item.getItemMeta().getPersistentDataContainer().get(KEY_VERSION, PersistentDataType.INTEGER);
+        if (item == null || !item.hasItemMeta()) return 0;
+        return getVersion(item.getItemMeta());
+    }
+
+    public int getVersion(ItemMeta meta) {
+        if (!isRoyItem(meta)) return 0;
+        Integer ver = meta.getPersistentDataContainer().get(KEY_VERSION, PersistentDataType.INTEGER);
         return ver != null ? ver : 0;
     }
 
     public long getExpireTime(ItemStack item) {
-        if (!isRoyItem(item)) return 0L;
-        Long exp = item.getItemMeta().getPersistentDataContainer().get(KEY_EXPIRE, PersistentDataType.LONG);
+        if (item == null || !item.hasItemMeta()) return 0L;
+        return getExpireTime(item.getItemMeta());
+    }
+
+    public long getExpireTime(ItemMeta meta) {
+        if (!isRoyItem(meta)) return 0L;
+        Long exp = meta.getPersistentDataContainer().get(KEY_EXPIRE, PersistentDataType.LONG);
         return exp != null ? exp : 0L;
     }
 
     public String getSocketsData(ItemStack item) {
-        if (!isRoyItem(item)) return null;
-        return item.getItemMeta().getPersistentDataContainer().get(KEY_SOCKETS, PersistentDataType.STRING);
+        if (item == null || !item.hasItemMeta()) return null;
+        return getSocketsData(item.getItemMeta());
+    }
+
+    public String getSocketsData(ItemMeta meta) {
+        if (!isRoyItem(meta)) return null;
+        return meta.getPersistentDataContainer().get(KEY_SOCKETS, PersistentDataType.STRING);
     }
 
     public String getTier(ItemStack item) {
-        if (!isRoyItem(item)) return null;
-        return item.getItemMeta().getPersistentDataContainer().get(KEY_TIER, PersistentDataType.STRING);
+        if (item == null || !item.hasItemMeta()) return null;
+        return getTier(item.getItemMeta());
+    }
+
+    public String getTier(ItemMeta meta) {
+        if (!isRoyItem(meta)) return null;
+        return meta.getPersistentDataContainer().get(KEY_TIER, PersistentDataType.STRING);
     }
 
     public String getSetState(ItemStack item) {
-        if (!isRoyItem(item)) return null;
+        if (item == null || !item.hasItemMeta()) return null;
         return getSetState(item.getItemMeta());
     }
 
     public String getSetState(ItemMeta meta) {
-        if (meta == null) return null;
+        if (!isRoyItem(meta)) return null;
         return meta.getPersistentDataContainer().get(KEY_SET_STATE, PersistentDataType.STRING);
     }
 

@@ -1,5 +1,6 @@
 package com.github.orenaidaucac.royItems.station;
 
+import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.orenaidaucac.royItems.gui.GuiHelper;
 import dev.triumphteam.gui.guis.Gui;
@@ -19,7 +20,6 @@ import com.github.orenaidaucac.royItems.item.ItemDefinition;
 import com.github.orenaidaucac.royItems.item.ItemPDCManager;
 import com.github.orenaidaucac.royItems.item.ItemRegistry;
 import com.github.orenaidaucac.royItems.item.ItemType;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
@@ -43,6 +43,7 @@ public class CraftingStationGui {
     }
 
     public void open() {
+        if (player == null || !player.isOnline() || !manager.isAcceptingSessions()) return;
         if (station.getPermission() != null && !station.getPermission().isBlank() && !player.hasPermission(station.getPermission())) {
             manager.getPlugin().getMessageManager().send(player, "station-no-permission");
             return;
@@ -69,13 +70,13 @@ public class CraftingStationGui {
         // 3. Render Navigation Controls
         renderNavigation(gui);
 
-        // Set close handler to cancel any active crafting countdown for this player
+        // Set close handler to cancel any active crafting countdown for this player and untrack strictly this GUI
         gui.setCloseGuiAction(event -> {
             if (manager.isCrafting(player.getUniqueId())) {
                 manager.cancelActiveCrafting(player.getUniqueId());
                 manager.getPlugin().getMessageManager().send(player, "craft-cancelled");
             }
-            manager.untrackOpenGui(player.getUniqueId());
+            manager.untrackOpenGui(player.getUniqueId(), gui);
         });
 
         manager.trackOpenGui(player, gui);
@@ -109,6 +110,7 @@ public class CraftingStationGui {
             }
 
             GuiItem guiItem = new GuiItem(base, event -> {
+                if (!manager.isTrackedSessionActive(player, gui)) return;
                 for (String cmd : bg.getClickCommands()) {
                     executeClickCommand(cmd);
                 }
@@ -139,6 +141,8 @@ public class CraftingStationGui {
             appendDynamicLore(iconItem, recipe, loreConfig);
 
             GuiItem guiItem = new GuiItem(iconItem, event -> {
+                if (!manager.isTrackedSessionActive(player, gui)) return;
+
                 ClickType click = event.getClick();
 
                 // Press Q to inspect detailed recipe
@@ -210,6 +214,8 @@ public class CraftingStationGui {
     }
 
     private void handleCrafting(StationRecipe recipe, boolean isQuick, Gui gui) {
+        if (!manager.isTrackedSessionActive(player, gui)) return;
+
         // Verify ingredients for at least 1 craft
         if (!hasAllIngredients(recipe)) {
             playSound(station.getSoundFail());
@@ -238,6 +244,8 @@ public class CraftingStationGui {
                 }
             }
 
+            if (!manager.isTrackedSessionActive(player, gui)) return;
+
             // Consume inputs for targetCrafts atomically
             if (!consumeInputs(recipe, targetCrafts)) {
                 playSound(station.getSoundFail());
@@ -253,7 +261,9 @@ public class CraftingStationGui {
                     "#amount#", String.valueOf(targetCrafts),
                     "#recipe#", recipe.getId()
             ));
-            open(); // Refresh counts in dynamic lore
+            if (manager.isTrackedSessionActive(player, gui)) {
+                open(); // Refresh counts in dynamic lore
+            }
             return;
         }
 
@@ -267,6 +277,8 @@ public class CraftingStationGui {
     }
 
     private void startCraftingCountdown(StationRecipe recipe, Gui gui) {
+        if (!manager.isTrackedSessionActive(player, gui)) return;
+
         int totalSeconds = recipe.getCraftingTime();
         final int[] remaining = {totalSeconds};
 
@@ -275,21 +287,29 @@ public class CraftingStationGui {
                 "#time#", String.valueOf(totalSeconds)
         ));
 
-        BukkitTask task = Bukkit.getScheduler().runTaskTimer(manager.getPlugin(), () -> {
-            if (!player.isOnline()) {
+        PlatformScheduler.TaskHandle task = manager.getPlugin().getPlatformScheduler().runEntityTimer(player, handle -> {
+            if (!player.isOnline() || !player.isValid() || !manager.isTrackedSessionActive(player, gui)) {
+                if (handle != null) handle.cancel();
                 manager.cancelActiveCrafting(player.getUniqueId());
                 return;
             }
 
             if (remaining[0] <= 0) {
                 // Completed!
+                if (handle != null) handle.cancel();
                 manager.cancelActiveCrafting(player.getUniqueId());
+
+                if (!manager.isTrackedSessionActive(player, gui)) {
+                    return;
+                }
 
                 // Double check inventory space and ingredients
                 if (!simulateCanFit(recipe, 1)) {
                     playSound(station.getSoundFail());
                     manager.getPlugin().getMessageManager().send(player, "craft-failed-inventory-full");
-                    open();
+                    if (manager.isTrackedSessionActive(player, gui)) {
+                        open();
+                    }
                     return;
                 }
 
@@ -305,7 +325,9 @@ public class CraftingStationGui {
                     playSound(station.getSoundFail());
                     manager.getPlugin().getMessageManager().send(player, "craft-failed");
                 }
-                open(); // Refresh view
+                if (manager.isTrackedSessionActive(player, gui)) {
+                    open(); // Refresh view
+                }
                 return;
             }
 
@@ -720,6 +742,7 @@ public class CraftingStationGui {
                     TextUtility.formatGui(name),
                     TextUtility.formatGuiLore(lore),
                     event -> {
+                        if (!manager.isTrackedSessionActive(player, gui)) return;
                         this.currentPage--;
                         open();
                     }
@@ -741,6 +764,7 @@ public class CraftingStationGui {
                     TextUtility.formatGui(name),
                     TextUtility.formatGuiLore(lore),
                     event -> {
+                        if (!manager.isTrackedSessionActive(player, gui)) return;
                         this.currentPage++;
                         open();
                     }
@@ -758,7 +782,7 @@ public class CraftingStationGui {
                 CustomItemProvider.resolve(closeMatStr).getType(),
                 TextUtility.formatGui(closeName),
                 TextUtility.formatGuiLore(closeLore),
-                event -> gui.close(player)
+                event -> player.closeInventory()
         ));
     }
 

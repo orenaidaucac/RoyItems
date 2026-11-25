@@ -39,6 +39,7 @@ public class IntegrationManager implements Listener {
     private EcoEnchantsHook ecoEnchantsHook;
     private AdvancedOreGenHook advancedOreGenHook;
     private LuckPermsHook luckPermsHook;
+    private com.github.orenaidaucac.royItems.stat.DefenseManager defenseManager;
 
     public IntegrationManager(Plugin plugin) {
         this.plugin = plugin;
@@ -50,6 +51,7 @@ public class IntegrationManager implements Listener {
     }
 
     public void initialize(StatManager statManager, ItemPDCManager pdcManager, ItemRegistry registry, com.github.orenaidaucac.royItems.stat.DefenseManager defenseManager) {
+        this.defenseManager = defenseManager;
         // Vault
         vaultHook = new VaultHook();
         if (vaultHook.setup()) {
@@ -186,6 +188,16 @@ public class IntegrationManager implements Listener {
                     ri.getCraftingStationManager().registerPhoenixNpcsListener();
                 }
             }
+        } else if (name.equalsIgnoreCase("MythicMobs")) {
+            if (mythicMobsHook == null) {
+                mythicMobsHook = new MythicMobsHook();
+            }
+            if (mythicMobsHook.setup()) {
+                if (defenseManager != null && !mythicMobsHook.isListenerRegistered()) {
+                    mythicMobsHook.registerDamageListener(plugin, defenseManager);
+                }
+                logger.info("Detected MythicMobs enabled dynamically. Hooked into MythicMobs successfully!");
+            }
         }
     }
 
@@ -213,7 +225,11 @@ public class IntegrationManager implements Listener {
         if (virtualStorageHook != null) virtualStorageHook.setup();
         if (ecoEnchantsHook != null) ecoEnchantsHook.setup();
         if (advancedOreGenHook != null) advancedOreGenHook.setup();
-        if (mythicMobsHook != null) mythicMobsHook.setup();
+        if (mythicMobsHook != null) {
+            if (mythicMobsHook.setup() && defenseManager != null && !mythicMobsHook.isListenerRegistered()) {
+                mythicMobsHook.registerDamageListener(plugin, defenseManager);
+            }
+        }
         if (phoenixNpcsHook != null && phoenixNpcsHook.isAvailable()) {
             if (plugin instanceof com.github.orenaidaucac.royItems.RoyItems ri && ri.getCraftingStationManager() != null) {
                 ri.getCraftingStationManager().registerPhoenixNpcsListener();
@@ -343,6 +359,14 @@ public class IntegrationManager implements Listener {
 
     public LuckPermsHook getLuckPermsHook() {
         return luckPermsHook;
+    }
+
+    public com.github.orenaidaucac.royItems.stat.DefenseManager getDefenseManager() {
+        return defenseManager;
+    }
+
+    public void setDefenseManager(com.github.orenaidaucac.royItems.stat.DefenseManager defenseManager) {
+        this.defenseManager = defenseManager;
     }
 
     public void cleanup() {

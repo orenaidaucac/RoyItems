@@ -69,6 +69,7 @@ messages:
   craft-failed: "&c素材が不足しているため作成に失敗しました！"
   craft-in-progress: "&c現在アイテムをクラフト中です。完了するまでお待ちください！"
   craft-cancelled: "&cメニューが閉じられたため作成をキャンセルしました！"
+  station-closed-reload: "&eRoyItemsの再読み込み中のため、クラフトステーション画面を安全に閉じました。"
 
   # セット効果の通知
   set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aセット効果 &e#set# &aが発動しました！"

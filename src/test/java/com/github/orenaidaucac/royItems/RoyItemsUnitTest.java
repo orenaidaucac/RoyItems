@@ -1833,6 +1833,9 @@ class RoyItemsUnitTest {
         assertFalse(cfg.isPreserveTier());
         assertFalse(cfg.isPreserveCustomModelData());
         assertFalse(cfg.isPreserveAttributes());
+        assertEquals(5, cfg.getMaxPlayersPerTick());
+        assertEquals(40, cfg.getMaxItemsPerTick());
+        assertEquals(1, cfg.getTickInterval());
 
         // 2. Load from YAML configuration
         org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
@@ -1852,6 +1855,9 @@ class RoyItemsUnitTest {
         yaml.set("live-update.preserve.custom-model-data", true);
         yaml.set("live-update.preserve.pdc", false);
         yaml.set("live-update.preserve.attributes", true);
+        yaml.set("live-update.performance.max-players-per-tick", 8);
+        yaml.set("live-update.performance.max-items-per-tick", 60);
+        yaml.set("live-update.performance.tick-interval", 2);
 
         cfg.load(yaml);
 
@@ -1872,6 +1878,22 @@ class RoyItemsUnitTest {
         assertTrue(cfg.isPreserveTier());
         assertTrue(cfg.isPreserveCustomModelData());
         assertTrue(cfg.isPreserveAttributes());
+        assertEquals(8, cfg.getMaxPlayersPerTick());
+        assertEquals(60, cfg.getMaxItemsPerTick());
+        assertEquals(2, cfg.getTickInterval());
+
+        // 3. Packaged config.yml keeps config-version 2 and includes performance keys
+        try (java.io.InputStream in = getClass().getClassLoader().getResourceAsStream("config.yml")) {
+            assertNotNull(in, "config.yml resource must exist");
+            YamlConfiguration defaultYaml = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+            assertEquals(2, defaultYaml.getInt("config-version"));
+            assertEquals(5, defaultYaml.getInt("live-update.performance.max-players-per-tick"));
+            assertEquals(40, defaultYaml.getInt("live-update.performance.max-items-per-tick"));
+            assertEquals(1, defaultYaml.getInt("live-update.performance.tick-interval"));
+        } catch (java.io.IOException e) {
+            fail(e);
+        }
     }
 
     @Test
@@ -2161,7 +2183,7 @@ class RoyItemsUnitTest {
     void testVersionSynchronization() {
         com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
                 new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
-        assertEquals("2026.1.10", expansion.getVersion());
+        assertEquals("2026.1.11", expansion.getVersion());
     }
 
     @Test
@@ -5120,5 +5142,1032 @@ class RoyItemsUnitTest {
             assertNotNull(yaml.getString("messages.extract-success-downgrade-no-book"),
                     "Missing messages.extract-success-downgrade-no-book in " + lang);
         }
+    }
+
+    public static class TestDamageEvent extends org.bukkit.event.entity.EntityDamageByEntityEvent {
+        private org.bukkit.entity.Entity customDamager;
+        private org.bukkit.entity.Entity customVictim;
+        private double customDamage;
+
+        @SuppressWarnings("deprecation")
+        public TestDamageEvent() {
+            super(null, null, org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_ATTACK, 0.0);
+        }
+
+        public static TestDamageEvent create(org.bukkit.entity.Entity damager, org.bukkit.entity.Entity victim, double damage) {
+            try {
+                java.lang.reflect.Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+                f.setAccessible(true);
+                sun.misc.Unsafe unsafe = (sun.misc.Unsafe) f.get(null);
+                TestDamageEvent event = (TestDamageEvent) unsafe.allocateInstance(TestDamageEvent.class);
+                event.customDamager = damager;
+                event.customVictim = victim;
+                event.customDamage = damage;
+                return event;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public org.bukkit.entity.Entity getDamager() {
+            return customDamager;
+        }
+
+        @Override
+        public org.bukkit.entity.Entity getEntity() {
+            return customVictim;
+        }
+
+        @Override
+        public double getDamage() {
+            return customDamage;
+        }
+
+        @Override
+        public void setDamage(double damage) {
+            this.customDamage = damage;
+        }
+    }
+
+    static class TestMythicMobsHook extends com.github.orenaidaucac.royItems.integration.MythicMobsHook {
+        private final Set<UUID> mythicMobUuids = new HashSet<>();
+
+        public void setMythicMob(org.bukkit.entity.Entity entity, boolean isMythic) {
+            if (entity != null) {
+                if (isMythic) mythicMobUuids.add(entity.getUniqueId());
+                else mythicMobUuids.remove(entity.getUniqueId());
+            }
+        }
+
+        @Override
+        public boolean isMythicMob(org.bukkit.entity.Entity entity) {
+            return entity != null && mythicMobUuids.contains(entity.getUniqueId());
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
+    }
+
+    private org.bukkit.entity.Player createMockPlayerWithUuid(UUID uuid) {
+        return (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.entity.Player.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.Player.class},
+                (proxy, method, args) -> {
+                    String name = method.getName();
+                    if ("getUniqueId".equals(name)) return uuid;
+                    if ("getName".equals(name)) return "TestPlayer_" + uuid.toString().substring(0, 5);
+                    if ("isValid".equals(name) || "isOnline".equals(name)) return true;
+                    if ("hashCode".equals(name)) return uuid.hashCode();
+                    if ("equals".equals(name)) return args != null && args.length > 0 && proxy == args[0];
+                    if ("toString".equals(name)) return "MockPlayer[" + uuid + "]";
+                    return null;
+                }
+        );
+    }
+
+    private org.bukkit.entity.LivingEntity createMockMob(UUID uuid, String name) {
+        return (org.bukkit.entity.LivingEntity) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.entity.LivingEntity.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.LivingEntity.class},
+                (proxy, method, args) -> {
+                    String mName = method.getName();
+                    if ("getUniqueId".equals(mName)) return uuid;
+                    if ("getName".equals(mName)) return name;
+                    if ("isValid".equals(mName)) return true;
+                    if ("hashCode".equals(mName)) return uuid.hashCode();
+                    if ("equals".equals(mName)) return args != null && args.length > 0 && proxy == args[0];
+                    if ("toString".equals(mName)) return "MockMob[" + name + "," + uuid + "]";
+                    return null;
+                }
+        );
+    }
+
+    @Test
+    @DisplayName("MythicMobsHook: Thread-safe mitigation cache and value consumption")
+    void testMythicMobsHookMitigationCache() {
+        com.github.orenaidaucac.royItems.integration.MythicMobsHook hook =
+                new com.github.orenaidaucac.royItems.integration.MythicMobsHook();
+        UUID playerId = UUID.randomUUID();
+
+        assertFalse(hook.isRecentlyMitigated(playerId));
+        assertNull(hook.consumeMitigatedDamage(playerId));
+
+        // Mark mitigated with 42.5 damage
+        hook.markMitigated(playerId, 42.5);
+        assertTrue(hook.isRecentlyMitigated(playerId));
+
+        // Consume mitigated damage
+        Double damage = hook.consumeMitigatedDamage(playerId);
+        assertNotNull(damage);
+        assertEquals(42.5, damage, 0.001);
+
+        // Once consumed, cache is cleared
+        assertFalse(hook.isRecentlyMitigated(playerId));
+        assertNull(hook.consumeMitigatedDamage(playerId));
+
+        // Test clearMitigation
+        hook.markMitigated(playerId, 10.0);
+        assertTrue(hook.isRecentlyMitigated(playerId));
+        hook.clearMitigation(playerId);
+        assertFalse(hook.isRecentlyMitigated(playerId));
+
+        // Null safety
+        hook.markMitigated(null, 10.0);
+        assertFalse(hook.isRecentlyMitigated(null));
+        assertNull(hook.consumeMitigatedDamage(null));
+        hook.clearMitigation(null);
+    }
+
+    @Test
+    @DisplayName("MythicMobsHook: Safe degradation without MythicMobs installed")
+    void testMythicMobsHookSafeDegradation() {
+        com.github.orenaidaucac.royItems.integration.MythicMobsHook hook =
+                new com.github.orenaidaucac.royItems.integration.MythicMobsHook();
+        assertFalse(hook.setup());
+        assertFalse(hook.isAvailable());
+        assertFalse(hook.isMythicMob(null));
+        assertFalse(hook.castSkill(null, "TestSkill"));
+        assertNull(com.github.orenaidaucac.royItems.integration.MythicMobsHook.extractBukkitEntity(null));
+        assertFalse(hook.isListenerRegistered());
+        hook.registerDamageListener(null, null);
+    }
+
+    @Test
+    @DisplayName("Combat Defense MMORPG: MythicMob Melee attack applies Defense correctly")
+    void testCombatListenerMythicMobsMeleeDefenseMMORPG() {
+        com.github.orenaidaucac.royItems.stat.StatManager statManager =
+                new com.github.orenaidaucac.royItems.stat.StatManager(null, null, null);
+        DefenseManager defenseManager = new DefenseManager(null, statManager);
+        defenseManager.setMode(DefenseManager.DefenseMode.MMORPG);
+        defenseManager.setMmorpgScale(100.0);
+        defenseManager.setMmorpgDamageFactor(1.0);
+        defenseManager.setMmorpgMinDamageFloor(1.0);
+
+        TestMythicMobsHook hook = new TestMythicMobsHook();
+        com.github.orenaidaucac.royItems.stat.CombatListener combatListener =
+                new com.github.orenaidaucac.royItems.stat.CombatListener(statManager, defenseManager, hook);
+
+        UUID armoredPlayerId = UUID.randomUUID();
+        org.bukkit.entity.Player armoredPlayer = createMockPlayerWithUuid(armoredPlayerId);
+        PlayerStatCache armoredCache = statManager.getCache(armoredPlayer);
+        armoredCache.addStat(StatType.DEFENSE, new StatModifier(100.0, 0.0));
+        armoredCache.addStat(StatType.PVE_DEFENSE, new StatModifier(50.0, 0.0)); // Effective defense = 150.0
+
+        UUID unarmoredPlayerId = UUID.randomUUID();
+        org.bukkit.entity.Player unarmoredPlayer = createMockPlayerWithUuid(unarmoredPlayerId);
+        // unarmored player has 0 defense
+
+        org.bukkit.entity.LivingEntity mythicMob = createMockMob(UUID.randomUUID(), "MythicBoss");
+        hook.setMythicMob(mythicMob, true);
+
+        // 1. MythicMob strikes unarmored player with 100.0 damage
+        TestDamageEvent eventUnarmored = TestDamageEvent.create(mythicMob, unarmoredPlayer, 100.0);
+        combatListener.onCombat(eventUnarmored);
+        // Defense is 0 -> 100 * (100 / 100) = 100.0
+        assertEquals(100.0, eventUnarmored.getDamage(), 0.001,
+                "Unarmored player must take full raw damage from MythicMob");
+
+        // 2. MythicMob strikes armored player with 100.0 damage
+        TestDamageEvent eventArmored = TestDamageEvent.create(mythicMob, armoredPlayer, 100.0);
+        combatListener.onCombat(eventArmored);
+        // Effective defense is 150.0 -> MMORPG formula: 100.0 * (100.0 / (100.0 + 150.0)) = 40.0
+        assertEquals(40.0, eventArmored.getDamage(), 0.001,
+                "Armored player with Defense & PvE Defense must take reduced damage according to MMORPG formula");
+        assertTrue(eventArmored.getDamage() < eventUnarmored.getDamage(),
+                "Armored player must take strictly less damage than unarmored player from MythicMob");
+    }
+
+    @Test
+    @DisplayName("Combat Defense MMORPG: Vanilla mob attack preserves correct defense reduction")
+    void testCombatListenerVanillaMobDefenseMMORPG() {
+        com.github.orenaidaucac.royItems.stat.StatManager statManager =
+                new com.github.orenaidaucac.royItems.stat.StatManager(null, null, null);
+        DefenseManager defenseManager = new DefenseManager(null, statManager);
+        defenseManager.setMode(DefenseManager.DefenseMode.MMORPG);
+        defenseManager.setMmorpgScale(100.0);
+        defenseManager.setMmorpgDamageFactor(1.0);
+        defenseManager.setMmorpgMinDamageFloor(1.0);
+
+        TestMythicMobsHook hook = new TestMythicMobsHook();
+        com.github.orenaidaucac.royItems.stat.CombatListener combatListener =
+                new com.github.orenaidaucac.royItems.stat.CombatListener(statManager, defenseManager, hook);
+
+        UUID playerId = UUID.randomUUID();
+        org.bukkit.entity.Player player = createMockPlayerWithUuid(playerId);
+        PlayerStatCache cache = statManager.getCache(player);
+        cache.addStat(StatType.DEFENSE, new StatModifier(100.0, 0.0)); // Effective defense = 100.0
+
+        org.bukkit.entity.LivingEntity vanillaZombie = createMockMob(UUID.randomUUID(), "Zombie");
+        hook.setMythicMob(vanillaZombie, false); // Vanilla mob
+
+        TestDamageEvent event = TestDamageEvent.create(vanillaZombie, player, 50.0);
+        combatListener.onCombat(event);
+        // Effective defense = 100.0 -> 50.0 * (100.0 / (100.0 + 100.0)) = 25.0
+        assertEquals(25.0, event.getDamage(), 0.001,
+                "Vanilla mob damage must be reduced correctly according to MMORPG defense formula");
+    }
+
+    @Test
+    @DisplayName("Combat Defense MMORPG: Skill damage mitigation retention and zero double mitigation")
+    void testCombatListenerSkillDamageMitigationRetention() {
+        com.github.orenaidaucac.royItems.stat.StatManager statManager =
+                new com.github.orenaidaucac.royItems.stat.StatManager(null, null, null);
+        DefenseManager defenseManager = new DefenseManager(null, statManager);
+        defenseManager.setMode(DefenseManager.DefenseMode.MMORPG);
+
+        TestMythicMobsHook hook = new TestMythicMobsHook();
+        com.github.orenaidaucac.royItems.stat.CombatListener combatListener =
+                new com.github.orenaidaucac.royItems.stat.CombatListener(statManager, defenseManager, hook);
+
+        UUID playerId = UUID.randomUUID();
+        org.bukkit.entity.Player player = createMockPlayerWithUuid(playerId);
+        PlayerStatCache cache = statManager.getCache(player);
+        cache.addStat(StatType.DEFENSE, new StatModifier(100.0, 0.0));
+
+        org.bukkit.entity.LivingEntity mythicMob = createMockMob(UUID.randomUUID(), "MythicMage");
+        hook.setMythicMob(mythicMob, true);
+
+        // Simulate MythicDamageEvent already mitigated damage from 200.0 to 75.0
+        hook.markMitigated(playerId, 75.0);
+
+        // When the subsequent Bukkit event fires with raw or intermediate damage
+        TestDamageEvent event = TestDamageEvent.create(mythicMob, player, 200.0);
+        combatListener.onCombat(event);
+
+        // Must apply the exact 75.0 from MythicDamageEvent and NOT re-mitigate to 37.5
+        assertEquals(75.0, event.getDamage(), 0.001,
+                "Skill damage previously mitigated must be applied accurately with zero double mitigation");
+    }
+
+    private org.bukkit.inventory.InventoryHolder createMockGuiHolder() {
+        return (org.bukkit.inventory.InventoryHolder) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.InventoryHolder.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.InventoryHolder.class},
+                (proxy, method, args) -> {
+                    if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                    if ("equals".equals(method.getName())) return args != null && args.length > 0 && proxy == args[0];
+                    return null;
+                }
+        );
+    }
+
+    private org.bukkit.inventory.InventoryView createMockViewWithHolder(org.bukkit.inventory.InventoryHolder holder) {
+        org.bukkit.inventory.Inventory mockTop = (org.bukkit.inventory.Inventory) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.Inventory.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.Inventory.class},
+                (proxy, method, args) -> {
+                    if ("getHolder".equals(method.getName())) return holder;
+                    if ("getType".equals(method.getName())) return org.bukkit.event.inventory.InventoryType.CHEST;
+                    if ("getSize".equals(method.getName())) return 54;
+                    return null;
+                }
+        );
+        return (org.bukkit.inventory.InventoryView) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.InventoryView.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.InventoryView.class},
+                (proxy, method, args) -> {
+                    if ("getTopInventory".equals(method.getName())) return mockTop;
+                    return null;
+                }
+        );
+    }
+
+    public static class TestStationClickEvent extends org.bukkit.event.inventory.InventoryClickEvent {
+        private org.bukkit.entity.HumanEntity customClicker;
+        private org.bukkit.inventory.InventoryView customView;
+        private boolean customCancelled;
+        private org.bukkit.event.Event.Result customResult = org.bukkit.event.Event.Result.DEFAULT;
+
+        public TestStationClickEvent() {
+            super(null, null, 0, null, null);
+        }
+
+        public static TestStationClickEvent create(org.bukkit.entity.HumanEntity clicker, org.bukkit.inventory.InventoryView view) {
+            try {
+                java.lang.reflect.Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+                f.setAccessible(true);
+                sun.misc.Unsafe unsafe = (sun.misc.Unsafe) f.get(null);
+                TestStationClickEvent ev = (TestStationClickEvent) unsafe.allocateInstance(TestStationClickEvent.class);
+                ev.customClicker = clicker;
+                ev.customView = view;
+                return ev;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override public org.bukkit.entity.HumanEntity getWhoClicked() { return customClicker; }
+        @Override public org.bukkit.inventory.InventoryView getView() { return customView; }
+        @Override public org.bukkit.inventory.Inventory getInventory() { return customView != null ? customView.getTopInventory() : null; }
+        @Override public boolean isCancelled() { return customCancelled; }
+        @Override public void setCancelled(boolean cancel) { this.customCancelled = cancel; }
+        @Override public org.bukkit.event.Event.Result getResult() { return customResult; }
+        @Override public void setResult(org.bukkit.event.Event.Result newResult) { this.customResult = newResult; }
+    }
+
+    public static class TestStationDragEvent extends org.bukkit.event.inventory.InventoryDragEvent {
+        private org.bukkit.entity.HumanEntity customDragger;
+        private org.bukkit.inventory.InventoryView customView;
+        private boolean customCancelled;
+        private org.bukkit.event.Event.Result customResult = org.bukkit.event.Event.Result.DEFAULT;
+
+        public TestStationDragEvent() {
+            super(null, null, null, false, Collections.emptyMap());
+        }
+
+        public static TestStationDragEvent create(org.bukkit.entity.HumanEntity dragger, org.bukkit.inventory.InventoryView view) {
+            try {
+                java.lang.reflect.Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+                f.setAccessible(true);
+                sun.misc.Unsafe unsafe = (sun.misc.Unsafe) f.get(null);
+                TestStationDragEvent ev = (TestStationDragEvent) unsafe.allocateInstance(TestStationDragEvent.class);
+                ev.customDragger = dragger;
+                ev.customView = view;
+                return ev;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override public org.bukkit.entity.HumanEntity getWhoClicked() { return customDragger; }
+        @Override public org.bukkit.inventory.InventoryView getView() { return customView; }
+        @Override public org.bukkit.inventory.Inventory getInventory() { return customView != null ? customView.getTopInventory() : null; }
+        @Override public boolean isCancelled() { return customCancelled; }
+        @Override public void setCancelled(boolean cancel) { this.customCancelled = cancel; }
+        @Override public org.bukkit.event.Event.Result getResult() { return customResult; }
+        @Override public void setResult(org.bukkit.event.Event.Result newResult) { this.customResult = newResult; }
+    }
+
+    @Test
+    @DisplayName("Crafting Station Reload Safety: Page/detail transition preserves active GUI tracking")
+    void testCraftingStationSessionTrackingAcrossTransitions() {
+        var manager = new com.github.orenaidaucac.royItems.station.CraftingStationManager(null, null, null, null, null);
+        UUID playerId = UUID.randomUUID();
+        org.bukkit.entity.Player player = createMockPlayerWithUuid(playerId);
+
+        org.bukkit.inventory.InventoryHolder page1Gui = createMockGuiHolder();
+        org.bukkit.inventory.InventoryHolder page2Gui = createMockGuiHolder();
+
+        // 1. Player opens Page 1
+        manager.trackOpenGui(player, page1Gui);
+        assertTrue(manager.isTrackedSessionActive(playerId, page1Gui));
+        assertEquals(1, manager.getTrackedGuiCount());
+
+        // 2. Player switches to Page 2 (tracks page2Gui, then page1Gui's close event fires)
+        manager.trackOpenGui(player, page2Gui);
+        manager.untrackOpenGui(playerId, page1Gui);
+
+        // Page 2 MUST remain tracked and active!
+        assertEquals(1, manager.getTrackedGuiCount());
+        assertTrue(manager.isTrackedSessionActive(playerId, page2Gui),
+                "Closing old page GUI must NOT untrack the newly opened page/detail GUI");
+        assertFalse(manager.isTrackedSessionActive(playerId, page1Gui));
+
+        // 3. Player closes Page 2 normally
+        manager.untrackOpenGui(playerId, page2Gui);
+        assertEquals(0, manager.getTrackedGuiCount());
+    }
+
+    @Test
+    @DisplayName("Crafting Station Reload Safety: Click & Drag blocked while closing; other GUIs unaffected")
+    void testCraftingStationClickAndDragGuardDuringClosing() {
+        var manager = new com.github.orenaidaucac.royItems.station.CraftingStationManager(null, null, null, null, null);
+        UUID playerId = UUID.randomUUID();
+        org.bukkit.entity.Player player = createMockPlayerWithUuid(playerId);
+
+        org.bukkit.inventory.InventoryHolder stationGui = createMockGuiHolder();
+        org.bukkit.inventory.InventoryHolder otherPluginGui = createMockGuiHolder();
+
+        manager.trackOpenGui(player, stationGui);
+        var stationView = createMockViewWithHolder(stationGui);
+        var otherView = createMockViewWithHolder(otherPluginGui);
+
+        // Before reload/closing: guard does not interfere
+        TestStationClickEvent activeClick = TestStationClickEvent.create(player, stationView);
+        manager.onStationInventoryClick(activeClick);
+        assertFalse(activeClick.isCancelled());
+
+        // Simulate reload starting
+        manager.setShuttingDownOrReloading(true);
+        assertFalse(manager.isTrackedSessionActive(playerId, stationGui));
+
+        // Click & Drag on tracked station GUI MUST be blocked and denied
+        TestStationClickEvent reloadClick = TestStationClickEvent.create(player, stationView);
+        manager.onStationInventoryClick(reloadClick);
+        assertTrue(reloadClick.isCancelled(), "Clicks during reload/closing must be cancelled");
+        assertEquals(org.bukkit.event.Event.Result.DENY, reloadClick.getResult());
+
+        TestStationDragEvent reloadDrag = TestStationDragEvent.create(player, stationView);
+        manager.onStationInventoryDrag(reloadDrag);
+        assertTrue(reloadDrag.isCancelled(), "Drags during reload/closing must be cancelled");
+        assertEquals(org.bukkit.event.Event.Result.DENY, reloadDrag.getResult());
+
+        // Click on unrelated plugin GUI / Vanilla inventory MUST NOT be touched by CraftingStationManager
+        TestStationClickEvent otherClick = TestStationClickEvent.create(player, otherView);
+        manager.onStationInventoryClick(otherClick);
+        assertFalse(otherClick.isCancelled(), "Unrelated plugin/Vanilla GUIs must never be affected");
+    }
+
+    @Test
+    @DisplayName("Crafting Station Reload Safety: closeAllOpenGuis & cleanup cancel tasks and clear sessions")
+    void testCraftingStationCloseAllAndCleanup() {
+        var manager = new com.github.orenaidaucac.royItems.station.CraftingStationManager(null, null, null, null, null);
+        UUID p1 = UUID.randomUUID();
+        UUID p2 = UUID.randomUUID();
+        org.bukkit.entity.Player player1 = createMockPlayerWithUuid(p1);
+        org.bukkit.entity.Player player2 = createMockPlayerWithUuid(p2);
+
+        manager.trackOpenGui(player1, createMockGuiHolder());
+        manager.trackOpenGui(player2, createMockGuiHolder());
+
+        final boolean[] taskCancelled = {false};
+        manager.setActiveCraftingTask(p1, () -> taskCancelled[0] = true);
+        assertEquals(2, manager.getTrackedGuiCount());
+        assertEquals(1, manager.getActiveCraftingCount());
+        assertTrue(manager.isCrafting(p1));
+
+        // Simulate reload / PlugmanX close
+        manager.closeAllOpenGuis(com.github.orenaidaucac.royItems.station.CraftingStationManager.CloseReason.PLUGIN_DISABLE);
+
+        assertTrue(taskCancelled[0], "Active timed crafting task must be cancelled immediately on reload/disable");
+        assertEquals(0, manager.getActiveCraftingCount());
+        assertEquals(0, manager.getTrackedGuiCount());
+        assertTrue(manager.isShuttingDownOrReloading());
+
+        // Cleanup ensures full reset without errors in headless mode
+        manager.cleanup();
+        assertEquals(0, manager.getTrackedGuiCount());
+        assertEquals(0, manager.getActiveCraftingCount());
+    }
+
+    @Test
+    @DisplayName("Crafting Station Reload Safety: PlayerQuit cleans up GUI session and active crafting task")
+    void testCraftingStationPlayerQuitCleanup() {
+        var manager = new com.github.orenaidaucac.royItems.station.CraftingStationManager(null, null, null, null, null);
+        UUID playerId = UUID.randomUUID();
+        org.bukkit.entity.Player player = createMockPlayerWithUuid(playerId);
+
+        manager.trackOpenGui(player, createMockGuiHolder());
+        final boolean[] cancelled = {false};
+        manager.setActiveCraftingTask(playerId, () -> cancelled[0] = true);
+
+        org.bukkit.event.player.PlayerQuitEvent quitEvent = new org.bukkit.event.player.PlayerQuitEvent(
+                player, Component.empty(), org.bukkit.event.player.PlayerQuitEvent.QuitReason.DISCONNECTED
+        );
+        manager.onPlayerQuit(quitEvent);
+
+        assertTrue(cancelled[0], "Active crafting task must be cancelled when player disconnects");
+        assertEquals(0, manager.getTrackedGuiCount());
+        assertEquals(0, manager.getActiveCraftingCount());
+    }
+
+    @Test
+    @DisplayName("Crafting Station Reload Safety: station-closed-reload key exists in all 7 language files")
+    void testStationClosedReloadLocalizationKeysExist() {
+        for (String lang : List.of("en-US.yml", "vi-VN.yml", "de-DE.yml", "es-ES.yml", "ja-JP.yml", "ko-KR.yml", "ru-RU.yml")) {
+            java.io.InputStream in = getClass().getClassLoader().getResourceAsStream("lang/" + lang);
+            assertNotNull(in, "Language file lang/" + lang + " must exist");
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+
+            assertEquals(2, yaml.getInt("config-version"), "config-version must remain 2 in " + lang);
+            String msg = yaml.getString("messages.station-closed-reload");
+            assertNotNull(msg, "Missing messages.station-closed-reload in " + lang);
+            assertFalse(msg.isBlank(), "messages.station-closed-reload must not be blank in " + lang);
+        }
+    }
+
+    private Plugin createPdcMockPlugin() {
+        return (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getName" -> "royitems";
+                    case "isEnabled" -> true;
+                    default -> null;
+                }
+        );
+    }
+
+    private org.bukkit.inventory.meta.ItemMeta createHeadlessItemMeta(
+            Map<org.bukkit.NamespacedKey, Object> pdcStore,
+            Component initialDisplayName,
+            List<Component> initialLore,
+            Map<Enchantment, Integer> initialEnchants,
+            java.util.concurrent.atomic.AtomicInteger metaCloneCounter
+    ) {
+        final Component[] displayNameRef = {initialDisplayName};
+        @SuppressWarnings("unchecked")
+        final List<Component>[] loreRef = new List[]{initialLore != null ? new ArrayList<>(initialLore) : null};
+        final Map<Enchantment, Integer> enchants = new LinkedHashMap<>();
+        if (initialEnchants != null) enchants.putAll(initialEnchants);
+
+        final org.bukkit.persistence.PersistentDataContainer pdcProxy =
+                (org.bukkit.persistence.PersistentDataContainer) java.lang.reflect.Proxy.newProxyInstance(
+                        org.bukkit.persistence.PersistentDataContainer.class.getClassLoader(),
+                        new Class<?>[]{org.bukkit.persistence.PersistentDataContainer.class},
+                        (p, m, a) -> switch (m.getName()) {
+                            case "has" -> pdcStore.containsKey(a[0]);
+                            case "get" -> pdcStore.get(a[0]);
+                            case "set" -> {
+                                pdcStore.put((org.bukkit.NamespacedKey) a[0], a[2]);
+                                yield null;
+                            }
+                            case "remove" -> {
+                                pdcStore.remove(a[0]);
+                                yield null;
+                            }
+                            case "getKeys" -> pdcStore.keySet();
+                            case "copyTo" -> {
+                                org.bukkit.persistence.PersistentDataContainer target =
+                                        (org.bukkit.persistence.PersistentDataContainer) a[0];
+                                boolean replace = (boolean) a[1];
+                                for (Map.Entry<org.bukkit.NamespacedKey, Object> entry : pdcStore.entrySet()) {
+                                    Object v = entry.getValue();
+                                    if (replace || !target.has(entry.getKey(), org.bukkit.persistence.PersistentDataType.STRING)) {
+                                        if (v instanceof String s) {
+                                            target.set(entry.getKey(), org.bukkit.persistence.PersistentDataType.STRING, s);
+                                        } else if (v instanceof Integer iv) {
+                                            target.set(entry.getKey(), org.bukkit.persistence.PersistentDataType.INTEGER, iv);
+                                        } else if (v instanceof Long lv) {
+                                            target.set(entry.getKey(), org.bukkit.persistence.PersistentDataType.LONG, lv);
+                                        }
+                                    }
+                                }
+                                yield null;
+                            }
+                            default -> null;
+                        }
+                );
+
+        return (org.bukkit.inventory.meta.ItemMeta) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.meta.ItemMeta.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.meta.ItemMeta.class},
+                (p, m, a) -> switch (m.getName()) {
+                    case "getPersistentDataContainer" -> pdcProxy;
+                    case "hasDisplayName" -> displayNameRef[0] != null;
+                    case "displayName" -> {
+                        if (a != null && a.length == 1) {
+                            displayNameRef[0] = (Component) a[0];
+                            yield null;
+                        }
+                        yield displayNameRef[0];
+                    }
+                    case "hasLore" -> loreRef[0] != null && !loreRef[0].isEmpty();
+                    case "lore" -> {
+                        if (a != null && a.length == 1) {
+                            @SuppressWarnings("unchecked")
+                            List<Component> incoming = (List<Component>) a[0];
+                            loreRef[0] = incoming != null ? new ArrayList<>(incoming) : null;
+                            yield null;
+                        }
+                        yield loreRef[0] != null ? new ArrayList<>(loreRef[0]) : null;
+                    }
+                    case "getEnchants" -> new LinkedHashMap<>(enchants);
+                    case "hasEnchant" -> enchants.containsKey(a[0]);
+                    case "getEnchantLevel" -> enchants.getOrDefault(a[0], 0);
+                    case "addEnchant" -> {
+                        enchants.put((Enchantment) a[0], (Integer) a[1]);
+                        yield true;
+                    }
+                    case "hasCustomModelData", "hasAttributeModifiers" -> false;
+                    case "clone" -> {
+                        if (metaCloneCounter != null) metaCloneCounter.incrementAndGet();
+                        yield createHeadlessItemMeta(new LinkedHashMap<>(pdcStore), displayNameRef[0], loreRef[0], enchants, metaCloneCounter);
+                    }
+                    default -> null;
+                }
+        );
+    }
+
+    static class HeadlessRoyItemStack extends TestItemStack {
+        private org.bukkit.inventory.meta.ItemMeta meta;
+        private int amount;
+        private final java.util.concurrent.atomic.AtomicInteger metaGetCounter;
+
+        HeadlessRoyItemStack(org.bukkit.Material mat, int amt, org.bukkit.inventory.meta.ItemMeta meta,
+                             java.util.concurrent.atomic.AtomicInteger metaGetCounter) {
+            super(mat, amt);
+            this.amount = amt;
+            this.meta = meta;
+            this.metaGetCounter = metaGetCounter;
+        }
+
+        @Override public int getAmount() { return amount; }
+        @Override public void setAmount(int amount) { this.amount = amount; }
+        @Override public boolean hasItemMeta() { return meta != null; }
+        @Override public org.bukkit.inventory.meta.ItemMeta getItemMeta() {
+            if (metaGetCounter != null) metaGetCounter.incrementAndGet();
+            return meta != null ? meta.clone() : null;
+        }
+        @Override public boolean setItemMeta(org.bukkit.inventory.meta.ItemMeta itemMeta) {
+            this.meta = itemMeta;
+            return true;
+        }
+        @Override public ItemStack clone() {
+            return new HeadlessRoyItemStack(getType(), amount, meta != null ? meta.clone() : null, metaGetCounter);
+        }
+    }
+
+    private ItemBuilder createHeadlessItemBuilder(com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager,
+                                                  java.util.concurrent.atomic.AtomicInteger buildCalls,
+                                                  java.util.concurrent.atomic.AtomicInteger metaGetCounter) {
+        return new ItemBuilder(pdcManager, null) {
+            @Override
+            public ItemStack build(ItemDefinition def, int amount, List<String> sockets, long expireTimestamp,
+                                   Map<Enchantment, Integer> activeEnchantments, boolean setBonusActive,
+                                   org.bukkit.entity.Player targetPlayer) {
+                if (buildCalls != null) buildCalls.incrementAndGet();
+                org.bukkit.Material mat = org.bukkit.Material.matchMaterial(def.getMaterial());
+                if (mat == null) mat = org.bukkit.Material.DIAMOND_SWORD;
+
+                Map<org.bukkit.NamespacedKey, Object> pdc = new LinkedHashMap<>();
+                org.bukkit.inventory.meta.ItemMeta meta = createHeadlessItemMeta(
+                        pdc,
+                        TextUtility.format(def.getName()),
+                        def.getLore().stream().map(TextUtility::format).toList(),
+                        activeEnchantments,
+                        null
+                );
+                String socketsStr = (sockets != null && !sockets.isEmpty()) ? String.join(";", sockets) : null;
+                pdcManager.tagItem(meta, def.getType(), def.getId(), def.getVersion(), expireTimestamp, socketsStr);
+                if (def.getItemTier() != null) pdcManager.tagTier(meta, def.getItemTier());
+                if (setBonusActive) pdcManager.setSetState(meta, "active");
+                return new HeadlessRoyItemStack(mat, Math.max(1, amount), meta, metaGetCounter);
+            }
+        };
+    }
+
+    private org.bukkit.entity.Player createLiveUpdatePlayer(
+            UUID uuid,
+            ItemStack[] storage,
+            ItemStack[] armor,
+            ItemStack[] offhandHolder,
+            ItemStack[] enderChest,
+            java.util.concurrent.atomic.AtomicInteger slotWrites,
+            java.util.concurrent.atomic.AtomicBoolean onlineFlag
+    ) {
+        org.bukkit.inventory.Inventory ecInv = (org.bukkit.inventory.Inventory) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.Inventory.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.Inventory.class},
+                (p, m, a) -> switch (m.getName()) {
+                    case "getContents" -> enderChest;
+                    case "setItem" -> {
+                        int idx = (int) a[0];
+                        if (idx >= 0 && idx < enderChest.length) enderChest[idx] = (ItemStack) a[1];
+                        if (slotWrites != null) slotWrites.incrementAndGet();
+                        yield null;
+                    }
+                    default -> null;
+                }
+        );
+
+        org.bukkit.inventory.PlayerInventory pInv = (org.bukkit.inventory.PlayerInventory) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.PlayerInventory.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.PlayerInventory.class},
+                (p, m, a) -> switch (m.getName()) {
+                    case "getStorageContents", "getContents" -> storage;
+                    case "setItem" -> {
+                        int idx = (int) a[0];
+                        if (idx >= 0 && idx < storage.length) storage[idx] = (ItemStack) a[1];
+                        if (slotWrites != null) slotWrites.incrementAndGet();
+                        yield null;
+                    }
+                    case "getHelmet" -> armor[3];
+                    case "setHelmet" -> { armor[3] = (ItemStack) a[0]; if (slotWrites != null) slotWrites.incrementAndGet(); yield null; }
+                    case "getChestplate" -> armor[2];
+                    case "setChestplate" -> { armor[2] = (ItemStack) a[0]; if (slotWrites != null) slotWrites.incrementAndGet(); yield null; }
+                    case "getLeggings" -> armor[1];
+                    case "setLeggings" -> { armor[1] = (ItemStack) a[0]; if (slotWrites != null) slotWrites.incrementAndGet(); yield null; }
+                    case "getBoots" -> armor[0];
+                    case "setBoots" -> { armor[0] = (ItemStack) a[0]; if (slotWrites != null) slotWrites.incrementAndGet(); yield null; }
+                    case "getItemInOffHand" -> offhandHolder[0];
+                    case "setItemInOffHand" -> { offhandHolder[0] = (ItemStack) a[0]; if (slotWrites != null) slotWrites.incrementAndGet(); yield null; }
+                    case "setStorageContents", "setArmorContents" -> {
+                        fail("LiveUpdate should use targeted slot setItem instead of full " + m.getName());
+                        yield null;
+                    }
+                    default -> null;
+                }
+        );
+
+        return (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.entity.Player.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.Player.class},
+                (p, m, a) -> switch (m.getName()) {
+                    case "getUniqueId" -> uuid;
+                    case "isOnline", "isValid" -> onlineFlag.get();
+                    case "getInventory" -> pInv;
+                    case "getEnderChest" -> ecInv;
+                    default -> null;
+                }
+        );
+    }
+
+    @Test
+    @DisplayName("ItemPDCManager: Single-ItemMeta overloads and sync hash read/write")
+    void testItemPdcManagerSingleMetaOverloads() {
+        Plugin plugin = createPdcMockPlugin();
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(plugin);
+
+        Map<org.bukkit.NamespacedKey, Object> pdcStore = new LinkedHashMap<>();
+        org.bukkit.inventory.meta.ItemMeta meta = createHeadlessItemMeta(pdcStore, null, null, null, null);
+
+        assertFalse(pdcManager.isRoyItem(meta));
+        assertEquals(0, pdcManager.getSyncHash(meta));
+
+        pdcManager.tagItem(meta, ItemType.SWORD, "excalibur", 3, 999999L, "fire_gem;ice_gem");
+        pdcManager.tagTier(meta, "mythic");
+        pdcManager.setSetState(meta, "active");
+        pdcManager.setSyncHash(meta, 123456789);
+
+        assertTrue(pdcManager.isRoyItem(meta));
+        assertEquals(ItemType.SWORD, pdcManager.getType(meta));
+        assertEquals("excalibur", pdcManager.getId(meta));
+        assertEquals(3, pdcManager.getVersion(meta));
+        assertEquals(999999L, pdcManager.getExpireTime(meta));
+        assertEquals("fire_gem;ice_gem", pdcManager.getSocketsData(meta));
+        assertEquals("mythic", pdcManager.getTier(meta));
+        assertEquals("active", pdcManager.getSetState(meta));
+        assertEquals(123456789, pdcManager.getSyncHash(meta));
+    }
+
+    @Test
+    @DisplayName("LiveUpdate Optimization: O(1) sync-hash skip, template reuse, and expiry bypass")
+    void testLiveUpdateSyncHashSkipTemplateReuseAndExpiry() {
+        Plugin plugin = createPdcMockPlugin();
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(plugin);
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry =
+                new com.github.orenaidaucac.royItems.item.ItemRegistry();
+
+        ItemDefinition swordDef = new ItemDefinition(ItemType.SWORD, "sunblade");
+        swordDef.setMaterial("DIAMOND_SWORD");
+        swordDef.setName("&6Sun Blade");
+        swordDef.setLore(List.of("&7Burns enemies"));
+        swordDef.setVersion(1);
+        registry.register(swordDef);
+
+        java.util.concurrent.atomic.AtomicInteger buildCalls = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger metaGetCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+        ItemBuilder builder = createHeadlessItemBuilder(pdcManager, buildCalls, metaGetCounter);
+
+        com.github.orenaidaucac.royItems.item.LiveUpdateService service =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateService(registry, pdcManager, builder, null);
+
+        // Initial item built without sync_hash (storedSyncHash == 0) -> triggers first sync & tags item_sync_hash
+        ItemStack initial = builder.build(swordDef, 1, null, 0L, null, false, null);
+        buildCalls.set(0);
+        metaGetCounter.set(0);
+
+        ItemStack afterFirstReload = service.updateItem(initial, null);
+        assertNotSame(initial, afterFirstReload, "Item without sync hash should update once to store sync hash");
+        assertNotEquals(0, pdcManager.getSyncHash(afterFirstReload), "Updated item must store non-zero item_sync_hash");
+        assertEquals(1, service.getCachedTemplateCount(), "Base template should be cached for reuse");
+
+        // Second pass with unchanged definition: O(1) skip returning exact same ItemStack reference
+        buildCalls.set(0);
+        metaGetCounter.set(0);
+        ItemStack afterUnchangedReload = service.updateItem(afterFirstReload, null);
+        assertSame(afterFirstReload, afterUnchangedReload, "Unchanged RoyItem must be skipped in O(1) without rebuilding");
+        assertEquals(0, buildCalls.get(), "Unchanged item must not invoke ItemBuilder.build()");
+        assertEquals(1, metaGetCounter.get(), "O(1) skip should only clone current ItemMeta once");
+
+        // Verify inventory array skip count is 0 and slot is untouched (including vanilla item with no meta)
+        ItemStack[] arr = new ItemStack[]{afterFirstReload, new HeadlessRoyItemStack(org.bukkit.Material.STONE, 16, null, null)};
+        assertEquals(0, service.updateItemArrayCount(arr, null));
+        assertSame(afterFirstReload, arr[0]);
+
+        // Change definition & invalidate caches -> sync hash miss triggers rebuild with new name
+        swordDef.setName("&cInferno Sun Blade");
+        swordDef.setVersion(2);
+        service.invalidateCaches();
+        ItemStack afterDefChange = service.updateItem(afterFirstReload, null);
+        assertNotSame(afterFirstReload, afterDefChange, "Changed definition must miss sync hash and rebuild");
+
+        // Expiring item (expire > 0) must NEVER be skipped by sync hash
+        ItemStack expiringItem = builder.build(swordDef, 1, null, System.currentTimeMillis() + 60_000L, null, false, null);
+        ItemStack expiringSyncedOnce = service.updateItem(expiringItem, null);
+        assertNotEquals(0, pdcManager.getSyncHash(expiringSyncedOnce));
+        ItemStack expiringSecondPass = service.updateItem(expiringSyncedOnce, null);
+        assertNotSame(expiringSyncedOnce, expiringSecondPass, "Timed items with expire > 0 must never be skipped");
+    }
+
+    @Test
+    @DisplayName("LiveUpdate Optimization: Tick-budgeted throttling, mid-batch disconnect, and reload cancellation")
+    void testLiveUpdateBatchedThrottlingCancellationAndMidBatchEvents() {
+        Plugin plugin = createPdcMockPlugin();
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(plugin);
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry =
+                new com.github.orenaidaucac.royItems.item.ItemRegistry();
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "frost_edge");
+        def.setMaterial("IRON_SWORD");
+        def.setName("&bFrost Edge");
+        registry.register(def);
+
+        java.util.concurrent.atomic.AtomicInteger buildCalls = new java.util.concurrent.atomic.AtomicInteger(0);
+        ItemBuilder builder = createHeadlessItemBuilder(pdcManager, buildCalls, null);
+
+        // Recording PlatformScheduler that lets us step global timer ticks deterministically
+        final List<Runnable> scheduledTicks = new ArrayList<>();
+        final List<Boolean> cancelledFlags = new ArrayList<>();
+        com.github.orenaidaucac.royItems.core.platform.PlatformScheduler testScheduler =
+                new com.github.orenaidaucac.royItems.core.platform.PlatformScheduler(plugin) {
+                    @Override public boolean isFolia() { return false; }
+
+                    @Override
+                    public TaskHandle runGlobalTimerHandle(java.util.function.Consumer<TaskHandle> consumer,
+                                                           long initialDelayTicks, long periodTicks) {
+                        int idx = cancelledFlags.size();
+                        cancelledFlags.add(false);
+                        TaskHandle handle = () -> cancelledFlags.set(idx, true);
+                        scheduledTicks.add(() -> {
+                            if (!cancelledFlags.get(idx)) {
+                                consumer.accept(handle);
+                            }
+                        });
+                        return handle;
+                    }
+                };
+
+        com.github.orenaidaucac.royItems.item.LiveUpdateService service =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateService(registry, pdcManager, builder, testScheduler);
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("live-update.performance.max-players-per-tick", 5);
+        yaml.set("live-update.performance.max-items-per-tick", 40);
+        yaml.set("live-update.performance.tick-interval", 1);
+        service.loadConfig(yaml);
+
+        // 12 players x 10 outdated items = 120 items (>40 items/tick cap, so spans multiple ticks cleanly)
+        Map<UUID, org.bukkit.entity.Player> playerMap = new LinkedHashMap<>();
+        List<java.util.concurrent.atomic.AtomicBoolean> onlineFlags = new ArrayList<>();
+        List<org.bukkit.entity.Player> players = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicInteger slotWrites = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        for (int p = 0; p < 12; p++) {
+            UUID id = UUID.randomUUID();
+            ItemStack[] storage = new ItemStack[36];
+            for (int s = 0; s < 10; s++) {
+                storage[s] = builder.build(def, 1, null, 0L, null, false, null);
+            }
+            java.util.concurrent.atomic.AtomicBoolean online = new java.util.concurrent.atomic.AtomicBoolean(true);
+            onlineFlags.add(online);
+            org.bukkit.entity.Player mp = createLiveUpdatePlayer(
+                    id, storage, new ItemStack[4], new ItemStack[1], new ItemStack[27], slotWrites, online);
+            playerMap.put(id, mp);
+            players.add(mp);
+        }
+
+        List<com.github.orenaidaucac.royItems.item.LiveUpdateReport> gen1Reports = new ArrayList<>();
+        service.updatePlayersBatched(players, playerMap::get, gen1Reports::add);
+        assertEquals(1, scheduledTicks.size(), "Generation 1 must schedule one global timer");
+
+        // Execute tick 1: 4 players x 10 items = 40 items hits max-items-per-tick=40
+        int writesBeforeTick1 = slotWrites.get();
+        scheduledTicks.get(0).run();
+        int writesAfterTick1 = slotWrites.get() - writesBeforeTick1;
+        assertEquals(40, writesAfterTick1, "Tick 1 must respect max-items-per-tick=40 and process 4 players");
+        assertTrue(gen1Reports.isEmpty(), "Batch must not finish on tick 1");
+
+        // Mid-batch disconnect of player 5 & consecutive reload -> cancels Gen 1 cleanly
+        onlineFlags.get(5).set(false);
+        List<com.github.orenaidaucac.royItems.item.LiveUpdateReport> gen2Reports = new ArrayList<>();
+        long gen1 = service.getActiveGeneration();
+        service.updatePlayersBatched(players, playerMap::get, gen2Reports::add);
+        assertTrue(cancelledFlags.get(0), "Consecutive reload must cancel previous generation batch task");
+        assertNotEquals(gen1, service.getActiveGeneration());
+
+        // Attempting to drive cancelled Gen 1 tick does nothing
+        int writesBeforeStale = slotWrites.get();
+        scheduledTicks.get(0).run();
+        assertEquals(writesBeforeStale, slotWrites.get(), "Cancelled batch tick must not execute");
+        assertTrue(gen1Reports.isEmpty(), "Superseded generation callback must never fire");
+
+        // Drive Gen 2 to completion across ticks (max 40 items per tick)
+        int maxWritesPerSingleTick = 0;
+        int tickCount = 0;
+        while (!cancelledFlags.get(1) && tickCount < 20) {
+            int before = slotWrites.get();
+            scheduledTicks.get(1).run();
+            int delta = slotWrites.get() - before;
+            maxWritesPerSingleTick = Math.max(maxWritesPerSingleTick, delta);
+            assertTrue(delta <= 40, "No single tick may exceed max-items-per-tick=40; got " + delta);
+            tickCount++;
+        }
+
+        assertEquals(1, gen2Reports.size(), "Active generation must complete and fire report callback once");
+        assertTrue(maxWritesPerSingleTick <= 40);
+        // Players 0..3 already synced on tick 1 -> Gen 2 skipped those 40 items in O(1), rebuilt 7 remaining online players (70 items)
+        assertEquals(70, gen2Reports.get(0).getInventoryCount());
+    }
+
+    @Test
+    @DisplayName("LiveUpdate Benchmark: 100 players x 36 items burst vs throttled & sync-hash reload")
+    void testLiveUpdatePerformanceBenchmarkSimulation() {
+        Plugin plugin = createPdcMockPlugin();
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(plugin);
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry =
+                new com.github.orenaidaucac.royItems.item.ItemRegistry();
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "bench_blade");
+        def.setMaterial("DIAMOND_SWORD");
+        def.setName("&eBenchmark Blade");
+        registry.register(def);
+
+        ItemBuilder builder = createHeadlessItemBuilder(pdcManager, null, null);
+
+        final List<Runnable> tickRunner = new ArrayList<>();
+        final List<Boolean> tickCancelled = new ArrayList<>();
+        com.github.orenaidaucac.royItems.core.platform.PlatformScheduler testScheduler =
+                new com.github.orenaidaucac.royItems.core.platform.PlatformScheduler(plugin) {
+                    @Override public boolean isFolia() { return false; }
+
+                    @Override
+                    public TaskHandle runGlobalTimerHandle(java.util.function.Consumer<TaskHandle> consumer,
+                                                           long initialDelayTicks, long periodTicks) {
+                        int idx = tickCancelled.size();
+                        tickCancelled.add(false);
+                        TaskHandle h = () -> tickCancelled.set(idx, true);
+                        tickRunner.add(() -> {
+                            if (!tickCancelled.get(idx)) consumer.accept(h);
+                        });
+                        return h;
+                    }
+                };
+
+        com.github.orenaidaucac.royItems.item.LiveUpdateService service =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateService(registry, pdcManager, builder, testScheduler);
+
+        // Build 100 players x 36 items = 3,600 RoyItems (storage only, empty armor/offhand/EC)
+        final int playerCount = 100;
+        final int itemsPerPlayer = 36;
+        Map<UUID, org.bukkit.entity.Player> playerMap = new LinkedHashMap<>();
+        List<org.bukkit.entity.Player> players = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicInteger slotWrites = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        for (int i = 0; i < playerCount; i++) {
+            UUID id = UUID.randomUUID();
+            ItemStack[] storage = new ItemStack[36];
+            for (int s = 0; s < itemsPerPlayer; s++) {
+                storage[s] = builder.build(def, 1, null, 0L, null, false, null);
+            }
+            org.bukkit.entity.Player mp = createLiveUpdatePlayer(
+                    id, storage, new ItemStack[4], new ItemStack[1], new ItemStack[27],
+                    slotWrites, new java.util.concurrent.atomic.AtomicBoolean(true));
+            playerMap.put(id, mp);
+            players.add(mp);
+        }
+
+        // Measure throttled batching when config changes (default 5 players/tick, 40 items/tick)
+        YamlConfiguration throttledCfg = new YamlConfiguration();
+        throttledCfg.set("live-update.performance.max-players-per-tick", 5);
+        throttledCfg.set("live-update.performance.max-items-per-tick", 40);
+        throttledCfg.set("live-update.performance.tick-interval", 1);
+        service.loadConfig(throttledCfg);
+
+        List<com.github.orenaidaucac.royItems.item.LiveUpdateReport> report1 = new ArrayList<>();
+        service.updatePlayersBatched(players, playerMap::get, report1::add);
+
+        long maxSingleTickNs = 0;
+        long totalThrottledNs = 0;
+        int ticks = 0;
+        while (!tickCancelled.get(0) && ticks < 200) {
+            long t0 = System.nanoTime();
+            tickRunner.get(0).run();
+            long elapsed = System.nanoTime() - t0;
+            maxSingleTickNs = Math.max(maxSingleTickNs, elapsed);
+            totalThrottledNs += elapsed;
+            ticks++;
+        }
+        assertEquals(3600, report1.get(0).getInventoryCount());
+        assertTrue(ticks > 1, "3,600 changed items must spread across multiple ticks");
+
+        // Measure second reload with NO changes (O(1) item_sync_hash skip across all 3,600 items)
+        slotWrites.set(0);
+        List<com.github.orenaidaucac.royItems.item.LiveUpdateReport> report2 = new ArrayList<>();
+        service.updatePlayersBatched(players, playerMap::get, report2::add);
+        long skipStartNs = System.nanoTime();
+        int skipTicks = 0;
+        while (!tickCancelled.get(1) && skipTicks < 200) {
+            tickRunner.get(1).run();
+            skipTicks++;
+        }
+        long skipTotalNs = System.nanoTime() - skipStartNs;
+
+        assertEquals(0, report2.get(0).getInventoryCount(), "Unchanged items must produce 0 updates");
+        assertEquals(0, slotWrites.get(), "Unchanged items must perform 0 slot writes");
+        assertEquals(20, skipTicks, "100 players at 5 players/tick completes in 20 ticks");
+
+        System.out.printf("[LiveUpdate Benchmark] players=%d items=%d | throttledRebuildTicks=%d maxTickMs=%.3f totalMs=%.3f | unchangedSkipTicks=%d totalSkipMs=%.3f slotWrites=%d%n",
+                playerCount, playerCount * itemsPerPlayer,
+                ticks, maxSingleTickNs / 1_000_000.0, totalThrottledNs / 1_000_000.0,
+                skipTicks, skipTotalNs / 1_000_000.0, slotWrites.get());
     }
 }

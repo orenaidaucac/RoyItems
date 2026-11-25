@@ -1,5 +1,5 @@
 name: RoyItems
-version: '2026.1.10'
+version: '2026.1.11'
 main: com.github.orenaidaucac.royItems.RoyItems
 api-version: '1.21'
 folia-supported: true

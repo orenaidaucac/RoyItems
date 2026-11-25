@@ -69,6 +69,7 @@ messages:
   craft-failed: "&c재료 부족으로 제작에 실패했습니다!"
   craft-in-progress: "&c이미 아이템을 제작 중입니다. 완료될 때까지 기다려 주세요!"
   craft-cancelled: "&c메뉴가 닫혀 제작이 취소되었습니다!"
+  station-closed-reload: "&eRoyItems 플러그인을 다시 불러오는 중이어서 제작대 메뉴가 안전하게 닫혔습니다."
 
   # 세트 효과 알림
   set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a세트 효과 &e#set#&a이(가) 활성화되었습니다!"

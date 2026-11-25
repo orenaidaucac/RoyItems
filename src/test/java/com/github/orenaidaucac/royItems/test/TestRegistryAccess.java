@@ -48,6 +48,8 @@ public class TestRegistryAccess implements RegistryAccess {
             type = Enchantment.class;
         } else if (registryKey != null && "menu".equalsIgnoreCase(registryKey.key().value())) {
             type = org.bukkit.inventory.MenuType.Typed.class;
+        } else if (registryKey != null && ("damage_type".equalsIgnoreCase(registryKey.key().value()) || RegistryKey.DAMAGE_TYPE.equals(registryKey))) {
+            type = org.bukkit.damage.DamageType.class;
         }
         return (Registry<T>) createRegistry(type);
     }
@@ -90,7 +92,7 @@ public class TestRegistryAccess implements RegistryAccess {
         }
 
         // Check if key is requested during Enchantment initialization
-        if (key.getNamespace().equals("minecraft")) {
+        if ((targetType == null || Enchantment.class.isAssignableFrom(targetType)) && key.getNamespace().equals("minecraft")) {
             Enchantment existing = dummyEnchants.get(key);
             if (existing != null) return existing;
 
@@ -110,6 +112,9 @@ public class TestRegistryAccess implements RegistryAccess {
                     break;
                 } else if (elem.getClassName().contains("MenuType") || elem.getClassName().contains("InventoryType")) {
                     targetType = org.bukkit.inventory.MenuType.Typed.class;
+                    break;
+                } else if (elem.getClassName().contains("DamageType")) {
+                    targetType = org.bukkit.damage.DamageType.class;
                     break;
                 }
             }

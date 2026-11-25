@@ -69,6 +69,7 @@ messages:
   craft-failed: "&c¡La fabricación falló por falta de materiales!"
   craft-in-progress: "&c¡Ya estás fabricando un objeto, espera a que termine!"
   craft-cancelled: "&c¡Fabricación cancelada porque se cerró el menú!"
+  station-closed-reload: "&eTu menú de estación de fabricación se cerró de forma segura porque se está recargando RoyItems."
 
   # Notificaciones de Bonificación de Conjunto
   set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &a¡Has activado la bonificación de conjunto para &e#set#&a!"

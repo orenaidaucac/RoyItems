@@ -1,12 +1,12 @@
 package com.github.orenaidaucac.royItems.station;
 
 import com.github.orenaidaucac.royItems.RoyItems;
+import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
 import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.orenaidaucac.royItems.integration.IntegrationManager;
 import com.github.orenaidaucac.royItems.item.ItemBuilder;
 import com.github.orenaidaucac.royItems.item.ItemPDCManager;
 import com.github.orenaidaucac.royItems.item.ItemRegistry;
-import dev.triumphteam.gui.guis.BaseGui;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
@@ -15,11 +15,18 @@ import org.bukkit.command.defaults.BukkitCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -42,10 +49,42 @@ public class CraftingStationManager implements Listener {
     private final ItemBuilder itemBuilder;
     private final IntegrationManager integration;
 
+    public enum CloseReason {
+        RELOAD_CONFIG,
+        PLUGIN_DISABLE
+    }
+
+    /**
+     * Tracks an active Crafting Station GUI session for a player, allowing atomic
+     * close/reload locking and exact GUI holder ownership verification.
+     */
+    public static final class StationGuiSession {
+        private final InventoryHolder gui;
+        private volatile boolean closing;
+
+        public StationGuiSession(InventoryHolder gui) {
+            this.gui = gui;
+            this.closing = false;
+        }
+
+        public InventoryHolder getGui() {
+            return gui;
+        }
+
+        public boolean isClosing() {
+            return closing;
+        }
+
+        public void markClosing() {
+            this.closing = true;
+        }
+    }
+
     private final Map<String, CraftingStation> stations = new LinkedHashMap<>();
-    private final Map<UUID, BaseGui> openGuis = new ConcurrentHashMap<>();
-    private final Map<UUID, BukkitTask> activeCraftingTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, StationGuiSession> openGuis = new ConcurrentHashMap<>();
+    private final Map<UUID, PlatformScheduler.TaskHandle> activeCraftingTasks = new ConcurrentHashMap<>();
     private final List<String> registeredCommandAliases = new ArrayList<>();
+    private volatile boolean shuttingDownOrReloading = false;
 
     private Listener fancyNpcsListener;
     private Listener citizensListener;
@@ -99,15 +138,74 @@ public class CraftingStationManager implements Listener {
             for (String alias : station.getCommands()) {
                 if (alias != null && alias.trim().equalsIgnoreCase(cmd)) {
                     event.setCancelled(true);
-                    openStation(event.getPlayer(), station.getId(), 1);
+                    if (isAcceptingSessions()) {
+                        openStation(event.getPlayer(), station.getId(), 1);
+                    }
                     return;
                 }
             }
         }
     }
 
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onStationInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        Inventory top = event.getView() != null ? event.getView().getTopInventory() : event.getInventory();
+        if (top == null) return;
+        InventoryHolder topHolder = top.getHolder();
+        if (topHolder == null) return;
+
+        StationGuiSession session = openGuis.get(player.getUniqueId());
+        if (session != null && session.getGui() == topHolder) {
+            if (session.isClosing() || shuttingDownOrReloading || !isPluginEnabledSafe()) {
+                event.setCancelled(true);
+                event.setResult(Event.Result.DENY);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onStationInventoryDrag(InventoryDragEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        Inventory top = event.getView() != null ? event.getView().getTopInventory() : event.getInventory();
+        if (top == null) return;
+        InventoryHolder topHolder = top.getHolder();
+        if (topHolder == null) return;
+
+        StationGuiSession session = openGuis.get(player.getUniqueId());
+        if (session != null && session.getGui() == topHolder) {
+            if (session.isClosing() || shuttingDownOrReloading || !isPluginEnabledSafe()) {
+                event.setCancelled(true);
+                event.setResult(Event.Result.DENY);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onStationInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        Inventory inv = event.getInventory();
+        if (inv != null && inv.getHolder() != null) {
+            InventoryHolder closedHolder = inv.getHolder();
+            UUID uuid = player.getUniqueId();
+            StationGuiSession session = openGuis.get(uuid);
+            if (session != null && session.getGui() == closedHolder) {
+                cancelActiveCrafting(uuid);
+                untrackOpenGui(uuid, closedHolder);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        cancelActiveCrafting(uuid);
+        openGuis.remove(uuid);
+    }
+
     public synchronized void loadAll() {
-        closeAllOpenGuis();
+        shuttingDownOrReloading = true;
+        closeAllOpenGuis(CloseReason.RELOAD_CONFIG);
         unregisterCommandAliases();
         stations.clear();
 
@@ -133,6 +231,9 @@ public class CraftingStationManager implements Listener {
         validateNpcConfigurations();
         getLogger().info("Successfully loaded " + stations.size() + " crafting stations.");
         registerCommandAliases();
+        if (isPluginEnabledSafe()) {
+            shuttingDownOrReloading = false;
+        }
     }
 
     public boolean createStation(String id) {
@@ -207,7 +308,7 @@ public class CraftingStationManager implements Listener {
     }
 
     public void openStation(Player player, String stationId, int page) {
-        if (player == null || stationId == null) return;
+        if (player == null || !player.isOnline() || stationId == null || !isAcceptingSessions()) return;
         CraftingStation station = getStation(stationId);
         if (station == null) {
             plugin.getMessageManager().send(player, "station-not-found", Map.of("#station#", stationId));
@@ -571,9 +672,30 @@ public class CraftingStationManager implements Listener {
     // GUI TRACKING & SAFE SHUTDOWN / RELOAD
     // =========================================================================
 
-    public void trackOpenGui(Player player, BaseGui gui) {
+    public boolean isPluginEnabledSafe() {
+        if (plugin == null) return true;
+        try {
+            return plugin.isEnabled();
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+
+    public boolean isShuttingDownOrReloading() {
+        return shuttingDownOrReloading;
+    }
+
+    public void setShuttingDownOrReloading(boolean shuttingDownOrReloading) {
+        this.shuttingDownOrReloading = shuttingDownOrReloading;
+    }
+
+    public boolean isAcceptingSessions() {
+        return !shuttingDownOrReloading && isPluginEnabledSafe();
+    }
+
+    public void trackOpenGui(Player player, InventoryHolder gui) {
         if (player != null && gui != null) {
-            openGuis.put(player.getUniqueId(), gui);
+            openGuis.put(player.getUniqueId(), new StationGuiSession(gui));
         }
     }
 
@@ -583,44 +705,199 @@ public class CraftingStationManager implements Listener {
         }
     }
 
-    public void closeAllOpenGuis() {
-        // Cancel all crafting countdowns
-        for (BukkitTask task : activeCraftingTasks.values()) {
-            if (task != null) task.cancel();
-        }
-        activeCraftingTasks.clear();
+    /**
+     * Atomically untracks the GUI only if the currently tracked session still matches expectedGui.
+     * Prevents page switches, refreshes, or detail transitions from erasing the newly opened GUI session.
+     */
+    public void untrackOpenGui(UUID uuid, InventoryHolder expectedGui) {
+        if (uuid == null || expectedGui == null) return;
+        openGuis.computeIfPresent(uuid, (k, session) -> session.getGui() == expectedGui ? null : session);
+    }
 
-        // Close all open TriumphGUIs tracked by station
-        for (Map.Entry<UUID, BaseGui> entry : openGuis.entrySet()) {
-            Player p = Bukkit.getPlayer(entry.getKey());
-            if (p != null && p.isOnline()) {
+    public boolean isTrackedSessionActive(UUID uuid, InventoryHolder expectedGui) {
+        if (uuid == null || expectedGui == null || !isAcceptingSessions()) return false;
+        StationGuiSession session = openGuis.get(uuid);
+        return session != null && session.getGui() == expectedGui && !session.isClosing();
+    }
+
+    public boolean isTrackedSessionActive(Player player, InventoryHolder expectedGui) {
+        if (player == null || !player.isOnline() || !player.isValid()) return false;
+        if (!isTrackedSessionActive(player.getUniqueId(), expectedGui)) return false;
+        try {
+            var view = player.getOpenInventory();
+            if (view != null && view.getTopInventory() != null) {
+                return view.getTopInventory().getHolder() == expectedGui;
+            }
+        } catch (Throwable ignored) {}
+        return true;
+    }
+
+    public boolean isGuiClosing(UUID uuid, InventoryHolder gui) {
+        if (!isAcceptingSessions()) return true;
+        if (uuid == null || gui == null) return false;
+        StationGuiSession session = openGuis.get(uuid);
+        return session != null && session.getGui() == gui && session.isClosing();
+    }
+
+    public int getTrackedGuiCount() {
+        return openGuis.size();
+    }
+
+    public int getActiveCraftingCount() {
+        return activeCraftingTasks.size();
+    }
+
+    public void closeAllOpenGuis() {
+        closeAllOpenGuis(CloseReason.RELOAD_CONFIG);
+    }
+
+    /**
+     * Safely closes every open Crafting Station GUI across all platforms (Bukkit/Spigot/Paper/Purpur/Folia/Leaf).
+     * Cancels active crafting countdowns before touching inventories, verifies exact InventoryHolder ownership,
+     * closes synchronously (avoiding TriumphGUI's 2-tick delayed close task), and notifies players.
+     */
+    public void closeAllOpenGuis(CloseReason reason) {
+        this.shuttingDownOrReloading = true;
+
+        // 1. Collect all sessions not yet marked closing and lock them immediately
+        List<Map.Entry<UUID, StationGuiSession>> toClose = new ArrayList<>();
+        for (Map.Entry<UUID, StationGuiSession> entry : openGuis.entrySet()) {
+            StationGuiSession session = entry.getValue();
+            if (session != null && !session.isClosing()) {
+                session.markClosing();
+                toClose.add(entry);
+            }
+        }
+
+        // 2. Cancel all active crafting countdowns atomically before closing inventories
+        Set<UUID> cancelledCraftingPlayers = new HashSet<>();
+        for (UUID uuid : new ArrayList<>(activeCraftingTasks.keySet())) {
+            PlatformScheduler.TaskHandle handle = activeCraftingTasks.remove(uuid);
+            if (handle != null) {
+                cancelledCraftingPlayers.add(uuid);
                 try {
-                    entry.getValue().close(p);
+                    handle.cancel();
                 } catch (Throwable ignored) {}
             }
         }
-        openGuis.clear();
+
+        // 3. Close each verified station GUI on the player's owning thread/region
+        for (Map.Entry<UUID, StationGuiSession> entry : toClose) {
+            UUID uuid = entry.getKey();
+            StationGuiSession session = entry.getValue();
+            InventoryHolder trackedGui = session.getGui();
+
+            Player player = null;
+            try {
+                if (Bukkit.getServer() != null) {
+                    player = Bukkit.getPlayer(uuid);
+                }
+            } catch (Throwable ignored) {}
+
+            if (player == null || !player.isOnline()) {
+                untrackOpenGui(uuid, trackedGui);
+                cancelledCraftingPlayers.remove(uuid);
+                continue;
+            }
+
+            boolean hadActiveCraft = cancelledCraftingPlayers.remove(uuid);
+            Player targetPlayer = player;
+            Runnable closeTask = () -> closeVerifiedStationInventory(targetPlayer, trackedGui, hadActiveCraft, reason);
+
+            PlatformScheduler scheduler = plugin != null ? plugin.getPlatformScheduler() : null;
+            if (scheduler != null) {
+                if (reason == CloseReason.PLUGIN_DISABLE && !isPluginEnabledSafe() && !scheduler.isOwnedByCurrentThread(targetPlayer)) {
+                    untrackOpenGui(uuid, trackedGui);
+                    continue;
+                }
+                scheduler.runEntityNowOrSchedule(targetPlayer, closeTask);
+            } else {
+                closeTask.run();
+            }
+        }
+
+        // 4. Notify any player whose crafting countdown was cancelled outside a tracked GUI entry
+        for (UUID uuid : cancelledCraftingPlayers) {
+            try {
+                Player p = Bukkit.getServer() != null ? Bukkit.getPlayer(uuid) : null;
+                if (p != null && p.isOnline() && p.isValid() && plugin != null && plugin.getMessageManager() != null) {
+                    PlatformScheduler scheduler = plugin.getPlatformScheduler();
+                    if (scheduler != null) {
+                        scheduler.runEntityNowOrSchedule(p, () -> plugin.getMessageManager().send(p, "craft-cancelled"));
+                    } else {
+                        plugin.getMessageManager().send(p, "craft-cancelled");
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private void closeVerifiedStationInventory(Player player, InventoryHolder trackedGui, boolean hadActiveCraft, CloseReason reason) {
+        try {
+            if (player == null || !player.isOnline() || !player.isValid()) {
+                return;
+            }
+            var view = player.getOpenInventory();
+            if (view == null || view.getTopInventory() == null) {
+                return;
+            }
+            // Strict session ownership check: NEVER close another plugin's GUI or Vanilla inventory
+            if (view.getTopInventory().getHolder() != trackedGui) {
+                return;
+            }
+
+            if (hadActiveCraft && plugin != null && plugin.getMessageManager() != null) {
+                plugin.getMessageManager().send(player, "craft-cancelled");
+            }
+
+            // Close synchronously on the owning thread/region (avoids TriumphGUI's 2-tick delayed task)
+            player.closeInventory();
+
+            if (plugin != null && plugin.getMessageManager() != null) {
+                plugin.getMessageManager().send(player, "station-closed-reload",
+                        "&eYour Crafting Station menu was closed safely because the server is reloading RoyItems.");
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            if (player != null) {
+                untrackOpenGui(player.getUniqueId(), trackedGui);
+            }
+        }
     }
 
     public void cleanup() {
-        closeAllOpenGuis();
+        shuttingDownOrReloading = true;
+        closeAllOpenGuis(CloseReason.PLUGIN_DISABLE);
+        openGuis.clear();
+        activeCraftingTasks.clear();
         unregisterCommandAliases();
         unregisterPhoenixNpcsListener();
         unregisterFancyNpcsListener();
         unregisterCitizensListener();
+        try {
+            HandlerList.unregisterAll(this);
+        } catch (Throwable ignored) {}
     }
 
     public boolean isCrafting(UUID uuid) {
-        return activeCraftingTasks.containsKey(uuid);
+        return uuid != null && activeCraftingTasks.containsKey(uuid);
+    }
+
+    public void setActiveCraftingTask(UUID uuid, PlatformScheduler.TaskHandle task) {
+        if (uuid == null) return;
+        cancelActiveCrafting(uuid);
+        if (task != null) {
+            activeCraftingTasks.put(uuid, task);
+        }
     }
 
     public void setActiveCraftingTask(UUID uuid, BukkitTask task) {
-        cancelActiveCrafting(uuid);
-        activeCraftingTasks.put(uuid, task);
+        setActiveCraftingTask(uuid, task != null ? task::cancel : null);
     }
 
     public void cancelActiveCrafting(UUID uuid) {
-        BukkitTask task = activeCraftingTasks.remove(uuid);
+        if (uuid == null) return;
+        PlatformScheduler.TaskHandle task = activeCraftingTasks.remove(uuid);
         if (task != null) {
             try {
                 task.cancel();

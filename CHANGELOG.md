@@ -1,5 +1,27 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.11] - 2026-11-25
+
+### 🌟 Highlights
+* **High-Performance Batched LiveUpdate:** Eliminates reload-induced TPS drops on large servers by spreading updates across ticks, skipping unchanged items in O(1), caching base templates, and minimizing `ItemMeta` cloning.
+* **MythicMobs MMORPG Defense Fix:** Ensures MythicMobs attacks trigger RoyItems' MMORPG Defense armor mitigation identically to Vanilla mobs without double-mitigation.
+* **Safe Crafting Station Shutdown on Reload / PlugmanX:** Automatically closes open Crafting Station GUIs, refunds placed input items, cancels active crafting tasks, and notifies players cleanly when reloading configuration or disabling the plugin.
+
+---
+
+### ⚡ Improved
+* **LiveUpdate Engine (`LiveUpdateService`, `LiveUpdateConfig`, `ItemPDCManager`, `PlatformScheduler`):**
+  * Added configurable tick budgets in `config.yml` under `live-update.performance` (`max-players-per-tick: 5`, `max-items-per-tick: 40`, `tick-interval: 1`) with automatic EnderChest tick splitting when budgets fill.
+  * Added `royitems:item_sync_hash` O(1) skip for unchanged non-expiring items, single-snapshot `ItemMeta` PDC reads, cached base templates (`CachedTemplate`), targeted slot updates (`setItem`), and generation-based cancellation for consecutive reloads, PlugmanX disable, and Folia region threads.
+
+---
+
+### 🐛 Fixed
+* **MythicMobs Defense Mitigation:** Fixed MMORPG Defense armor mitigation being bypassed on damage from MythicMobs entities.
+* **Crafting Station Reload & Unload Safety:** Prevented item loss, duplication, or stale GUI interactions during `/ri reload` and PlugmanX reload/disable via safe GUI teardown and localized `station-closed-reload` notifications across all 7 supported languages.
+
+---
+
 ## [2026.1.10] - 2026-11-24
 
 ### 🌟 Highlights

@@ -69,6 +69,7 @@ messages:
   craft-failed: "&cChế tạo thất bại do thiếu nguyên liệu!"
   craft-in-progress: "&cBạn đang trong tiến trình chế tạo, vui lòng chờ hoàn tất!"
   craft-cancelled: "&cHủy chế tạo do giao diện trạm chế tạo đã bị đóng!"
+  station-closed-reload: "&eGiao diện trạm chế tạo đã được đóng an toàn do máy chủ đang tải lại RoyItems!"
 
   # Thông báo Set Bonus
   set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aBạn đã kích hoạt hiệu ứng bộ trang bị &e#set#&a!"

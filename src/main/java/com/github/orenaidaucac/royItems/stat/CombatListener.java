@@ -14,6 +14,8 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
  * Handles real-time combat calculations: attack damage, arrow damage, critical hits,
  * custom defense modes (SIMPLE, MMORPG, CUSTOM_LIMIT), damage reduction, and PvP/PvE scaling.
  * Integrates with MythicMobs to ensure consistent defense calculation with zero double-mitigation.
+ * Registered at EventPriority.HIGHEST to ensure defense is calculated on the finalized damage
+ * and cannot be overridden by other plugins' earlier listeners.
  */
 public class CombatListener implements Listener {
 
@@ -31,7 +33,7 @@ public class CombatListener implements Listener {
         this.mythicMobsHook = mythicMobsHook;
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCombat(EntityDamageByEntityEvent event) {
         Entity damagerEntity = event.getDamager();
         Entity victimEntity = event.getEntity();
@@ -95,9 +97,12 @@ public class CombatListener implements Listener {
         // 2. Process Victim Modifiers (Custom Defense & Mitigation)
         if (victimEntity instanceof Player victim) {
             // Check if this damage hit was already mitigated in MythicDamageEvent
-            // to prevent double mitigation
+            // to prevent double mitigation, and apply the exact calculated mitigated value
             if (mythicMobsHook != null && mythicMobsHook.isRecentlyMitigated(victim.getUniqueId())) {
-                mythicMobsHook.clearMitigation(victim.getUniqueId());
+                Double previousMitigated = mythicMobsHook.consumeMitigatedDamage(victim.getUniqueId());
+                if (previousMitigated != null) {
+                    damage = previousMitigated;
+                }
                 if (Double.isNaN(damage) || Double.isInfinite(damage) || damage < 0) {
                     damage = 0.0;
                 }
@@ -107,7 +112,7 @@ public class CombatListener implements Listener {
 
             boolean isPvP = (trueSource instanceof Player);
             boolean isPvE = (trueSource instanceof LivingEntity && !isPvP);
-            if (mythicMobsHook != null && mythicMobsHook.isMythicMob(trueSource)) {
+            if (mythicMobsHook != null && (mythicMobsHook.isMythicMob(trueSource) || mythicMobsHook.isMythicMob(damagerEntity))) {
                 isPvE = true;
                 isPvP = false;
             }

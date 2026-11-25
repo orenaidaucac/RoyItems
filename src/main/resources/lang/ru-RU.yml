@@ -69,6 +69,7 @@ messages:
   craft-failed: "&cСоздание не удалось из-за нехватки ингредиентов!"
   craft-in-progress: "&cВы уже крафтите предмет, дождитесь окончания!"
   craft-cancelled: "&cСоздание отменено из-за закрытия меню станции!"
+  station-closed-reload: "&eМеню станции крафта было безопасно закрыто из-за перезагрузки RoyItems."
 
   # Уведомления о бонусе комплекта
   set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aВы активировали бонус комплекта &e#set#&a!"

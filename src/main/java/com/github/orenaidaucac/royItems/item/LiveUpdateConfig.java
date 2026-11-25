@@ -18,6 +18,11 @@ public class LiveUpdateConfig {
     private boolean containerOffhand = true;
     private boolean containerEnderChest = true;
 
+    // Performance throttling settings (prevent TPS drops during mass updates)
+    private int maxPlayersPerTick = 5;
+    private int maxItemsPerTick = 40;
+    private int tickInterval = 1;
+
     // Preservation flags
     private boolean preserveEnchantments = true;
     private boolean preserveGems = true;
@@ -34,6 +39,11 @@ public class LiveUpdateConfig {
 
         this.enabled = config.getBoolean("live-update.enabled", true);
         this.autoUpdateOnReload = config.getBoolean("live-update.auto-update-on-reload", true);
+
+        // Performance throttling
+        this.maxPlayersPerTick = Math.max(0, config.getInt("live-update.performance.max-players-per-tick", 5));
+        this.maxItemsPerTick = Math.max(0, config.getInt("live-update.performance.max-items-per-tick", 40));
+        this.tickInterval = Math.max(1, config.getInt("live-update.performance.tick-interval", 1));
 
         // Containers
         this.containerInventory = config.getBoolean("live-update.containers.inventory", true);
@@ -171,5 +181,29 @@ public class LiveUpdateConfig {
 
     public void setPreserveAttributes(boolean preserveAttributes) {
         this.preserveAttributes = preserveAttributes;
+    }
+
+    public int getMaxPlayersPerTick() {
+        return maxPlayersPerTick;
+    }
+
+    public void setMaxPlayersPerTick(int maxPlayersPerTick) {
+        this.maxPlayersPerTick = Math.max(0, maxPlayersPerTick);
+    }
+
+    public int getMaxItemsPerTick() {
+        return maxItemsPerTick;
+    }
+
+    public void setMaxItemsPerTick(int maxItemsPerTick) {
+        this.maxItemsPerTick = Math.max(0, maxItemsPerTick);
+    }
+
+    public int getTickInterval() {
+        return tickInterval;
+    }
+
+    public void setTickInterval(int tickInterval) {
+        this.tickInterval = Math.max(1, tickInterval);
     }
 }

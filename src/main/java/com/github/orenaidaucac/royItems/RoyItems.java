@@ -25,9 +25,12 @@ import com.github.orenaidaucac.royItems.tier_set.ItemTierManager;
 import com.github.orenaidaucac.royItems.tier_set.TierDropGlowListener;
 import com.github.orenaidaucac.royItems.mechanics.DamageParticleFilterManager;
 import com.github.orenaidaucac.royItems.mechanics.ItemProtectionListener;
+import dev.triumphteam.gui.guis.BaseGui;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -240,8 +243,13 @@ public final class RoyItems extends JavaPlugin {
     public void onDisable() {
         getLogger().info("Disabling RoyItems...");
 
-        // 1. Close all active GUI windows across all players to prevent dupes, ghost sessions, or errors
-        closeAllActiveGuis();
+        // 1. Close all active GUI windows across all players synchronously before tearing down resources
+        closeAllActiveGuis(true);
+
+        // 1.5. Cancel active LiveUpdate batches & clear cached templates before teardown
+        if (liveUpdateService != null) {
+            liveUpdateService.cancelActiveUpdates();
+        }
 
         // 2. Cleanup Tier Drop Glow Teams
         if (tierDropGlowListener != null) {
@@ -288,10 +296,13 @@ public final class RoyItems extends JavaPlugin {
             permissionStatManager.clearCache();
         }
 
-        // 6. Cancel all scheduled platform tasks
+        // 6. Cancel all scheduled platform tasks and unregister all plugin listeners (PlugmanX safety)
         if (platformScheduler != null) {
             platformScheduler.cancelAllTasks();
         }
+        try {
+            HandlerList.unregisterAll((Plugin) this);
+        } catch (Throwable ignored) {}
 
         getLogger().info("RoyItems disabled cleanly.");
     }
@@ -301,24 +312,43 @@ public final class RoyItems extends JavaPlugin {
      * Prevents duplication or crashes during reloads or plugin disable (e.g. via PlugmanX).
      */
     public void closeAllActiveGuis() {
+        closeAllActiveGuis(false);
+    }
+
+    public void closeAllActiveGuis(boolean isDisable) {
         if (editorGUIManager != null) {
             editorGUIManager.closeAll();
         }
         if (craftingStationManager != null) {
-            craftingStationManager.closeAllOpenGuis();
+            craftingStationManager.closeAllOpenGuis(isDisable
+                    ? com.github.orenaidaucac.royItems.station.CraftingStationManager.CloseReason.PLUGIN_DISABLE
+                    : com.github.orenaidaucac.royItems.station.CraftingStationManager.CloseReason.RELOAD_CONFIG);
         }
         if (extractionManager != null) {
             extractionManager.closeAll();
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            try {
-                if (player.getOpenInventory() != null && player.getOpenInventory().getTopInventory() != null) {
-                    var holder = player.getOpenInventory().getTopInventory().getHolder();
-                    if (holder != null && holder.getClass().getName().contains("triumphteam.gui")) {
-                        player.closeInventory();
+            Runnable fallbackClose = () -> {
+                try {
+                    if (player.isOnline() && player.isValid()
+                            && player.getOpenInventory() != null
+                            && player.getOpenInventory().getTopInventory() != null) {
+                        var holder = player.getOpenInventory().getTopInventory().getHolder();
+                        if (holder instanceof BaseGui) {
+                            player.closeInventory();
+                        }
                     }
+                } catch (Throwable ignored) {}
+            };
+
+            if (platformScheduler != null) {
+                if (isDisable && !isEnabled() && !platformScheduler.isOwnedByCurrentThread(player)) {
+                    continue;
                 }
-            } catch (Throwable ignored) {}
+                platformScheduler.runEntityNowOrSchedule(player, fallbackClose);
+            } else {
+                fallbackClose.run();
+            }
         }
     }
 
@@ -334,13 +364,17 @@ public final class RoyItems extends JavaPlugin {
      * sending a professional synchronization report to the sender and server console.
      */
     public void reloadAll(org.bukkit.command.CommandSender sender) {
-        // 0. Automatically migrate updated configuration files
+        // 0. Automatically migrate updated configuration files and refresh messages before closing GUIs
         if (configMigrator != null) {
             configMigrator.migrateAll();
         }
+        reloadConfig();
+        if (messageManager != null) {
+            messageManager.loadMessages();
+        }
 
-        // 1. Close active GUI editor sessions and station GUIs
-        closeAllActiveGuis();
+        // 1. Close active GUI editor sessions and station GUIs safely with reload notification
+        closeAllActiveGuis(false);
         if (editorGUIManager != null) {
             editorGUIManager.reloadConfig();
         }
@@ -351,8 +385,7 @@ public final class RoyItems extends JavaPlugin {
             extractionManager.loadConfig();
         }
 
-        // 2. Reload main config, combat defense engine, and update checker
-        reloadConfig();
+        // 2. Reload integration hooks, combat defense engine, and feature configs
         if (integrationManager != null) {
             integrationManager.recheckHooks();
         }
@@ -372,6 +405,7 @@ public final class RoyItems extends JavaPlugin {
             voucherManager.loadConfig(getConfig());
         }
         if (liveUpdateService != null) {
+            liveUpdateService.cancelActiveUpdates();
             liveUpdateService.loadConfig(getConfig());
         }
         if (particleFilterManager != null) {
@@ -382,10 +416,7 @@ public final class RoyItems extends JavaPlugin {
             updateChecker.checkForUpdates(null);
         }
 
-        // 3. Reload Messages
-        if (messageManager != null) {
-            messageManager.loadMessages();
-        }
+        // 3. (Messages already refreshed in step 0)
 
         // 4. Reload Lore formats
         dynamicLoreEngine.loadFormats();
@@ -409,11 +440,23 @@ public final class RoyItems extends JavaPlugin {
             dummyManager.initialize();
         }
 
-        // 7.5. Recalculate stats for all online players immediately (permissions & config reload)
-        if (statManager != null) {
+        // 7.5. Recalculate stats for all online players immediately when LiveUpdate is not about to run
+        // (When LiveUpdate runs, it recalculates each player's stats as their batch executes)
+        boolean willRunLiveUpdate = liveUpdateService != null
+                && liveUpdateService.isEnabled()
+                && liveUpdateService.isAutoUpdateOnReload();
+        if (statManager != null && !willRunLiveUpdate) {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p != null && p.isValid()) {
-                    statManager.recalculate(p);
+                    if (platformScheduler != null) {
+                        platformScheduler.runEntityNowOrSchedule(p, () -> {
+                            if (p.isOnline() && p.isValid()) {
+                                statManager.recalculate(p);
+                            }
+                        });
+                    } else {
+                        statManager.recalculate(p);
+                    }
                 }
             }
         }

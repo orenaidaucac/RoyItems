@@ -69,6 +69,7 @@ messages:
   craft-failed: "&cCrafting failed due to missing ingredients!"
   craft-in-progress: "&cYou are already crafting an item, please wait for it to complete!"
   craft-cancelled: "&cCrafting cancelled because the station menu was closed!"
+  station-closed-reload: "&eYour Crafting Station menu was closed safely because the server is reloading RoyItems."
 
   # Set Bonus Notifications
   set-bonus-activated: "<gradient:#FFD166:#06D6A0>RoyItems</gradient> <dark_gray>»</dark_gray> &aYou have activated the set bonus for &e#set#&a!"

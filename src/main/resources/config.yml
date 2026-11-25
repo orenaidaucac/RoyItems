@@ -130,6 +130,13 @@ live-update:
   # Automatically trigger LiveUpdate across all online players upon /royitems reload
   auto-update-on-reload: true
 
+  # Performance throttling to prevent sudden TPS drops when many players/items are online.
+  # Spreads updates cleanly across multiple ticks (0 = unlimited).
+  performance:
+    max-players-per-tick: 5
+    max-items-per-tick: 40
+    tick-interval: 1
+
   # Containers to scan and synchronize
   containers:
     inventory: true      # Player storage slots (0-35)

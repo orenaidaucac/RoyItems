@@ -34,6 +34,8 @@ public class CraftingDetailGui {
     }
 
     public void open() {
+        if (player == null || !player.isOnline() || !manager.isAcceptingSessions()) return;
+
         File file = new File(manager.getPlugin().getDataFolder(), "gui/crafting-station-detail.yml");
         FileConfiguration config = file.exists() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
 
@@ -101,7 +103,10 @@ public class CraftingDetailGui {
                 Material.matchMaterial(backMat) != null ? Material.matchMaterial(backMat) : Material.ARROW,
                 TextUtility.formatGui(backName),
                 TextUtility.formatGuiLore(backLore),
-                event -> manager.openStation(player, station.getId(), returnPage)
+                event -> {
+                    if (!manager.isTrackedSessionActive(player, gui)) return;
+                    manager.openStation(player, station.getId(), returnPage);
+                }
         ));
 
         // Close button
@@ -113,8 +118,10 @@ public class CraftingDetailGui {
                 Material.matchMaterial(closeMat) != null ? Material.matchMaterial(closeMat) : Material.BARRIER,
                 TextUtility.formatGui(closeName),
                 TextUtility.formatGuiLore(closeLore),
-                event -> gui.close(player)
+                event -> player.closeInventory()
         ));
+
+        gui.setCloseGuiAction(event -> manager.untrackOpenGui(player.getUniqueId(), gui));
 
         manager.trackOpenGui(player, gui);
         gui.open(player);

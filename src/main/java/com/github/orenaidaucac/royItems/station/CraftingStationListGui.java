@@ -29,6 +29,8 @@ public class CraftingStationListGui {
     }
 
     public void open() {
+        if (player == null || !player.isOnline() || !manager.isAcceptingSessions()) return;
+
         File file = new File(manager.getPlugin().getDataFolder(), "gui/crafting-station-list.yml");
         FileConfiguration config = file.exists() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
 
@@ -76,7 +78,10 @@ public class CraftingStationListGui {
                     mat,
                     TextUtility.formatGui(formattedName),
                     TextUtility.formatGuiLore(formattedLore),
-                    event -> manager.openStation(player, station.getId(), 1)
+                    event -> {
+                        if (!manager.isTrackedSessionActive(player, gui)) return;
+                        manager.openStation(player, station.getId(), 1);
+                    }
             );
             gui.addItem(stationItem);
         }
@@ -89,7 +94,10 @@ public class CraftingStationListGui {
                 Material.matchMaterial(prevMat) != null ? Material.matchMaterial(prevMat) : Material.SPECTRAL_ARROW,
                 TextUtility.formatGui(prevName),
                 List.of(),
-                event -> gui.previous()
+                event -> {
+                    if (!manager.isTrackedSessionActive(player, gui)) return;
+                    gui.previous();
+                }
         ));
 
         // Next page button
@@ -100,7 +108,10 @@ public class CraftingStationListGui {
                 Material.matchMaterial(nextMat) != null ? Material.matchMaterial(nextMat) : Material.SPECTRAL_ARROW,
                 TextUtility.formatGui(nextName),
                 List.of(),
-                event -> gui.next()
+                event -> {
+                    if (!manager.isTrackedSessionActive(player, gui)) return;
+                    gui.next();
+                }
         ));
 
         // Close button
@@ -112,8 +123,10 @@ public class CraftingStationListGui {
                 Material.matchMaterial(closeMat) != null ? Material.matchMaterial(closeMat) : Material.BARRIER,
                 TextUtility.formatGui(closeName),
                 TextUtility.formatGuiLore(closeLore),
-                event -> gui.close(player)
+                event -> player.closeInventory()
         ));
+
+        gui.setCloseGuiAction(event -> manager.untrackOpenGui(player.getUniqueId(), gui));
 
         manager.trackOpenGui(player, gui);
         gui.open(player);
