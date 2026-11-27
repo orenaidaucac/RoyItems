@@ -191,25 +191,27 @@ public class StatManager {
 
     private void processEquippedItem(ItemStack item, org.bukkit.inventory.EquipmentSlot slot,
                                      PlayerStatCache cache, Map<String, Integer> setCounts, Player player) {
-        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
-        ItemType type = pdcManager.getType(item);
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return;
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (!pdcManager.isRoyItem(meta)) return;
+        ItemType type = pdcManager.getType(meta);
         if (type == null || !type.isValidEquipmentSlot(slot, item.getType())) return;
-        processItem(item, cache, setCounts, player);
+        processItemMeta(meta, type, cache, setCounts, player);
     }
 
     private void processPassiveInventoryItem(ItemStack item, PlayerStatCache cache,
                                              Map<String, Integer> setCounts, Player player) {
-        if (item == null || item.getType().isAir() || !pdcManager.isRoyItem(item)) return;
-        ItemType type = pdcManager.getType(item);
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return;
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (!pdcManager.isRoyItem(meta)) return;
+        ItemType type = pdcManager.getType(meta);
         if (type == null || !type.isInventoryPassive()) return;
-        processItem(item, cache, setCounts, player);
+        processItemMeta(meta, type, cache, setCounts, player);
     }
 
-    private void processItem(ItemStack item, PlayerStatCache cache, Map<String, Integer> setCounts, Player player) {
-        if (item == null || !pdcManager.isRoyItem(item)) return;
-
-        ItemType type = pdcManager.getType(item);
-        String id = pdcManager.getId(item);
+    private void processItemMeta(org.bukkit.inventory.meta.ItemMeta meta, ItemType type,
+                                 PlayerStatCache cache, Map<String, Integer> setCounts, Player player) {
+        String id = pdcManager.getId(meta);
         ItemDefinition def = registry.get(type, id);
         if (def == null) return;
 
@@ -233,7 +235,7 @@ public class StatManager {
         }
 
         // Slotted gems stats
-        String socketsRaw = pdcManager.getSocketsData(item);
+        String socketsRaw = pdcManager.getSocketsData(meta);
         if (socketsRaw != null && !socketsRaw.isEmpty()) {
             List<String> slotted = ItemBuilder.deserializeSockets(socketsRaw);
             for (String gemId : slotted) {
@@ -305,18 +307,21 @@ public class StatManager {
     }
 
     private boolean syncSingleItemSetLore(ItemStack item, Set<String> activeSets, Player player) {
-        if (item == null || item.getType().isAir()) return false;
-        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return false;
+        if (pdcManager == null) return false;
 
-        ItemType type = pdcManager.getType(item);
-        String id = pdcManager.getId(item);
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (!pdcManager.isRoyItem(meta)) return false;
+
+        ItemType type = pdcManager.getType(meta);
+        String id = pdcManager.getId(meta);
         ItemDefinition def = registry.get(type, id);
         if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) return false;
 
         String setId = def.getItemSet().toLowerCase();
         boolean shouldBeActive = activeSets.contains(setId);
         String targetState = shouldBeActive ? "active" : "inactive";
-        String currentState = pdcManager.getSetState(item);
+        String currentState = pdcManager.getSetState(meta);
 
         if (!targetState.equalsIgnoreCase(currentState)) {
             return dynamicLoreEngine.synchronizeItemSetLore(item, shouldBeActive, player);

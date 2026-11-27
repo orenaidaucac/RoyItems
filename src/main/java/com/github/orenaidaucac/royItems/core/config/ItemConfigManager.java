@@ -40,7 +40,15 @@ public class ItemConfigManager {
     }
 
     public void loadAll() {
-        registry.clear();
+        applyPreparedDefinitions(prepareAllDefinitions());
+    }
+
+    /**
+     * Reads and parses all item/<TYPE>.yml files into a detached list without mutating ItemRegistry.
+     * Safe to invoke on an async thread before swapping cleanly on the global thread.
+     */
+    public List<ItemDefinition> prepareAllDefinitions() {
+        List<ItemDefinition> defs = new ArrayList<>();
         File itemFolder = new File(plugin.getDataFolder(), "item");
         if (!itemFolder.exists()) {
             itemFolder.mkdirs();
@@ -67,12 +75,25 @@ public class ItemConfigManager {
                 if (sec != null) {
                     try {
                         ItemDefinition def = parseItemDefinition(type, id, sec);
-                        registry.register(def);
+                        defs.add(def);
                     } catch (Exception e) {
                         plugin.getLogger().log(Level.SEVERE, "Failed to load item " + type.name() + ":" + id +
                                 " from " + file.getName() + ": " + e.getMessage(), e);
                     }
                 }
+            }
+        }
+        return defs;
+    }
+
+    /**
+     * Atomically replaces the active ItemRegistry with pre-parsed definitions.
+     */
+    public void applyPreparedDefinitions(List<ItemDefinition> defs) {
+        registry.clear();
+        if (defs != null) {
+            for (ItemDefinition def : defs) {
+                registry.register(def);
             }
         }
         plugin.getLogger().info("Successfully loaded " + registry.size() + " custom items into memory.");

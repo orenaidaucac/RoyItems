@@ -24,6 +24,7 @@ public class ItemPDCManager {
     private final NamespacedKey KEY_ENCHANT_HASH;
     private final NamespacedKey KEY_SET_STATE;
     private final NamespacedKey KEY_SYNC_HASH;
+    private final NamespacedKey KEY_MANAGED_LORE;
 
     public ItemPDCManager(Plugin plugin) {
         this.KEY_TYPE = new NamespacedKey(plugin, "item_type");
@@ -36,6 +37,7 @@ public class ItemPDCManager {
         this.KEY_ENCHANT_HASH = new NamespacedKey(plugin, "item_enchant_hash");
         this.KEY_SET_STATE = new NamespacedKey(plugin, "item_set_state");
         this.KEY_SYNC_HASH = new NamespacedKey(plugin, "item_sync_hash");
+        this.KEY_MANAGED_LORE = new NamespacedKey(plugin, "managed_lore");
     }
 
     public NamespacedKey getKeyType() { return KEY_TYPE; }
@@ -48,6 +50,27 @@ public class ItemPDCManager {
     public NamespacedKey getKeyEnchantHash() { return KEY_ENCHANT_HASH; }
     public NamespacedKey getKeySetState() { return KEY_SET_STATE; }
     public NamespacedKey getKeySyncHash() { return KEY_SYNC_HASH; }
+    public NamespacedKey getKeyManagedLore() { return KEY_MANAGED_LORE; }
+
+    public String getManagedLoreData(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        return getManagedLoreData(item.getItemMeta());
+    }
+
+    public String getManagedLoreData(ItemMeta meta) {
+        if (meta == null) return null;
+        return meta.getPersistentDataContainer().get(KEY_MANAGED_LORE, PersistentDataType.STRING);
+    }
+
+    public boolean hasManagedLoreData(ItemMeta meta) {
+        if (meta == null) return false;
+        return meta.getPersistentDataContainer().has(KEY_MANAGED_LORE, PersistentDataType.STRING);
+    }
+
+    public void setManagedLoreData(ItemMeta meta, String data) {
+        if (meta == null) return;
+        meta.getPersistentDataContainer().set(KEY_MANAGED_LORE, PersistentDataType.STRING, data != null ? data : "");
+    }
 
     public int getSyncHash(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return 0;

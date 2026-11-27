@@ -204,11 +204,14 @@ public class CraftingStationManager implements Listener {
     }
 
     public synchronized void loadAll() {
-        shuttingDownOrReloading = true;
-        closeAllOpenGuis(CloseReason.RELOAD_CONFIG);
-        unregisterCommandAliases();
-        stations.clear();
+        applyPreparedStations(prepareStations());
+    }
 
+    /**
+     * Reads and parses all crafting-station/*.yml files into a detached map (safe on async thread).
+     */
+    public Map<String, CraftingStation> prepareStations() {
+        Map<String, CraftingStation> loaded = new LinkedHashMap<>();
         File stationFolder = new File(plugin.getDataFolder(), "crafting-station");
         if (!stationFolder.exists()) {
             stationFolder.mkdirs();
@@ -221,19 +224,49 @@ public class CraftingStationManager implements Listener {
                 try {
                     FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
                     CraftingStation station = CraftingStation.fromConfig(id, cfg);
-                    stations.put(id.toLowerCase(), station);
+                    loaded.put(id.toLowerCase(), station);
                 } catch (Exception e) {
                     getLogger().log(Level.SEVERE, "Failed to load crafting station " + file.getName() + ": " + e.getMessage(), e);
                 }
             }
         }
+        return loaded;
+    }
+
+    /**
+     * Atomically swaps pre-parsed CraftingStations into memory and refreshes commands only if aliases changed.
+     */
+    public synchronized void applyPreparedStations(Map<String, CraftingStation> loaded) {
+        shuttingDownOrReloading = true;
+        closeAllOpenGuis(CloseReason.RELOAD_CONFIG);
+        Set<String> previousAliases = new HashSet<>(registeredCommandAliases);
+        unregisterCommandAliases();
+        stations.clear();
+
+        if (loaded != null) {
+            stations.putAll(loaded);
+        }
 
         validateNpcConfigurations();
         getLogger().info("Successfully loaded " + stations.size() + " crafting stations.");
-        registerCommandAliases();
+        registerCommandAliases(!previousAliases.equals(registeredCommandAliases)
+                ? true
+                : !previousAliases.equals(collectAliasesFromStations()));
         if (isPluginEnabledSafe()) {
             shuttingDownOrReloading = false;
         }
+    }
+
+    private Set<String> collectAliasesFromStations() {
+        Set<String> aliases = new HashSet<>();
+        for (CraftingStation station : stations.values()) {
+            for (String alias : station.getCommands()) {
+                if (alias != null && !alias.isBlank()) {
+                    aliases.add(alias.trim().toLowerCase());
+                }
+            }
+        }
+        return aliases;
     }
 
     public boolean createStation(String id) {
@@ -327,11 +360,13 @@ public class CraftingStationManager implements Listener {
     // DYNAMIC COMMAND REGISTRATION
     // =========================================================================
 
-    private void registerCommandAliases() {
+    private void registerCommandAliases(boolean syncClientCommands) {
         for (CraftingStation station : stations.values()) {
             registerCommandsForStation(station);
         }
-        syncCommandsSafely();
+        if (syncClientCommands) {
+            syncCommandsSafely();
+        }
     }
 
     private void registerCommandsForStation(CraftingStation station) {
@@ -435,7 +470,7 @@ public class CraftingStationManager implements Listener {
                         } catch (Throwable ignored) {}
                     }
                 }
-            }, 1L);
+            }, 2L);
         } catch (Throwable ignored) {}
     }
 

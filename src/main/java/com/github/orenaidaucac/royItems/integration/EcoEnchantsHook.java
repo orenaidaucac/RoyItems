@@ -45,6 +45,7 @@ public class EcoEnchantsHook {
 
     // Fast O(1) reflection cache
     private final Map<Enchantment, Object> ecoObjCache = new ConcurrentHashMap<>();
+    private volatile List<EcoEnchantCandidate> cachedAllCandidates;
 
     private static final int[] ROMAN_VALUES = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
     private static final String[] ROMAN_SYMBOLS = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
@@ -62,6 +63,7 @@ public class EcoEnchantsHook {
         private final String typeFormat;
         private final int maxLevel;
         private final Object ecoEnchantObj;
+        private final String strippedDisplayName;
 
         public EcoEnchantCandidate(Enchantment enchantment, String id, String rawDisplayName,
                                    String rarityId, String rarityDisplayName,
@@ -69,6 +71,7 @@ public class EcoEnchantsHook {
             this.enchantment = enchantment;
             this.id = id != null ? id : "";
             this.rawDisplayName = rawDisplayName != null ? rawDisplayName : this.id;
+            this.strippedDisplayName = stripColor(this.rawDisplayName);
             this.rarityId = rarityId != null ? rarityId : "";
             this.rarityDisplayName = rarityDisplayName != null ? rarityDisplayName : this.rarityId;
             this.typeId = typeId != null ? typeId : "";
@@ -87,6 +90,10 @@ public class EcoEnchantsHook {
 
         public String getRawDisplayName() {
             return rawDisplayName;
+        }
+
+        public String getStrippedDisplayName() {
+            return strippedDisplayName;
         }
 
         public String getRarityId() {
@@ -130,6 +137,7 @@ public class EcoEnchantsHook {
 
     public boolean setup() {
         ecoObjCache.clear();
+        cachedAllCandidates = null;
         try {
             if (Bukkit.getServer() == null || Bukkit.getPluginManager() == null
                     || Bukkit.getPluginManager().getPlugin("EcoEnchants") == null) {
@@ -463,6 +471,11 @@ public class EcoEnchantsHook {
      * Returns all registered EcoEnchants candidates available on the server.
      */
     public List<EcoEnchantCandidate> getAllCandidates() {
+        List<EcoEnchantCandidate> cached = this.cachedAllCandidates;
+        if (cached != null) {
+            return cached;
+        }
+
         List<EcoEnchantCandidate> list = new ArrayList<>();
         if (!available) return list;
 
@@ -478,7 +491,9 @@ public class EcoEnchantsHook {
                         }
                     }
                     if (!list.isEmpty()) {
-                        return list;
+                        List<EcoEnchantCandidate> unmodifiable = Collections.unmodifiableList(list);
+                        this.cachedAllCandidates = unmodifiable;
+                        return unmodifiable;
                     }
                 }
             } catch (Throwable ignored) {}
@@ -499,7 +514,11 @@ public class EcoEnchantsHook {
             }
         } catch (Throwable ignored) {}
 
-        return list;
+        List<EcoEnchantCandidate> unmodifiable = Collections.unmodifiableList(list);
+        if (!unmodifiable.isEmpty()) {
+            this.cachedAllCandidates = unmodifiable;
+        }
+        return unmodifiable;
     }
 
     /**

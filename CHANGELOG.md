@@ -1,5 +1,34 @@
 # ⚔️ RoyItems — Changelog
 
+## [2026.1.12] - 2026-11-28
+
+### 🌟 Highlights
+* **Exact Lore Ordering & Cleanup on LiveUpdate:** Eliminates old `lore` and `lore-format` lines being pushed to the bottom of items after reloading configuration, ensuring LiveUpdated items match newly generated items line-for-line.
+* **Zero-TPS-Spike Reload & Low-Player Throttling:** Eliminates sudden TPS drops (~14 TPS even with 2 players online) by moving configuration I/O and YAML parsing off the main thread, fixing scheduler timer leaks, caching EcoEnchants reflection data, and enforcing strict per-slot tick budgets.
+
+---
+
+### 🐛 Fixed
+* **Lore Line Ordering & Leftover Old Lines (`LiveUpdateService`, `DynamicLoreEngine`, `ItemPDCManager`, `ItemBuilder`, `GemSocketManager`):**
+  * Added `royitems:managed_lore` PDC tracking across item creation, LiveUpdate, enchantment synchronization, set lore synchronization, and gem socketing so RoyItems accurately distinguishes plugin-managed lines from external custom lines.
+  * When `live-update.preserve.lore` is `false` (default), legacy items without `royitems:managed_lore` now rebuild lore cleanly from the active `ItemDefinition` and `LoreFormat` (removing outdated/edited lines), while tracked items (`2026.1.12+`) continue preserving genuine third-party lore lines without dragging old `lore`, `lore-format`, `#expired#`, `#set#`, or `#stats#` lines to the bottom.
+  * Passed the live `Player` context into LiveUpdate builds for set items so dynamic `#set#` (`#pieces#`) and PlaceholderAPI placeholders match `StatManager` output.
+* **Dummy Scheduler Leak on Reload (`DummyManager`):** Stored and cancelled both the 1-tick projectile tracker and 3-tick dummy rotation/hologram global timers inside `cleanup()`, preventing duplicate background tasks from accumulating after consecutive `/ri reload` commands.
+
+---
+
+### ⚡ Improved
+* **Async Reload Pipeline (`RoyItems`, `ItemConfigManager`, `DynamicLoreEngine`, `MessageManager`, `ItemTierManager`, `ItemSetManager`, `CraftingStationManager`, `TierDropGlowListener`):**
+  * Moved synchronous disk I/O and SnakeYAML parsing during `/ri reload` onto an async preparation phase guarded by `activeReloadGeneration`, swapping parsed registries cleanly onto the Global thread.
+  * Eliminated redundant 7-file language migrations in `MessageManager` after `ConfigMigrator.migrateAll()`, skipped unnecessary disk overwrites of `lore-format/_example.yml` when unchanged, skipped `CraftServer.syncCommands()` when Crafting Station aliases have not changed, and made ground-item tier glow scans region-safe for Folia.
+* **LiveUpdate & Text Processing Performance (`LiveUpdateService`, `LiveUpdateConfig`, `EcoEnchantsHook`, `TextUtility`, `StatManager`):**
+  * Replaced full-item template builds on unchanged-item O(1) skips with lightweight `BaseSignature` (`Material` + display name) verification.
+  * Implemented cursor-based per-slot throttling (`PlayerUpdateCursor`) across inventory, armor, off-hand, and ender chest so `live-update.performance.max-items-per-tick` is strictly respected mid-player on Bukkit/Spigot/Paper/Purpur/Folia/Leaf.
+  * Cached `EcoEnchantsHook.getAllCandidates()` and pre-stripped display names, added a fast regex path to `TextUtility.stripColor()`, checked O(1) sets before enchantment pattern scans in `mergeCustomLore()`, and reduced `StatManager` slot inspections to single-`ItemMeta` reads.
+  * **Default Config Note:** Updated default `live-update.performance.max-items-per-tick` in newly generated `config.yml` files from `40` to `20` (`max-players-per-tick: 5`, `tick-interval: 1`) without overwriting existing server administrator settings.
+
+---
+
 ## [2026.1.11] - 2026-11-25
 
 ### 🌟 Highlights

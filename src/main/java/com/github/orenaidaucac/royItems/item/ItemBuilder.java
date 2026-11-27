@@ -97,7 +97,8 @@ public class ItemBuilder {
 
         // 3. Dynamic Lore
         List<String> rawLore = loreEngine.buildLore(def, slottedSockets, expireTimestamp, enchantsToApply, isSetBonusActive, player);
-        meta.lore(TextUtility.formatLore(rawLore));
+        List<net.kyori.adventure.text.Component> formattedLore = TextUtility.formatLore(rawLore);
+        meta.lore(formattedLore);
 
         // 4. Unbreakable
         meta.setUnbreakable(def.isUnbreakable());
@@ -175,6 +176,7 @@ public class ItemBuilder {
         String socketsSerialized = serializeSockets(slottedSockets);
         pdcManager.tagItem(meta, def.getType(), def.getId(), def.getVersion(), finalExpire, socketsSerialized);
         pdcManager.setEnchantHash(meta, loreEngine.computeEnchantmentHash(def, enchantsToApply));
+        pdcManager.setManagedLoreData(meta, com.github.orenaidaucac.royItems.lore.DynamicLoreEngine.serializeManagedLoreLines(formattedLore));
         if (def.getItemTier() != null && !def.getItemTier().isEmpty()) {
             pdcManager.tagTier(meta, def.getItemTier());
         }

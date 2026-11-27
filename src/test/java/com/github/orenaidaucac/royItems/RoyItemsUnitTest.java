@@ -1834,7 +1834,7 @@ class RoyItemsUnitTest {
         assertFalse(cfg.isPreserveCustomModelData());
         assertFalse(cfg.isPreserveAttributes());
         assertEquals(5, cfg.getMaxPlayersPerTick());
-        assertEquals(40, cfg.getMaxItemsPerTick());
+        assertEquals(20, cfg.getMaxItemsPerTick());
         assertEquals(1, cfg.getTickInterval());
 
         // 2. Load from YAML configuration
@@ -1889,7 +1889,7 @@ class RoyItemsUnitTest {
                     new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
             assertEquals(2, defaultYaml.getInt("config-version"));
             assertEquals(5, defaultYaml.getInt("live-update.performance.max-players-per-tick"));
-            assertEquals(40, defaultYaml.getInt("live-update.performance.max-items-per-tick"));
+            assertEquals(20, defaultYaml.getInt("live-update.performance.max-items-per-tick"));
             assertEquals(1, defaultYaml.getInt("live-update.performance.tick-interval"));
         } catch (java.io.IOException e) {
             fail(e);
@@ -2183,7 +2183,7 @@ class RoyItemsUnitTest {
     void testVersionSynchronization() {
         com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion expansion =
                 new com.github.orenaidaucac.royItems.integration.RoyPlaceholderExpansion(null, null, null);
-        assertEquals("2026.1.11", expansion.getVersion());
+        assertEquals("2026.1.12", expansion.getVersion());
     }
 
     @Test
@@ -5775,7 +5775,14 @@ class RoyItemsUnitTest {
     private ItemBuilder createHeadlessItemBuilder(com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager,
                                                   java.util.concurrent.atomic.AtomicInteger buildCalls,
                                                   java.util.concurrent.atomic.AtomicInteger metaGetCounter) {
-        return new ItemBuilder(pdcManager, null) {
+        return createHeadlessItemBuilder(pdcManager, null, buildCalls, metaGetCounter);
+    }
+
+    private ItemBuilder createHeadlessItemBuilder(com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager,
+                                                  DynamicLoreEngine loreEngine,
+                                                  java.util.concurrent.atomic.AtomicInteger buildCalls,
+                                                  java.util.concurrent.atomic.AtomicInteger metaGetCounter) {
+        return new ItemBuilder(pdcManager, loreEngine) {
             @Override
             public ItemStack build(ItemDefinition def, int amount, List<String> sockets, long expireTimestamp,
                                    Map<Enchantment, Integer> activeEnchantments, boolean setBonusActive,
@@ -5784,11 +5791,15 @@ class RoyItemsUnitTest {
                 org.bukkit.Material mat = org.bukkit.Material.matchMaterial(def.getMaterial());
                 if (mat == null) mat = org.bukkit.Material.DIAMOND_SWORD;
 
+                List<Component> loreComponents = (loreEngine != null)
+                        ? TextUtility.formatLore(loreEngine.buildLore(def, sockets, expireTimestamp, activeEnchantments, setBonusActive, targetPlayer))
+                        : def.getLore().stream().map(TextUtility::format).toList();
+
                 Map<org.bukkit.NamespacedKey, Object> pdc = new LinkedHashMap<>();
                 org.bukkit.inventory.meta.ItemMeta meta = createHeadlessItemMeta(
                         pdc,
-                        TextUtility.format(def.getName()),
-                        def.getLore().stream().map(TextUtility::format).toList(),
+                        TextUtility.formatItemName(def.getName()),
+                        loreComponents,
                         activeEnchantments,
                         null
                 );
@@ -6169,5 +6180,253 @@ class RoyItemsUnitTest {
                 playerCount, playerCount * itemsPerPlayer,
                 ticks, maxSingleTickNs / 1_000_000.0, totalThrottledNs / 1_000_000.0,
                 skipTicks, skipTotalNs / 1_000_000.0, slotWrites.get());
+    }
+
+    @Test
+    @DisplayName("TextUtility: stripColor fast-path preserves exact stripping for legacy, hex, and MiniMessage")
+    void testTextUtilityStripColorFastPath() {
+        assertEquals("Hello World", TextUtility.stripColor("&aHello &lWorld"));
+        assertEquals("Crimson Edge", TextUtility.stripColor("§c§oCrimson Edge"));
+        assertEquals("HexColor", TextUtility.stripColor("&#FF5500Hex&x&0&0&a&a&f&fColor"));
+        assertEquals("CurlyHex", TextUtility.stripColor("{#112233}CurlyHex"));
+        assertEquals("Gradient Text", TextUtility.stripColor("<gradient:#ff0000:#00ff00>Gradient Text</gradient>"));
+        assertEquals("2 < 5 & 10", TextUtility.stripColor("2 < 5 & 10"));
+    }
+
+    @Test
+    @DisplayName("Lore Order Fix: LiveUpdate & enchant sync eliminate old lore/lore-format lines while keeping external lines")
+    void testLoreOrderingFixAcrossAllCases() throws Exception {
+        Plugin plugin = createPdcMockPlugin();
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(plugin);
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry =
+                new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        DynamicLoreEngine loreEngine = new DynamicLoreEngine(plugin);
+        loreEngine.setPdcManager(pdcManager);
+        loreEngine.setItemRegistry(registry);
+
+        // Configure initial LoreFormat "weapon" via reflection into private formats map
+        LoreFormat oldFmt = new LoreFormat();
+        oldFmt.setId("weapon");
+        oldFmt.setBar("&8════════════");
+        oldFmt.setFormat(List.of(
+                "&7Category: #type#",
+                "#description#",
+                "#stats#",
+                "#enchantments#",
+                "#expired#"
+        ));
+        java.lang.reflect.Field formatsField = DynamicLoreEngine.class.getDeclaredField("formats");
+        formatsField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, LoreFormat> formatsMap = (Map<String, LoreFormat>) formatsField.get(loreEngine);
+        formatsMap.put("weapon", oldFmt);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "eclipse");
+        def.setMaterial("NETHERITE_SWORD");
+        def.setName("&5Eclipse Blade");
+        def.setLoreFormat("weapon");
+        def.setLore(List.of("&7Old Line One", "&7Old Line Two"));
+        def.setLevelRequired(10);
+        def.setStats(Map.of(StatType.ATTACK_DAMAGE, new StatModifier(25, 0)));
+        registry.register(def);
+
+        ItemBuilder builder = createHeadlessItemBuilder(pdcManager, loreEngine, null, null);
+        com.github.orenaidaucac.royItems.item.LiveUpdateService service =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateService(registry, pdcManager, builder, null);
+
+        // 1. Legacy item (<= 2026.1.11, NO managed_lore PDC) + old format & old lore
+        ItemStack legacyItem = builder.build(def, 1, null, 0L, Map.of(Enchantment.SHARPNESS, 5), false, null);
+
+        // Admin changes BOTH lore, lore-format (removing old header, changing bar & stat format), and stats
+        LoreFormat newFmt = new LoreFormat();
+        newFmt.setId("weapon");
+        newFmt.setBar("&7~~~~~~~~~~");
+        newFmt.setFormat(List.of(
+                "&6✦ Weapon Class: #type#",
+                "#bar#",
+                "#stats#",
+                "#description#",
+                "#enchantments#"
+        ));
+        formatsMap.put("weapon", newFmt);
+        def.setLore(List.of("&bForged in Eclipse"));
+        def.setStats(Map.of(StatType.ATTACK_DAMAGE, new StatModifier(42, 0)));
+        service.invalidateCaches();
+
+        ItemStack freshReference = builder.build(def, 1, null, 0L, Map.of(Enchantment.SHARPNESS, 5), false, null);
+        ItemStack updatedLegacy = service.updateItem(legacyItem, null);
+
+        List<String> expectedPlain = freshReference.getItemMeta().lore().stream()
+                .map(TextUtility::toPlain).toList();
+        List<String> updatedLegacyPlain = updatedLegacy.getItemMeta().lore().stream()
+                .map(TextUtility::toPlain).toList();
+        assertEquals(expectedPlain, updatedLegacyPlain,
+                "Legacy item after LiveUpdate must match newly crafted item lore line-for-line in exact order");
+        assertFalse(updatedLegacyPlain.stream().anyMatch(l -> l.contains("Old Line")),
+                "Old lore lines must completely disappear");
+        assertFalse(updatedLegacyPlain.stream().anyMatch(l -> l.contains("Category:")),
+                "Removed old lore-format lines must completely disappear");
+        assertNotNull(pdcManager.getManagedLoreData(updatedLegacy),
+                "Updated item must receive managed_lore PDC tag");
+
+        // 2. 2026.1.12+ item (HAS managed_lore PDC) with genuine third-party external line (&aKills: 1500)
+        ItemStack trackedItem = updatedLegacy.clone();
+        org.bukkit.inventory.meta.ItemMeta trackedMeta = trackedItem.getItemMeta();
+        List<Component> withExternal = new ArrayList<>(trackedMeta.lore());
+        withExternal.add(TextUtility.format("&aKills: 1500"));
+        trackedMeta.lore(withExternal);
+        trackedItem.setItemMeta(trackedMeta);
+
+        // Admin edits lore & format a second time
+        def.setLore(List.of("&dReborn in Starlight"));
+        newFmt.setFormat(List.of(
+                "#description#",
+                "#stats#",
+                "#enchantments#"
+        ));
+        service.invalidateCaches();
+
+        ItemStack freshReference2 = builder.build(def, 1, null, 0L, Map.of(Enchantment.SHARPNESS, 5), false, null);
+        List<String> expectedTrackedPlain = new ArrayList<>(freshReference2.getItemMeta().lore().stream()
+                .map(TextUtility::toPlain).toList());
+        expectedTrackedPlain.add("Kills: 1500");
+
+        ItemStack updatedTracked = service.updateItem(trackedItem, null);
+        List<String> trackedPlain = updatedTracked.getItemMeta().lore().stream()
+                .map(TextUtility::toPlain).toList();
+        assertEquals(expectedTrackedPlain, trackedPlain,
+                "Old RoyItems lines must vanish while external third-party line stays preserved cleanly");
+        assertFalse(trackedPlain.stream().anyMatch(l -> l.contains("Forged in Eclipse") || l.contains("Weapon Class")),
+                "Previous RoyItems lines must not remain or be pushed to bottom");
+
+        // 3. Synchronize enchantments when #enchantments# placeholder exists -> also must NOT drag old lore lines down
+        ItemStack beforeSyncEnch = updatedTracked.clone();
+        def.setLore(List.of("&eFinal Starlight"));
+        org.bukkit.inventory.meta.ItemMeta beforeEnchMeta = beforeSyncEnch.getItemMeta();
+        beforeEnchMeta.addEnchant(Enchantment.UNBREAKING, 3, true);
+        beforeSyncEnch.setItemMeta(beforeEnchMeta);
+        assertTrue(loreEngine.synchronizeItemEnchantments(beforeSyncEnch));
+        List<String> syncedPlain = beforeSyncEnch.getItemMeta().lore().stream()
+                .map(TextUtility::toPlain).toList();
+        assertFalse(syncedPlain.contains("Reborn in Starlight"),
+                "Old description line in managed_lore must not move to bottom during enchant sync");
+        assertTrue(syncedPlain.contains("Final Starlight"));
+        assertTrue(syncedPlain.contains("Kills: 1500"));
+
+        // 4. Expiring item (#expired#) update must not push previous countdown line to bottom
+        ItemStack timedItem = builder.build(def, 1, null, System.currentTimeMillis() + 120_000L, null, false, null);
+        ItemStack timedUpdated1 = service.updateItem(timedItem, null);
+        assertTrue(pdcManager.hasManagedLoreData(timedUpdated1.getItemMeta()));
+        ItemStack timedUpdated2 = service.updateItem(timedUpdated1, null);
+        List<String> timedPlain = timedUpdated2.getItemMeta().lore().stream().map(TextUtility::toPlain).toList();
+        assertFalse(timedPlain.contains("Final Starlight") && Collections.frequency(timedPlain, "Final Starlight") > 1);
+    }
+
+    @Test
+    @DisplayName("2-Player Reload TPS Guard: Default config enforces max-items-per-tick per slot across 2 players")
+    void testTwoPlayerDefaultPerformanceBudgetAndReloadBenchmark() {
+        Plugin plugin = createPdcMockPlugin();
+        com.github.orenaidaucac.royItems.item.ItemPDCManager pdcManager =
+                new com.github.orenaidaucac.royItems.item.ItemPDCManager(plugin);
+        com.github.orenaidaucac.royItems.item.ItemRegistry registry =
+                new com.github.orenaidaucac.royItems.item.ItemRegistry();
+        DynamicLoreEngine loreEngine = new DynamicLoreEngine(plugin);
+        loreEngine.setPdcManager(pdcManager);
+        loreEngine.setItemRegistry(registry);
+
+        ItemDefinition def = new ItemDefinition(ItemType.SWORD, "two_player_blade");
+        def.setMaterial("DIAMOND_SWORD");
+        def.setName("&6Dual Blade");
+        def.setLore(List.of("&7Line A", "&7Line B", "&7Line C"));
+        def.setStats(Map.of(StatType.ATTACK_DAMAGE, new StatModifier(15, 0)));
+        registry.register(def);
+
+        ItemBuilder builder = createHeadlessItemBuilder(pdcManager, loreEngine, null, null);
+
+        final List<Runnable> tickRunner = new ArrayList<>();
+        final List<Boolean> tickCancelled = new ArrayList<>();
+        com.github.orenaidaucac.royItems.core.platform.PlatformScheduler testScheduler =
+                new com.github.orenaidaucac.royItems.core.platform.PlatformScheduler(plugin) {
+                    @Override public boolean isFolia() { return false; }
+
+                    @Override
+                    public TaskHandle runGlobalTimerHandle(java.util.function.Consumer<TaskHandle> consumer,
+                                                           long initialDelayTicks, long periodTicks) {
+                        int idx = tickCancelled.size();
+                        tickCancelled.add(false);
+                        TaskHandle h = () -> tickCancelled.set(idx, true);
+                        tickRunner.add(() -> {
+                            if (!tickCancelled.get(idx)) consumer.accept(h);
+                        });
+                        return h;
+                    }
+                };
+
+        com.github.orenaidaucac.royItems.item.LiveUpdateService service =
+                new com.github.orenaidaucac.royItems.item.LiveUpdateService(registry, pdcManager, builder, testScheduler);
+        // Default live-update.performance values (5 players/tick, 20 items/tick, interval 1)
+        assertEquals(20, service.getConfig().getMaxItemsPerTick());
+
+        // 2 players, each holding 36 changed RoyItems (72 items total)
+        Map<UUID, org.bukkit.entity.Player> playerMap = new LinkedHashMap<>();
+        List<org.bukkit.entity.Player> players = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicInteger slotWrites = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        for (int p = 0; p < 2; p++) {
+            UUID id = UUID.randomUUID();
+            ItemStack[] storage = new ItemStack[36];
+            for (int s = 0; s < 36; s++) {
+                storage[s] = builder.build(def, 1, null, 0L, null, false, null);
+            }
+            org.bukkit.entity.Player mp = createLiveUpdatePlayer(
+                    id, storage, new ItemStack[4], new ItemStack[1], new ItemStack[27],
+                    slotWrites, new java.util.concurrent.atomic.AtomicBoolean(true));
+            playerMap.put(id, mp);
+            players.add(mp);
+        }
+
+        List<com.github.orenaidaucac.royItems.item.LiveUpdateReport> report1 = new ArrayList<>();
+        service.updatePlayersBatched(players, playerMap::get, report1::add);
+
+        int maxRebuiltInSingleTick = 0;
+        long maxRebuildTickNs = 0;
+        int ticks = 0;
+        while (!tickCancelled.get(0) && ticks < 50) {
+            int before = slotWrites.get();
+            long t0 = System.nanoTime();
+            tickRunner.get(0).run();
+            long dt = System.nanoTime() - t0;
+            int delta = slotWrites.get() - before;
+            maxRebuiltInSingleTick = Math.max(maxRebuiltInSingleTick, delta);
+            maxRebuildTickNs = Math.max(maxRebuildTickNs, dt);
+            assertTrue(delta <= 20, "Default max-items-per-tick=20 must NEVER be exceeded even for 2 players; got " + delta);
+            ticks++;
+        }
+
+        assertEquals(4, ticks, "72 changed items with cap 20/tick completes smoothly across 4 ticks (20+20+20+12)");
+        assertEquals(20, maxRebuiltInSingleTick);
+        assertEquals(1, report1.size());
+        assertEquals(72, report1.get(0).getInventoryCount());
+
+        // Second reload (unchanged items across 2 players) -> uses lightweight BaseSignature O(1) skip
+        slotWrites.set(0);
+        service.invalidateCaches();
+        List<com.github.orenaidaucac.royItems.item.LiveUpdateReport> report2 = new ArrayList<>();
+        service.updatePlayersBatched(players, playerMap::get, report2::add);
+        long tSkip0 = System.nanoTime();
+        int skipTicks = 0;
+        while (!tickCancelled.get(1) && skipTicks < 20) {
+            tickRunner.get(1).run();
+            skipTicks++;
+        }
+        long skipNs = System.nanoTime() - tSkip0;
+
+        assertEquals(1, skipTicks, "2 unchanged players fit in 1 tick under max-players-per-tick=5");
+        assertEquals(0, slotWrites.get());
+        assertEquals(0, report2.get(0).getInventoryCount());
+
+        System.out.printf("[2-Player Benchmark] items=72 | changedMaxRebuiltPerTick=%d rebuildTicks=%d maxRebuildTickMs=%.3f | unchangedSkipMs=%.3f%n",
+                maxRebuiltInSingleTick, ticks, maxRebuildTickNs / 1_000_000.0, skipNs / 1_000_000.0);
     }
 }

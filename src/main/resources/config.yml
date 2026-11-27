@@ -134,7 +134,7 @@ live-update:
   # Spreads updates cleanly across multiple ticks (0 = unlimited).
   performance:
     max-players-per-tick: 5
-    max-items-per-tick: 40
+    max-items-per-tick: 20
     tick-interval: 1
 
   # Containers to scan and synchronize

@@ -1,6 +1,7 @@
 package com.github.orenaidaucac.royItems.item;
 
 import com.github.orenaidaucac.royItems.core.platform.PlatformScheduler;
+import com.github.orenaidaucac.royItems.core.text.TextUtility;
 import com.github.orenaidaucac.royItems.lore.DynamicLoreEngine;
 import com.github.orenaidaucac.royItems.lore.LoreFormat;
 import com.github.orenaidaucac.royItems.stat.StatManager;
@@ -53,10 +54,12 @@ public class LiveUpdateService {
     private final Set<PlatformScheduler.TaskHandle> activeFoliaTasks = ConcurrentHashMap.newKeySet();
 
     private record CachedTemplate(ItemStack item, Component displayName) {}
+    private record BaseSignature(Material material, Component displayName) {}
 
     // Per-generation caches (cleared on loadConfig, cancelActiveUpdates, and start of batch reload)
     private final Map<String, Integer> definitionHashCache = new ConcurrentHashMap<>();
     private final Map<String, CachedTemplate> baseTemplateCache = new ConcurrentHashMap<>();
+    private final Map<String, BaseSignature> baseSignatureCache = new ConcurrentHashMap<>();
 
     public LiveUpdateService(ItemRegistry registry, ItemPDCManager pdcManager, ItemBuilder itemBuilder, PlatformScheduler scheduler) {
         this.registry = registry;
@@ -101,6 +104,7 @@ public class LiveUpdateService {
     public void invalidateCaches() {
         definitionHashCache.clear();
         baseTemplateCache.clear();
+        baseSignatureCache.clear();
     }
 
     /**
@@ -196,14 +200,26 @@ public class LiveUpdateService {
         }
     }
 
+    private static final class PlayerUpdateCursor {
+        final UUID uuid;
+        int phase = 0; // 0 = storage, 1 = armor, 2 = offhand, 3 = enderChest, 4 = done
+        int slot = 0;
+
+        PlayerUpdateCursor(UUID uuid) {
+            this.uuid = uuid;
+        }
+    }
+
     private void dispatchGlobalBatchedUpdates(List<UUID> playerUuids,
                                               java.util.function.Function<UUID, Player> playerLookup,
                                               long myGen,
                                               int maxPlayersPerTick, int maxItemsPerTick, int tickInterval,
                                               AtomicInteger invTotal, AtomicInteger ecTotal, AtomicInteger failTotal,
                                               int totalPlayers, Consumer<LiveUpdateReport> callback) {
-        final ArrayDeque<UUID> queue = new ArrayDeque<>(playerUuids);
-        final UUID[] pendingEnderChestPlayer = {null};
+        final ArrayDeque<PlayerUpdateCursor> queue = new ArrayDeque<>(playerUuids.size());
+        for (UUID uuid : playerUuids) {
+            queue.add(new PlayerUpdateCursor(uuid));
+        }
         final PlatformScheduler.TaskHandle[] selfHandle = {null};
 
         Runnable step = () -> {
@@ -213,67 +229,40 @@ public class LiveUpdateService {
             }
 
             int playersThisTick = 0;
-            int itemsRebuiltThisTick = 0;
+            AtomicInteger itemsRebuiltThisTick = new AtomicInteger(0);
 
-            while (pendingEnderChestPlayer[0] != null || !queue.isEmpty()) {
-                if (playersThisTick >= maxPlayersPerTick || itemsRebuiltThisTick >= maxItemsPerTick) {
+            while (!queue.isEmpty()) {
+                if (playersThisTick >= maxPlayersPerTick || itemsRebuiltThisTick.get() >= maxItemsPerTick) {
                     break;
                 }
 
-                if (pendingEnderChestPlayer[0] != null) {
-                    UUID ecUuid = pendingEnderChestPlayer[0];
-                    pendingEnderChestPlayer[0] = null;
-                    Player ecPlayer = playerLookup.apply(ecUuid);
-                    if (ecPlayer != null && ecPlayer.isOnline() && ecPlayer.isValid()) {
-                        AtomicInteger rebuilt = new AtomicInteger(0);
-                        try {
-                            int c = updatePlayerEnderChest(ecPlayer, failTotal, rebuilt);
-                            ecTotal.addAndGet(c);
-                        } catch (Throwable t) {
-                            failTotal.incrementAndGet();
-                        }
-                        itemsRebuiltThisTick += rebuilt.get();
-                    }
-                    playersThisTick++;
-                    continue;
-                }
+                PlayerUpdateCursor cursor = queue.peek();
+                if (cursor == null) break;
 
-                UUID uuid = queue.poll();
-                if (uuid == null) break;
-
-                Player player = playerLookup.apply(uuid);
+                Player player = playerLookup.apply(cursor.uuid);
                 if (player == null || !player.isOnline() || !player.isValid()) {
+                    queue.poll();
                     continue;
                 }
 
-                AtomicInteger rebuilt = new AtomicInteger(0);
                 try {
-                    int invUpdated = updatePlayerEquipmentAndInventory(player, failTotal, rebuilt);
-                    invTotal.addAndGet(invUpdated);
-                    if (statManager != null) {
-                        statManager.recalculate(player);
-                    }
-                    itemsRebuiltThisTick += rebuilt.get();
-
-                    if (config.isContainerEnderChest()) {
-                        if (itemsRebuiltThisTick >= maxItemsPerTick) {
-                            // Defer EnderChest to next tick to stay within item rebuild budget
-                            pendingEnderChestPlayer[0] = uuid;
-                            break;
-                        }
-                        AtomicInteger ecRebuilt = new AtomicInteger(0);
-                        int ecUpdated = updatePlayerEnderChest(player, failTotal, ecRebuilt);
-                        ecTotal.addAndGet(ecUpdated);
-                        itemsRebuiltThisTick += ecRebuilt.get();
+                    boolean finished = advanceCursorStep(player, cursor, maxItemsPerTick,
+                            invTotal, ecTotal, failTotal, itemsRebuiltThisTick);
+                    if (finished) {
+                        queue.poll();
+                        playersThisTick++;
+                    } else {
+                        // Item rebuild budget exhausted mid-player; resume exact slot on next tick
+                        break;
                     }
                 } catch (Throwable t) {
                     failTotal.incrementAndGet();
+                    queue.poll();
+                    playersThisTick++;
                 }
-
-                playersThisTick++;
             }
 
-            if (pendingEnderChestPlayer[0] == null && queue.isEmpty()) {
+            if (queue.isEmpty()) {
                 if (selfHandle[0] != null) selfHandle[0].cancel();
                 if (activeBatchTask == selfHandle[0]) {
                     activeBatchTask = null;
@@ -287,7 +276,7 @@ public class LiveUpdateService {
 
         if (scheduler == null || (Bukkit.getServer() == null && scheduler.getClass() == PlatformScheduler.class)) {
             // Synchronous fallback when running headless unit tests without a custom test scheduler
-            while (pendingEnderChestPlayer[0] != null || !queue.isEmpty()) {
+            while (!queue.isEmpty()) {
                 step.run();
             }
             return;
@@ -318,68 +307,183 @@ public class LiveUpdateService {
                 completeFoliaPlayer(pending, myGen, invTotal, ecTotal, failTotal, totalPlayers, callback);
                 continue;
             }
-
-            final PlatformScheduler.TaskHandle[] handleHolder = new PlatformScheduler.TaskHandle[1];
-            PlatformScheduler.TaskHandle handle = scheduler.runEntityDelayedHandle(initialPlayer, () -> {
-                if (handleHolder[0] != null) {
-                    activeFoliaTasks.remove(handleHolder[0]);
-                }
-                if (myGen != activeGeneration.get() || !isPluginEnabledSafe()) {
-                    return;
-                }
-
-                Player p = playerLookup.apply(uuid);
-                if (p == null || !p.isOnline() || !p.isValid()) {
-                    completeFoliaPlayer(pending, myGen, invTotal, ecTotal, failTotal, totalPlayers, callback);
-                    return;
-                }
-
-                AtomicInteger rebuilt = new AtomicInteger(0);
-                try {
-                    int invUpdated = updatePlayerEquipmentAndInventory(p, failTotal, rebuilt);
-                    invTotal.addAndGet(invUpdated);
-                    if (statManager != null) {
-                        statManager.recalculate(p);
-                    }
-
-                    if (config.isContainerEnderChest()) {
-                        if (rebuilt.get() >= maxItemsPerTick) {
-                            // Split EnderChest onto the next tick on the player's entity scheduler
-                            final PlatformScheduler.TaskHandle[] ecHolder = new PlatformScheduler.TaskHandle[1];
-                            PlatformScheduler.TaskHandle ecHandle = scheduler.runEntityDelayedHandle(p, () -> {
-                                if (ecHolder[0] != null) activeFoliaTasks.remove(ecHolder[0]);
-                                if (myGen != activeGeneration.get() || !isPluginEnabledSafe()) {
-                                    return;
-                                }
-                                try {
-                                    Player liveP = playerLookup.apply(uuid);
-                                    if (liveP != null && liveP.isOnline() && liveP.isValid()) {
-                                        int ecUpdated = updatePlayerEnderChest(liveP, failTotal, null);
-                                        ecTotal.addAndGet(ecUpdated);
-                                    }
-                                } catch (Throwable t) {
-                                    failTotal.incrementAndGet();
-                                } finally {
-                                    completeFoliaPlayer(pending, myGen, invTotal, ecTotal, failTotal, totalPlayers, callback);
-                                }
-                            }, tickInterval);
-                            ecHolder[0] = ecHandle;
-                            activeFoliaTasks.add(ecHandle);
-                            return;
-                        }
-                        int ecUpdated = updatePlayerEnderChest(p, failTotal, null);
-                        ecTotal.addAndGet(ecUpdated);
-                    }
-                } catch (Throwable t) {
-                    failTotal.incrementAndGet();
-                }
-
-                completeFoliaPlayer(pending, myGen, invTotal, ecTotal, failTotal, totalPlayers, callback);
-            }, delayTicks);
-
-            handleHolder[0] = handle;
-            activeFoliaTasks.add(handle);
+            scheduleFoliaCursorStep(initialPlayer, new PlayerUpdateCursor(uuid), playerLookup, myGen,
+                    maxItemsPerTick, tickInterval, delayTicks, invTotal, ecTotal, failTotal, pending, totalPlayers, callback);
         }
+    }
+
+    private void scheduleFoliaCursorStep(Player targetHint, PlayerUpdateCursor cursor,
+                                         java.util.function.Function<UUID, Player> playerLookup,
+                                         long myGen, int maxItemsPerTick, int tickInterval, long delayTicks,
+                                         AtomicInteger invTotal, AtomicInteger ecTotal, AtomicInteger failTotal,
+                                         AtomicInteger pending, int totalPlayers, Consumer<LiveUpdateReport> callback) {
+        final PlatformScheduler.TaskHandle[] handleHolder = new PlatformScheduler.TaskHandle[1];
+        PlatformScheduler.TaskHandle handle = scheduler.runEntityDelayedHandle(targetHint, () -> {
+            if (handleHolder[0] != null) {
+                activeFoliaTasks.remove(handleHolder[0]);
+            }
+            if (myGen != activeGeneration.get() || !isPluginEnabledSafe()) {
+                return;
+            }
+
+            Player p = playerLookup.apply(cursor.uuid);
+            if (p == null || !p.isOnline() || !p.isValid()) {
+                completeFoliaPlayer(pending, myGen, invTotal, ecTotal, failTotal, totalPlayers, callback);
+                return;
+            }
+
+            AtomicInteger rebuiltThisTick = new AtomicInteger(0);
+            try {
+                boolean finished = advanceCursorStep(p, cursor, maxItemsPerTick,
+                        invTotal, ecTotal, failTotal, rebuiltThisTick);
+                if (!finished) {
+                    scheduleFoliaCursorStep(p, cursor, playerLookup, myGen,
+                            maxItemsPerTick, tickInterval, tickInterval, invTotal, ecTotal, failTotal,
+                            pending, totalPlayers, callback);
+                    return;
+                }
+            } catch (Throwable t) {
+                failTotal.incrementAndGet();
+            }
+
+            completeFoliaPlayer(pending, myGen, invTotal, ecTotal, failTotal, totalPlayers, callback);
+        }, delayTicks);
+
+        handleHolder[0] = handle;
+        activeFoliaTasks.add(handle);
+    }
+
+    private boolean advanceCursorStep(Player player, PlayerUpdateCursor cursor, int maxRebuildsThisTick,
+                                      AtomicInteger invTotal, AtomicInteger ecTotal,
+                                      AtomicInteger failTotal, AtomicInteger rebuiltThisTick) {
+        PlayerInventory inv = player.getInventory();
+
+        while (cursor.phase < 4) {
+            if (rebuiltThisTick.get() >= maxRebuildsThisTick) {
+                return false;
+            }
+
+            switch (cursor.phase) {
+                case 0 -> {
+                    if (!config.isContainerInventory() || inv == null) {
+                        cursor.phase = 1;
+                        cursor.slot = 0;
+                        continue;
+                    }
+                    ItemStack[] storage = inv.getStorageContents();
+                    if (storage == null || cursor.slot >= storage.length) {
+                        cursor.phase = 1;
+                        cursor.slot = 0;
+                        continue;
+                    }
+                    while (cursor.slot < storage.length) {
+                        if (rebuiltThisTick.get() >= maxRebuildsThisTick) {
+                            return false;
+                        }
+                        int i = cursor.slot++;
+                        ItemStack current = storage[i];
+                        if (current == null || current.getType().isAir() || !current.hasItemMeta()) continue;
+                        ItemStack updated = updateItemInternal(current, player, failTotal, rebuiltThisTick);
+                        if (updated != current) {
+                            inv.setItem(i, updated);
+                            invTotal.incrementAndGet();
+                        }
+                    }
+                    cursor.phase = 1;
+                    cursor.slot = 0;
+                }
+                case 1 -> {
+                    if (!config.isContainerArmor() || inv == null) {
+                        cursor.phase = 2;
+                        cursor.slot = 0;
+                        continue;
+                    }
+                    while (cursor.slot < 4) {
+                        if (rebuiltThisTick.get() >= maxRebuildsThisTick) {
+                            return false;
+                        }
+                        int slotIdx = cursor.slot++;
+                        ItemStack piece = switch (slotIdx) {
+                            case 0 -> inv.getHelmet();
+                            case 1 -> inv.getChestplate();
+                            case 2 -> inv.getLeggings();
+                            default -> inv.getBoots();
+                        };
+                        if (piece == null || piece.getType().isAir() || !piece.hasItemMeta()) continue;
+                        ItemStack updated = updateItemInternal(piece, player, failTotal, rebuiltThisTick);
+                        if (updated != piece) {
+                            switch (slotIdx) {
+                                case 0 -> inv.setHelmet(updated);
+                                case 1 -> inv.setChestplate(updated);
+                                case 2 -> inv.setLeggings(updated);
+                                default -> inv.setBoots(updated);
+                            }
+                            invTotal.incrementAndGet();
+                        }
+                    }
+                    cursor.phase = 2;
+                    cursor.slot = 0;
+                }
+                case 2 -> {
+                    if (!config.isContainerOffhand() || inv == null) {
+                        cursor.phase = 3;
+                        cursor.slot = 0;
+                        continue;
+                    }
+                    if (cursor.slot == 0) {
+                        if (rebuiltThisTick.get() >= maxRebuildsThisTick) {
+                            return false;
+                        }
+                        cursor.slot = 1;
+                        ItemStack offhand = inv.getItemInOffHand();
+                        if (offhand != null && !offhand.getType().isAir() && offhand.hasItemMeta()) {
+                            ItemStack updated = updateItemInternal(offhand, player, failTotal, rebuiltThisTick);
+                            if (updated != offhand) {
+                                inv.setItemInOffHand(updated);
+                                invTotal.incrementAndGet();
+                            }
+                        }
+                    }
+                    cursor.phase = 3;
+                    cursor.slot = 0;
+                }
+                case 3 -> {
+                    if (!config.isContainerEnderChest()) {
+                        cursor.phase = 4;
+                        cursor.slot = 0;
+                        continue;
+                    }
+                    Inventory ec = player.getEnderChest();
+                    ItemStack[] ecContents = ec != null ? ec.getContents() : null;
+                    if (ecContents == null || cursor.slot >= ecContents.length) {
+                        cursor.phase = 4;
+                        cursor.slot = 0;
+                        continue;
+                    }
+                    while (cursor.slot < ecContents.length) {
+                        if (rebuiltThisTick.get() >= maxRebuildsThisTick) {
+                            return false;
+                        }
+                        int i = cursor.slot++;
+                        ItemStack current = ecContents[i];
+                        if (current == null || current.getType().isAir() || !current.hasItemMeta()) continue;
+                        ItemStack updated = updateItemInternal(current, player, failTotal, rebuiltThisTick);
+                        if (updated != current) {
+                            ec.setItem(i, updated);
+                            ecTotal.incrementAndGet();
+                        }
+                    }
+                    cursor.phase = 4;
+                    cursor.slot = 0;
+                }
+                default -> cursor.phase = 4;
+            }
+        }
+
+        if (statManager != null) {
+            statManager.recalculate(player);
+        }
+        return true;
     }
 
     private void completeFoliaPlayer(AtomicInteger pending, long myGen,
@@ -437,7 +541,7 @@ public class LiveUpdateService {
                 for (int i = 0; i < storage.length; i++) {
                     ItemStack current = storage[i];
                     if (current == null || current.getType().isAir() || !current.hasItemMeta()) continue;
-                    ItemStack updated = updateItemInternal(current, failCounter, rebuiltCounter);
+                    ItemStack updated = updateItemInternal(current, player, failCounter, rebuiltCounter);
                     if (updated != current) {
                         inv.setItem(i, updated);
                         invCount++;
@@ -450,7 +554,7 @@ public class LiveUpdateService {
         if (config.isContainerArmor()) {
             ItemStack helmet = inv.getHelmet();
             if (helmet != null && !helmet.getType().isAir() && helmet.hasItemMeta()) {
-                ItemStack updated = updateItemInternal(helmet, failCounter, rebuiltCounter);
+                ItemStack updated = updateItemInternal(helmet, player, failCounter, rebuiltCounter);
                 if (updated != helmet) {
                     inv.setHelmet(updated);
                     invCount++;
@@ -458,7 +562,7 @@ public class LiveUpdateService {
             }
             ItemStack chest = inv.getChestplate();
             if (chest != null && !chest.getType().isAir() && chest.hasItemMeta()) {
-                ItemStack updated = updateItemInternal(chest, failCounter, rebuiltCounter);
+                ItemStack updated = updateItemInternal(chest, player, failCounter, rebuiltCounter);
                 if (updated != chest) {
                     inv.setChestplate(updated);
                     invCount++;
@@ -466,7 +570,7 @@ public class LiveUpdateService {
             }
             ItemStack legs = inv.getLeggings();
             if (legs != null && !legs.getType().isAir() && legs.hasItemMeta()) {
-                ItemStack updated = updateItemInternal(legs, failCounter, rebuiltCounter);
+                ItemStack updated = updateItemInternal(legs, player, failCounter, rebuiltCounter);
                 if (updated != legs) {
                     inv.setLeggings(updated);
                     invCount++;
@@ -474,7 +578,7 @@ public class LiveUpdateService {
             }
             ItemStack boots = inv.getBoots();
             if (boots != null && !boots.getType().isAir() && boots.hasItemMeta()) {
-                ItemStack updated = updateItemInternal(boots, failCounter, rebuiltCounter);
+                ItemStack updated = updateItemInternal(boots, player, failCounter, rebuiltCounter);
                 if (updated != boots) {
                     inv.setBoots(updated);
                     invCount++;
@@ -486,7 +590,7 @@ public class LiveUpdateService {
         if (config.isContainerOffhand()) {
             ItemStack offhand = inv.getItemInOffHand();
             if (offhand != null && !offhand.getType().isAir() && offhand.hasItemMeta()) {
-                ItemStack updated = updateItemInternal(offhand, failCounter, rebuiltCounter);
+                ItemStack updated = updateItemInternal(offhand, player, failCounter, rebuiltCounter);
                 if (updated != offhand) {
                     inv.setItemInOffHand(updated);
                     invCount++;
@@ -507,7 +611,7 @@ public class LiveUpdateService {
         for (int i = 0; i < ecContents.length; i++) {
             ItemStack current = ecContents[i];
             if (current == null || current.getType().isAir() || !current.hasItemMeta()) continue;
-            ItemStack updated = updateItemInternal(current, failCounter, rebuiltCounter);
+            ItemStack updated = updateItemInternal(current, player, failCounter, rebuiltCounter);
             if (updated != current) {
                 ec.setItem(i, updated);
                 ecCount++;
@@ -520,10 +624,10 @@ public class LiveUpdateService {
      * Updates an individual ItemStack according to definition and configured preservation rules.
      */
     public ItemStack updateItem(ItemStack current, AtomicInteger failCounter) {
-        return updateItemInternal(current, failCounter, null);
+        return updateItemInternal(current, null, failCounter, null);
     }
 
-    private ItemStack updateItemInternal(ItemStack current, AtomicInteger failCounter, AtomicInteger rebuiltCounter) {
+    private ItemStack updateItemInternal(ItemStack current, Player player, AtomicInteger failCounter, AtomicInteger rebuiltCounter) {
         if (current == null || current.getType().isAir() || !current.hasItemMeta()) return current;
 
         ItemMeta curMeta = current.getItemMeta();
@@ -548,6 +652,7 @@ public class LiveUpdateService {
             String oldSetState = pdcManager.getSetState(curMeta);
             boolean isBonusActive = "active".equalsIgnoreCase(oldSetState);
             int storedSyncHash = pdcManager.getSyncHash(curMeta);
+            String oldManagedLore = pdcManager.getManagedLoreData(curMeta);
 
             // 2. Active Enchantments resolution (Vanilla + EcoEnchants + Stored Enchants)
             Map<Enchantment, Integer> activeEnchants = new LinkedHashMap<>();
@@ -563,18 +668,18 @@ public class LiveUpdateService {
                 }
             }
 
-            // 3. O(1) Config-Fingerprint Skip for non-expiring items
+            // 3. Lightweight O(1) Config-Fingerprint Skip (no full ItemBuilder.build/lore parse on unchanged items)
             int defHash = getOrComputeDefinitionSyncHash(def);
             int expectedSyncHash = computeItemSyncHash(defHash, socketsRaw, oldTier, oldSetState, activeEnchants);
 
-            if (expire == 0L && storedSyncHash != 0 && storedSyncHash == expectedSyncHash) {
-                CachedTemplate cachedTemplate = getOrBuildBaseTemplate(def);
+            if (expire == 0L && storedSyncHash != 0 && oldManagedLore != null && storedSyncHash == expectedSyncHash) {
+                BaseSignature sig = getOrComputeBaseSignature(def);
                 boolean matchesBase = true;
-                if (cachedTemplate != null && cachedTemplate.item() != null) {
-                    if (current.getType() != cachedTemplate.item().getType()) {
+                if (sig != null) {
+                    if (sig.material() != null && current.getType() != sig.material()) {
                         matchesBase = false;
                     } else if (!config.isPreserveDisplayName()) {
-                        Component expectedName = cachedTemplate.displayName();
+                        Component expectedName = sig.displayName();
                         Component currentName = curMeta.hasDisplayName() ? curMeta.displayName() : null;
                         if (!Objects.equals(currentName, expectedName)) {
                             matchesBase = false;
@@ -590,9 +695,11 @@ public class LiveUpdateService {
                 rebuiltCounter.incrementAndGet();
             }
 
-            // 4. Build updated base item (reusing cached base template when runtime state matches defaults)
+            // 4. Build updated base item (reusing cached base template when runtime state matches defaults and item has no dynamic set lore)
             ItemStack updated;
+            boolean hasSet = def.getItemSet() != null && !def.getItemSet().isEmpty();
             boolean canReuseTemplate = expire == 0L
+                    && !hasSet
                     && (sockets == null || sockets.isEmpty())
                     && !isBonusActive
                     && Objects.equals(activeEnchants, defaultEnchantsMap(def));
@@ -603,10 +710,10 @@ public class LiveUpdateService {
                     updated = cachedTemplate.item().clone();
                     updated.setAmount(Math.max(1, current.getAmount()));
                 } else {
-                    updated = itemBuilder.build(def, current.getAmount(), sockets, expire, activeEnchants, isBonusActive, null);
+                    updated = itemBuilder.build(def, current.getAmount(), sockets, expire, activeEnchants, isBonusActive, player);
                 }
             } else {
-                updated = itemBuilder.build(def, current.getAmount(), sockets, expire, activeEnchants, isBonusActive, null);
+                updated = itemBuilder.build(def, current.getAmount(), sockets, expire, activeEnchants, isBonusActive, player);
             }
 
             ItemMeta updMeta = updated.getItemMeta();
@@ -617,18 +724,23 @@ public class LiveUpdateService {
                 updMeta.displayName(curMeta.displayName());
             }
 
-            // 6. Lore preservation and Enchantment live update
+            // 6. Lore preservation and clean RoyItems managed-lore synchronization
+            List<Component> generatedBaseLore = updMeta.hasLore() ? updMeta.lore() : Collections.emptyList();
             DynamicLoreEngine loreEngine = itemBuilder.getLoreEngine();
+            String nextManagedLore;
             if (config.isPreserveLore() && curMeta.hasLore()) {
                 if (loreEngine != null) {
                     updMeta.lore(loreEngine.updateEnchantmentLinesInLore(curMeta.lore(), def, activeEnchants));
                 } else {
                     updMeta.lore(curMeta.lore());
                 }
-            } else if (curMeta.hasLore()) {
-                if (loreEngine != null && updMeta.hasLore()) {
-                    updMeta.lore(loreEngine.mergeCustomLore(curMeta.lore(), updMeta.lore(), def, activeEnchants));
+                nextManagedLore = oldManagedLore;
+            } else {
+                if (curMeta.hasLore() && loreEngine != null) {
+                    updMeta.lore(loreEngine.mergeCustomLore(
+                            curMeta.lore(), generatedBaseLore, def, activeEnchants, oldManagedLore, true));
                 }
+                nextManagedLore = DynamicLoreEngine.serializeManagedLoreLines(generatedBaseLore);
             }
 
             // 7. Custom Model Data preservation
@@ -653,6 +765,9 @@ public class LiveUpdateService {
             int enchantHash = (loreEngine != null) ? loreEngine.computeEnchantmentHash(def, activeEnchants) : activeEnchants.hashCode();
             pdcManager.setEnchantHash(updMeta, enchantHash);
             pdcManager.setSyncHash(updMeta, expectedSyncHash);
+            if (nextManagedLore != null) {
+                pdcManager.setManagedLoreData(updMeta, nextManagedLore);
+            }
 
             if (config.isPreserveTier() && oldTier != null && !oldTier.isEmpty()) {
                 pdcManager.tagTier(updMeta, oldTier);
@@ -701,6 +816,21 @@ public class LiveUpdateService {
 
     private Map<Enchantment, Integer> defaultEnchantsMap(ItemDefinition def) {
         return def.getEnchantments() != null ? def.getEnchantments() : Collections.emptyMap();
+    }
+
+    private BaseSignature getOrComputeBaseSignature(ItemDefinition def) {
+        if (def == null) return null;
+        String key = def.getType().name() + ":" + def.getId().toLowerCase(Locale.ROOT);
+        BaseSignature cached = baseSignatureCache.get(key);
+        if (cached != null) return cached;
+
+        Material mat = def.getMaterial() != null ? Material.matchMaterial(def.getMaterial()) : null;
+        Component expectedName = (def.getName() != null && !def.getName().isEmpty())
+                ? TextUtility.formatItemName(def.getName())
+                : null;
+        BaseSignature sig = new BaseSignature(mat, expectedName);
+        baseSignatureCache.putIfAbsent(key, sig);
+        return sig;
     }
 
     private CachedTemplate getOrBuildBaseTemplate(ItemDefinition def) {
@@ -826,7 +956,7 @@ public class LiveUpdateService {
         for (int i = 0; i < items.length; i++) {
             ItemStack current = items[i];
             if (current == null || current.getType().isAir() || !current.hasItemMeta()) continue;
-            ItemStack updated = updateItemInternal(current, failCounter, null);
+            ItemStack updated = updateItemInternal(current, null, failCounter, null);
             if (updated != current) {
                 items[i] = updated;
                 count++;
@@ -849,7 +979,7 @@ public class LiveUpdateService {
         for (int i = 0; i < contents.length; i++) {
             ItemStack current = contents[i];
             if (current == null || current.getType().isAir() || !current.hasItemMeta()) continue;
-            ItemStack updated = updateItemInternal(current, failCounter, null);
+            ItemStack updated = updateItemInternal(current, null, failCounter, null);
             if (updated != current) {
                 inventory.setItem(i, updated);
                 updatedCount++;

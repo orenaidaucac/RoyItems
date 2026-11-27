@@ -41,14 +41,33 @@ public class MessageManager {
         loadMessages();
     }
 
+    public record PreparedMessages(
+            FileConfiguration activeConfig,
+            FileConfiguration fallbackConfig,
+            String activeLanguage,
+            String prefix,
+            String fileName
+    ) {}
+
     public void loadMessages() {
-        warnedMissingKeys.clear();
+        loadMessages(true);
+    }
+
+    public void loadMessages(boolean runMigration) {
+        PreparedMessages prepared = prepareMessages(plugin != null ? plugin.getConfig() : null, runMigration);
+        applyPreparedMessages(prepared);
+    }
+
+    /**
+     * Reads and parses active localization files safely off the main thread without mutating live fields.
+     */
+    public PreparedMessages prepareMessages(FileConfiguration rootConfig, boolean runMigration) {
         File folder = new File(plugin.getDataFolder(), "lang");
         if (!folder.exists()) {
             folder.mkdirs();
         }
 
-        // 1. Ensure all default language files exist in the plugins/RoyItems/lang directory
+        // 1. Ensure all default language files exist in plugins/RoyItems/lang
         for (String langCode : SUPPORTED_LANGUAGES) {
             File langFile = new File(folder, langCode + ".yml");
             if (!langFile.exists()) {
@@ -58,41 +77,61 @@ public class MessageManager {
             }
         }
 
-        // 2. Perform automatic language migration on existing files on disk
-        migrateLanguageFiles();
+        // 2. Perform automatic language migration only when requested (skipped after ConfigMigrator.migrateAll())
+        if (runMigration) {
+            migrateLanguageFiles();
+        }
 
-        // 3. Load en-US embedded resource as universal fallback
-        try {
-            InputStream in = plugin.getResource("lang/en-US.yml");
-            if (in != null) {
-                this.fallbackConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
-            } else {
-                File enFile = new File(folder, "en-US.yml");
-                if (enFile.exists()) {
-                    this.fallbackConfig = YamlConfiguration.loadConfiguration(enFile);
+        // 3. Load en-US embedded resource once as universal fallback
+        FileConfiguration nextFallback = this.fallbackConfig;
+        if (nextFallback == null) {
+            try {
+                InputStream in = plugin.getResource("lang/en-US.yml");
+                if (in != null) {
+                    nextFallback = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
+                } else {
+                    File enFile = new File(folder, "en-US.yml");
+                    if (enFile.exists()) {
+                        nextFallback = YamlConfiguration.loadConfiguration(enFile);
+                    }
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        }
 
         // 4. Resolve active language from config.yml
-        String requestedLang = plugin.getConfig().getString("language", "en-US");
-        this.activeLanguage = normalizeLanguageCode(requestedLang);
+        String requestedLang = rootConfig != null ? rootConfig.getString("language", "en-US") : "en-US";
+        String resolvedLang = normalizeLanguageCode(requestedLang);
 
-        File activeFile = new File(folder, activeLanguage + ".yml");
+        File activeFile = new File(folder, resolvedLang + ".yml");
         if (!activeFile.exists()) {
-            // Check if user specified a file directly, e.g. "lang/custom.yml"
             File customFile = new File(folder, requestedLang + ".yml");
             if (customFile.exists()) {
                 activeFile = customFile;
             } else {
                 activeFile = new File(folder, "en-US.yml");
-                this.activeLanguage = "en-US";
+                resolvedLang = "en-US";
             }
         }
 
-        this.config = YamlConfiguration.loadConfiguration(activeFile);
-        this.prefix = config.getString("prefix", fallbackConfig != null ? fallbackConfig.getString("prefix", "&6RoyItems &8» &f") : "&6RoyItems &8» &f");
-        plugin.getLogger().info("[MessageManager] Loaded localization language: " + activeLanguage + " (" + activeFile.getName() + ")");
+        FileConfiguration nextConfig = YamlConfiguration.loadConfiguration(activeFile);
+        String nextPrefix = nextConfig.getString("prefix",
+                nextFallback != null ? nextFallback.getString("prefix", "&6RoyItems &8» &f") : "&6RoyItems &8» &f");
+        return new PreparedMessages(nextConfig, nextFallback, resolvedLang, nextPrefix, activeFile.getName());
+    }
+
+    /**
+     * Atomically swaps pre-parsed messages into memory.
+     */
+    public void applyPreparedMessages(PreparedMessages prepared) {
+        if (prepared == null) return;
+        warnedMissingKeys.clear();
+        if (prepared.fallbackConfig() != null) {
+            this.fallbackConfig = prepared.fallbackConfig();
+        }
+        this.activeLanguage = prepared.activeLanguage();
+        this.config = prepared.activeConfig();
+        this.prefix = prepared.prefix();
+        plugin.getLogger().info("[MessageManager] Loaded localization language: " + activeLanguage + " (" + prepared.fileName() + ")");
     }
 
     /**
@@ -167,7 +206,7 @@ public class MessageManager {
         // 4. Construct migration snippet preserving comments and indentation
         StringBuilder snippet = new StringBuilder();
         snippet.append("\n  # ----------------------------------------------------------------------------\n");
-        snippet.append("  # Automatically migrated keys (RoyItems v2026.1.11)\n");
+        snippet.append("  # Automatically migrated keys (RoyItems v2026.1.12)\n");
         snippet.append("  # ----------------------------------------------------------------------------\n");
 
         for (String key : missingKeys) {

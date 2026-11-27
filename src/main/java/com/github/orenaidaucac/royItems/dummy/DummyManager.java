@@ -56,6 +56,8 @@ public class DummyManager {
     private final Map<UUID, Long> playerLastAttackTime = new ConcurrentHashMap<>();
     private final AtomicInteger entityIdCounter = new AtomicInteger(1_500_000);
     private final Map<UUID, ProjectileTracker> activeProjectiles = new ConcurrentHashMap<>();
+    private com.github.orenaidaucac.royItems.core.platform.PlatformScheduler.TaskHandle tickerTaskHandle;
+    private com.github.orenaidaucac.royItems.core.platform.PlatformScheduler.TaskHandle projectileTickerTaskHandle;
 
     public static class ProjectileTracker {
         final WeakReference<Projectile> projectileRef;
@@ -281,7 +283,11 @@ public class DummyManager {
     }
 
     private void startProjectileTicker() {
-        plugin.getPlatformScheduler().runGlobalTimer(this::tickActiveProjectiles, 1L, 1L);
+        if (projectileTickerTaskHandle != null) {
+            projectileTickerTaskHandle.cancel();
+        }
+        projectileTickerTaskHandle = plugin.getPlatformScheduler().runGlobalTimerHandle(
+                handle -> tickActiveProjectiles(), 1L, 1L);
     }
 
     private void tickActiveProjectiles() {
@@ -717,8 +723,11 @@ public class DummyManager {
     }
 
     private void startTicker() {
+        if (tickerTaskHandle != null) {
+            tickerTaskHandle.cancel();
+        }
         // Ticks every 3 ticks (~150ms) to update head rotation, range culling, and session expiration
-        plugin.getPlatformScheduler().runGlobalTimer(() -> {
+        tickerTaskHandle = plugin.getPlatformScheduler().runGlobalTimerHandle(handle -> {
             if (packetHook == null || dummies.isEmpty()) return;
 
             for (TrainingDummy dummy : dummies.values()) {
@@ -1034,6 +1043,14 @@ public class DummyManager {
      * ensuring zero ghost entities or ghost holograms when plugin is disabled or reloaded.
      */
     public void cleanup() {
+        if (tickerTaskHandle != null) {
+            tickerTaskHandle.cancel();
+            tickerTaskHandle = null;
+        }
+        if (projectileTickerTaskHandle != null) {
+            projectileTickerTaskHandle.cancel();
+            projectileTickerTaskHandle = null;
+        }
         if (packetHook != null) {
             for (TrainingDummy dummy : dummies.values()) {
                 for (UUID uuid : dummy.getTrackingPlayers()) {

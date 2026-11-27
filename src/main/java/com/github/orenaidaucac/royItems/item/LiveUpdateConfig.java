@@ -20,7 +20,7 @@ public class LiveUpdateConfig {
 
     // Performance throttling settings (prevent TPS drops during mass updates)
     private int maxPlayersPerTick = 5;
-    private int maxItemsPerTick = 40;
+    private int maxItemsPerTick = 20;
     private int tickInterval = 1;
 
     // Preservation flags
@@ -42,7 +42,7 @@ public class LiveUpdateConfig {
 
         // Performance throttling
         this.maxPlayersPerTick = Math.max(0, config.getInt("live-update.performance.max-players-per-tick", 5));
-        this.maxItemsPerTick = Math.max(0, config.getInt("live-update.performance.max-items-per-tick", 40));
+        this.maxItemsPerTick = Math.max(0, config.getInt("live-update.performance.max-items-per-tick", 20));
         this.tickInterval = Math.max(1, config.getInt("live-update.performance.tick-interval", 1));
 
         // Containers

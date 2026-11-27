@@ -24,7 +24,16 @@ public class ItemTierManager {
     }
 
     public void loadTiers() {
-        tiers.clear();
+        applyPreparedTiers(prepareTiers());
+    }
+
+    /**
+     * Reads and parses item-tier.yml into a new map cleanly (safe to invoke asynchronously).
+     */
+    public Map<String, ItemTier> prepareTiers() {
+        Map<String, ItemTier> loaded = new ConcurrentHashMap<>();
+        if (plugin == null) return loaded;
+
         File file = new File(plugin.getDataFolder(), "item-tier.yml");
         if (!file.exists()) {
             plugin.saveResource("item-tier.yml", false);
@@ -41,8 +50,19 @@ public class ItemTierManager {
                         sec.getInt("weight", 0),
                         sec.getString("drop-color", null)
                 );
-                tiers.put(key.toLowerCase(), tier);
+                loaded.put(key.toLowerCase(), tier);
             }
+        }
+        return loaded;
+    }
+
+    /**
+     * Atomically swaps pre-parsed tiers into memory.
+     */
+    public void applyPreparedTiers(Map<String, ItemTier> loaded) {
+        tiers.clear();
+        if (loaded != null) {
+            tiers.putAll(loaded);
         }
     }
 

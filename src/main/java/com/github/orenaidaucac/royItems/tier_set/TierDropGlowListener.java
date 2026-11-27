@@ -124,13 +124,15 @@ public class TierDropGlowListener implements Listener {
         if (itemEntity == null || itemEntity.isDead() || !itemEntity.isValid()) return;
 
         ItemStack stack = itemEntity.getItemStack();
-        if (!itemPDCManager.isRoyItem(stack)) return;
+        if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) return;
+        org.bukkit.inventory.meta.ItemMeta meta = stack.getItemMeta();
+        if (!itemPDCManager.isRoyItem(meta)) return;
 
-        // 1. Resolve Tier ID from PDC or ItemDefinition
-        String tierId = itemPDCManager.getTier(stack);
+        // 1. Resolve Tier ID from PDC or ItemDefinition using single meta snapshot
+        String tierId = itemPDCManager.getTier(meta);
         if (tierId == null || tierId.isEmpty()) {
-            ItemType type = itemPDCManager.getType(stack);
-            String id = itemPDCManager.getId(stack);
+            ItemType type = itemPDCManager.getType(meta);
+            String id = itemPDCManager.getId(meta);
             ItemDefinition def = itemRegistry.get(type, id);
             if (def != null) {
                 tierId = def.getItemTier();
@@ -238,15 +240,32 @@ public class TierDropGlowListener implements Listener {
     }
 
     /**
-     * Scans all loaded worlds to apply tier glowing on any existing items on ground.
+     * Scans loaded worlds (or player regions on Folia) asynchronously/safely to apply tier glowing.
      */
     public void applyToAllGroundItems() {
-        for (World world : Bukkit.getWorlds()) {
-            for (Item item : world.getEntitiesByClass(Item.class)) {
-                if (item.isValid() && !item.isDead()) {
-                    applyGlow(item);
+        if (itemTierManager == null || itemTierManager.getAll().isEmpty()) return;
+
+        if (scheduler != null && scheduler.isFolia()) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                syncForPlayer(player);
+            }
+            return;
+        }
+
+        Runnable scanTask = () -> {
+            for (World world : Bukkit.getWorlds()) {
+                for (Item item : world.getEntitiesByClass(Item.class)) {
+                    if (item.isValid() && !item.isDead()) {
+                        applyGlow(item);
+                    }
                 }
             }
+        };
+
+        if (scheduler != null && Bukkit.getServer() != null) {
+            scheduler.runGlobalDelayed(scanTask, 2L);
+        } else {
+            scanTask.run();
         }
     }
 

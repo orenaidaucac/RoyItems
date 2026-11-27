@@ -137,8 +137,17 @@ public class DynamicLoreEngine {
     /**
      * Loads global enchantment defaults from config.yml into globalEnchantmentFormat.
      */
+    public record PreparedLoreFormats(LoreFormat globalFormat, Map<String, LoreFormat> formats) {}
+
     public void loadConfig(FileConfiguration config) {
-        if (config == null) return;
+        LoreFormat parsed = parseGlobalFormat(config);
+        if (parsed != null) {
+            this.globalEnchantmentFormat = parsed;
+        }
+    }
+
+    private LoreFormat parseGlobalFormat(FileConfiguration config) {
+        if (config == null) return this.globalEnchantmentFormat;
         ConfigurationSection sec = config.getConfigurationSection("enchantments");
         if (sec == null) sec = config.getConfigurationSection("enchantments-format");
         if (sec == null) sec = config.getConfigurationSection("enchantment-format");
@@ -169,48 +178,89 @@ public class DynamicLoreEngine {
                 }
                 global.setEnchantmentCustomNames(map);
             }
-            this.globalEnchantmentFormat = global;
+            return global;
         }
+        return this.globalEnchantmentFormat;
     }
 
     public void loadFormats() {
-        formats.clear();
+        FileConfiguration rootCfg = plugin != null ? plugin.getConfig() : null;
+        applyPreparedFormats(prepareFormats(rootCfg));
+    }
+
+    /**
+     * Reads and parses all lore-format/*.yml files without mutating live formats map.
+     */
+    public PreparedLoreFormats prepareFormats(FileConfiguration rootConfig) {
+        LoreFormat parsedGlobal = parseGlobalFormat(rootConfig);
+        Map<String, LoreFormat> loaded = new HashMap<>();
+
         if (plugin != null) {
-            loadConfig(plugin.getConfig());
-        }
-
-        File folder = new File(plugin.getDataFolder(), "lore-format");
-        if (!folder.exists()) {
-            folder.mkdirs();
-        }
-
-        // Always save and refresh the authoritative wiki file _example.yml
-        saveWikiExampleFile();
-
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null || files.length == 0) {
-            saveDefaultFormat("default.yml");
-            saveDefaultFormat("weapon.yml");
-            saveDefaultFormat("armor.yml");
-            files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
-        }
-
-        if (files != null) {
-            for (File file : files) {
-                String id = file.getName().replace(".yml", "").toLowerCase();
-                // Reserved wiki file must never be loaded as an item lore format
-                if (id.equalsIgnoreCase("_example")) {
-                    continue;
-                }
-                FileConfiguration config = YamlConfiguration.loadConfiguration(file);
-                LoreFormat format = LoreFormat.fromConfig(id, config, globalEnchantmentFormat);
-                formats.put(id, format);
+            File folder = new File(plugin.getDataFolder(), "lore-format");
+            if (!folder.exists()) {
+                folder.mkdirs();
             }
+
+            // Refresh wiki _example.yml only when missing or content changed
+            saveWikiExampleFile();
+
+            File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
+            if (files == null || files.length == 0) {
+                saveDefaultFormat("default.yml");
+                saveDefaultFormat("weapon.yml");
+                saveDefaultFormat("armor.yml");
+                files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
+            }
+
+            if (files != null) {
+                for (File file : files) {
+                    String id = file.getName().replace(".yml", "").toLowerCase();
+                    if (id.equalsIgnoreCase("_example")) {
+                        continue;
+                    }
+                    FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+                    LoreFormat format = LoreFormat.fromConfig(id, config, parsedGlobal);
+                    loaded.put(id, format);
+                }
+            }
+        }
+
+        return new PreparedLoreFormats(parsedGlobal, loaded);
+    }
+
+    /**
+     * Atomically swaps pre-parsed LoreFormats into memory.
+     */
+    public void applyPreparedFormats(PreparedLoreFormats prepared) {
+        if (prepared == null) return;
+        if (prepared.globalFormat() != null) {
+            this.globalEnchantmentFormat = prepared.globalFormat();
+        }
+        formats.clear();
+        if (prepared.formats() != null) {
+            formats.putAll(prepared.formats());
         }
     }
 
     private void saveWikiExampleFile() {
         try {
+            File target = new File(plugin.getDataFolder(), "lore-format/_example.yml");
+            try (java.io.InputStream in = plugin.getResource("lore-format/_example.yml")) {
+                if (in != null) {
+                    byte[] embeddedBytes = in.readAllBytes();
+                    if (target.exists() && target.length() == embeddedBytes.length) {
+                        byte[] diskBytes = java.nio.file.Files.readAllBytes(target.toPath());
+                        if (Arrays.equals(embeddedBytes, diskBytes)) {
+                            return; // Unchanged; avoid redundant disk write on every reload
+                        }
+                    }
+                    if (target.getParentFile() != null && !target.getParentFile().exists()) {
+                        target.getParentFile().mkdirs();
+                    }
+                    java.nio.file.Files.write(target.toPath(), embeddedBytes);
+                    return;
+                }
+            }
             plugin.saveResource("lore-format/_example.yml", true);
         } catch (Exception e) {
             if (plugin != null && plugin.getLogger() != null) {
@@ -1288,7 +1338,8 @@ public class DynamicLoreEngine {
                 for (EcoEnchantsHook.EcoEnchantCandidate cand : ecoEnchantsHook.getAllCandidates()) {
                     if (cand == null) continue;
                     if (matchesEnchantmentPattern(cleanLine, cand.getId())) return true;
-                    if (cand.getRawDisplayName() != null && matchesEnchantmentPattern(cleanLine, TextUtility.stripColor(cand.getRawDisplayName()).trim())) return true;
+                    String strippedDisp = cand.getStrippedDisplayName();
+                    if (strippedDisp != null && !strippedDisp.isEmpty() && matchesEnchantmentPattern(cleanLine, strippedDisp)) return true;
                 }
             } catch (Throwable ignored) {}
         }
@@ -1380,34 +1431,97 @@ public class DynamicLoreEngine {
         }
     }
 
+    /**
+     * Normalizes a lore Component into stripped, trimmed plain text for comparison and managed-lore tracking.
+     */
+    public static String normalizeLoreLine(Component component) {
+        if (component == null) return "";
+        return TextUtility.stripColor(TextUtility.toPlain(component)).trim();
+    }
+
+    /**
+     * Serializes RoyItems-generated lore components into a compact newline-delimited PDC payload.
+     */
+    public static String serializeManagedLoreLines(List<Component> loreComponents) {
+        if (loreComponents == null || loreComponents.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (Component c : loreComponents) {
+            String plain = normalizeLoreLine(c);
+            if (plain.isEmpty()) continue;
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(plain.replace('\n', ' '));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Deserializes stored managed-lore plain lines from PDC into an O(1) lookup set.
+     */
+    public static Set<String> deserializeManagedLoreLines(String raw) {
+        if (raw == null || raw.isEmpty()) return Collections.emptySet();
+        String[] parts = raw.split("\n");
+        Set<String> set = new HashSet<>(parts.length * 2);
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                set.add(trimmed);
+            }
+        }
+        return set;
+    }
+
     public List<Component> mergeCustomLore(List<Component> currentLore, List<Component> baseLore,
                                            ItemDefinition def, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants) {
-        if (currentLore == null || currentLore.isEmpty()) return baseLore != null ? baseLore : Collections.emptyList();
-        if (baseLore == null || baseLore.isEmpty()) return currentLore;
+        return mergeCustomLore(currentLore, baseLore, def, activeEnchants, null, false);
+    }
+
+    public List<Component> mergeCustomLore(List<Component> currentLore, List<Component> baseLore,
+                                           ItemDefinition def, Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants,
+                                           String managedLoreRaw, boolean rebuildLegacyCleanly) {
+        if (currentLore == null || currentLore.isEmpty()) {
+            return baseLore != null ? baseLore : Collections.emptyList();
+        }
+        // Legacy items (pre-2026.1.12) without managed_lore PDC: rebuild cleanly instead of dragging old lines to bottom
+        if (managedLoreRaw == null && rebuildLegacyCleanly) {
+            return baseLore != null ? baseLore : Collections.emptyList();
+        }
+        if ((baseLore == null || baseLore.isEmpty()) && managedLoreRaw == null && !rebuildLegacyCleanly) {
+            return currentLore;
+        }
 
         Set<String> baseSerialized = new HashSet<>();
-        for (Component c : baseLore) {
-            baseSerialized.add(TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(c)).trim());
+        if (baseLore != null) {
+            for (Component c : baseLore) {
+                String normalized = normalizeLoreLine(c);
+                if (!normalized.isEmpty()) {
+                    baseSerialized.add(normalized);
+                }
+            }
         }
+        Set<String> managedLines = deserializeManagedLoreLines(managedLoreRaw);
 
         List<Component> customLines = new ArrayList<>();
         for (Component c : currentLore) {
-            String plain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(c)).trim();
+            String plain = normalizeLoreLine(c);
             if (plain.isEmpty()) continue;
             if (plain.contains("----") || plain.contains("━━━━")) continue;
-            if (isEnchantmentLine(plain, activeEnchants, def)) continue;
             if (baseSerialized.contains(plain)) continue;
+            if (managedLines.contains(plain)) continue;
+            if (isEnchantmentLine(plain, activeEnchants, def)) continue;
 
             customLines.add(c);
         }
 
+        if (baseLore == null || baseLore.isEmpty()) {
+            return customLines;
+        }
         if (customLines.isEmpty()) {
             return baseLore;
         }
 
         List<Component> merged = new ArrayList<>(baseLore);
         if (!merged.isEmpty()) {
-            String lastPlain = TextUtility.stripColor(LegacyComponentSerializer.legacySection().serialize(merged.get(merged.size() - 1)));
+            String lastPlain = normalizeLoreLine(merged.get(merged.size() - 1));
             if (lastPlain.contains("----") || lastPlain.contains("━━━━")) {
                 merged.addAll(merged.size() - 1, customLines);
                 return merged;
@@ -1453,39 +1567,50 @@ public class DynamicLoreEngine {
 
     public boolean synchronizeItemEnchantments(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
-        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
-        if (registry == null) return false;
-
-        ItemType type = pdcManager.getType(item);
-        String id = pdcManager.getId(item);
-        ItemDefinition def = registry.get(type, id);
-        if (def == null) return false;
+        if (pdcManager == null) return false;
 
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) return false;
+        if (meta == null || !pdcManager.isRoyItem(meta)) return false;
+        if (registry == null) return false;
+
+        ItemType type = pdcManager.getType(meta);
+        String id = pdcManager.getId(meta);
+        ItemDefinition def = registry.get(type, id);
+        if (def == null) return false;
 
         Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = getEffectiveEnchantments(meta, def);
 
         List<Component> currentLore = meta.lore();
+        String existingManaged = pdcManager.getManagedLoreData(meta);
+        boolean preserveLore = plugin != null && plugin.getConfig() != null
+                && plugin.getConfig().getBoolean("live-update.preserve.lore", false);
+
         if (hasEnchantmentsPlaceholder(def)) {
-            String socketsRaw = pdcManager.getSocketsData(item);
+            String socketsRaw = pdcManager.getSocketsData(meta);
             List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
-            long expire = pdcManager.getExpireTime(item);
-            String oldSetState = pdcManager.getSetState(item);
+            long expire = pdcManager.getExpireTime(meta);
+            String oldSetState = pdcManager.getSetState(meta);
             boolean isBonusActive = "active".equalsIgnoreCase(oldSetState);
             List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, null);
             List<Component> baseLore = TextUtility.formatLore(rawLore);
-            meta.lore(mergeCustomLore(currentLore, baseLore, def, activeEnchants));
+            meta.lore(mergeCustomLore(currentLore, baseLore, def, activeEnchants, existingManaged, !preserveLore));
+            pdcManager.setManagedLoreData(meta, serializeManagedLoreLines(baseLore));
         } else if (currentLore != null && !currentLore.isEmpty()) {
-            meta.lore(updateEnchantmentLinesInLore(currentLore, def, activeEnchants));
+            List<Component> updated = updateEnchantmentLinesInLore(currentLore, def, activeEnchants);
+            meta.lore(updated);
+            if (!preserveLore) {
+                pdcManager.setManagedLoreData(meta, serializeManagedLoreLines(updated));
+            }
         } else {
-            String socketsRaw = pdcManager.getSocketsData(item);
+            String socketsRaw = pdcManager.getSocketsData(meta);
             List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
-            long expire = pdcManager.getExpireTime(item);
-            String oldSetState = pdcManager.getSetState(item);
+            long expire = pdcManager.getExpireTime(meta);
+            String oldSetState = pdcManager.getSetState(meta);
             boolean isBonusActive = "active".equalsIgnoreCase(oldSetState);
             List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, null);
-            meta.lore(TextUtility.formatLore(rawLore));
+            List<Component> formatted = TextUtility.formatLore(rawLore);
+            meta.lore(formatted);
+            pdcManager.setManagedLoreData(meta, serializeManagedLoreLines(formatted));
         }
 
         // When lore displays enchantments, suppress vanilla client tooltip so client does not duplicate
@@ -1531,25 +1656,30 @@ public class DynamicLoreEngine {
      */
     public boolean synchronizeItemSetLore(ItemStack item, boolean isBonusActive, Player player) {
         if (item == null || item.getType().isAir()) return false;
-        if (pdcManager == null || !pdcManager.isRoyItem(item)) return false;
-        if (registry == null) return false;
+        if (pdcManager == null || registry == null) return false;
 
-        ItemType type = pdcManager.getType(item);
-        String id = pdcManager.getId(item);
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !pdcManager.isRoyItem(meta)) return false;
+
+        ItemType type = pdcManager.getType(meta);
+        String id = pdcManager.getId(meta);
         ItemDefinition def = registry.get(type, id);
         if (def == null || def.getItemSet() == null || def.getItemSet().isEmpty()) return false;
 
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return false;
-
         Map<org.bukkit.enchantments.Enchantment, Integer> activeEnchants = getEffectiveEnchantments(meta, def);
 
-        String socketsRaw = pdcManager.getSocketsData(item);
+        String socketsRaw = pdcManager.getSocketsData(meta);
         List<String> sockets = ItemBuilder.deserializeSockets(socketsRaw);
-        long expire = pdcManager.getExpireTime(item);
+        long expire = pdcManager.getExpireTime(meta);
+        String existingManaged = pdcManager.getManagedLoreData(meta);
 
         List<String> rawLore = buildLore(def, sockets, expire, activeEnchants, isBonusActive, player);
-        meta.lore(TextUtility.formatLore(rawLore));
+        List<Component> formattedLore = TextUtility.formatLore(rawLore);
+        if (existingManaged != null && meta.hasLore()) {
+            meta.lore(mergeCustomLore(meta.lore(), formattedLore, def, activeEnchants, existingManaged, false));
+        } else {
+            meta.lore(formattedLore);
+        }
 
         boolean hideTooltip = def.isHideEnchantments() || hasEnchantmentsPlaceholder(def);
         if (!hideTooltip && plugin != null && plugin.getConfig() != null) {
@@ -1561,6 +1691,7 @@ public class DynamicLoreEngine {
 
         pdcManager.setSetState(meta, isBonusActive ? "active" : "inactive");
         pdcManager.setEnchantHash(meta, computeEnchantmentHash(def, activeEnchants));
+        pdcManager.setManagedLoreData(meta, serializeManagedLoreLines(formattedLore));
         item.setItemMeta(meta);
         return true;
     }

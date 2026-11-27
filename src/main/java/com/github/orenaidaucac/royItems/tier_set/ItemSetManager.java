@@ -26,8 +26,15 @@ public class ItemSetManager {
     }
 
     public void loadSets() {
-        sets.clear();
-        if (plugin == null) return;
+        applyPreparedSets(prepareSets());
+    }
+
+    /**
+     * Reads and parses item-set.yml into a new map cleanly (safe to invoke asynchronously).
+     */
+    public Map<String, ItemSet> prepareSets() {
+        Map<String, ItemSet> loaded = new ConcurrentHashMap<>();
+        if (plugin == null) return loaded;
 
         File file = new File(plugin.getDataFolder(), "item-set.yml");
         if (!file.exists()) {
@@ -36,16 +43,27 @@ public class ItemSetManager {
             } catch (Exception ignored) {}
         }
 
-        if (!file.exists()) return;
+        if (!file.exists()) return loaded;
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
         for (String key : config.getKeys(false)) {
             ConfigurationSection sec = config.getConfigurationSection(key);
             if (sec != null) {
                 ItemSet set = parseSet(key, sec);
                 if (set != null) {
-                    sets.put(key.toLowerCase(), set);
+                    loaded.put(key.toLowerCase(), set);
                 }
             }
+        }
+        return loaded;
+    }
+
+    /**
+     * Atomically swaps pre-parsed sets into memory.
+     */
+    public void applyPreparedSets(Map<String, ItemSet> loaded) {
+        sets.clear();
+        if (loaded != null) {
+            sets.putAll(loaded);
         }
     }
 

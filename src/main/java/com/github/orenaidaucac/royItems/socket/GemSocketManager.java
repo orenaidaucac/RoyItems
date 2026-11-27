@@ -10,6 +10,9 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import net.kyori.adventure.text.Component;
+import org.bukkit.enchantments.Enchantment;
 
 /**
  * Handles Gem Stone socketing logic, socket compatibility checking, and item rebuilding.
@@ -98,12 +101,24 @@ public class GemSocketManager {
         // Update target item
         pdcManager.updateSockets(targetItem, String.join(";;", slotted));
 
-        // Rebuild lore
+        // Rebuild lore and synchronize managed_lore PDC
         ItemMeta meta = targetItem.getItemMeta();
-        long expire = pdcManager.getExpireTime(targetItem);
-        List<String> newLore = loreEngine.buildLore(targetDef, slotted, expire, meta != null ? meta.getEnchants() : null);
-        meta.lore(TextUtility.formatLore(newLore));
-        targetItem.setItemMeta(meta);
+        if (meta != null) {
+            long expire = pdcManager.getExpireTime(meta);
+            String setState = pdcManager.getSetState(meta);
+            boolean isBonusActive = "active".equalsIgnoreCase(setState);
+            Map<Enchantment, Integer> activeEnchants = loreEngine.getEffectiveEnchantments(meta, targetDef);
+            List<String> newLore = loreEngine.buildLore(targetDef, slotted, expire, activeEnchants, isBonusActive, player);
+            List<Component> formattedLore = TextUtility.formatLore(newLore);
+            String existingManaged = pdcManager.getManagedLoreData(meta);
+            if (existingManaged != null && meta.hasLore()) {
+                meta.lore(loreEngine.mergeCustomLore(meta.lore(), formattedLore, targetDef, activeEnchants, existingManaged, false));
+            } else {
+                meta.lore(formattedLore);
+            }
+            pdcManager.setManagedLoreData(meta, DynamicLoreEngine.serializeManagedLoreLines(formattedLore));
+            targetItem.setItemMeta(meta);
+        }
 
         // Audio & Visual feedback
         player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_USE, 0.8f, 1.2f);

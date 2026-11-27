@@ -249,15 +249,27 @@ public class TextUtility {
 
     /**
      * Strips legacy colors, hex tags, and MiniMessage formatting tags from a string.
+     * Uses a fast regex path and only invokes MiniMessage when MiniMessage '<tag>' syntax is present.
      */
     public static String stripColor(String input) {
         if (input == null || input.isEmpty()) return "";
-        try {
-            return PlainTextComponentSerializer.plainText().serialize(format(input, false));
-        } catch (Exception e) {
-            return input.replaceAll("(?i)[&§][0-9a-fk-or]", "")
-                    .replaceAll("(?i)[&§]#[0-9a-fA-F]{6}", "")
-                    .replaceAll("<[^>]+>", "");
+        String s = input;
+        if (s.indexOf('&') >= 0 || s.indexOf('§') >= 0) {
+            s = BUNGEE_HEX_PATTERN.matcher(s).replaceAll("");
+            s = HEX_AMPERSAND_PATTERN.matcher(s).replaceAll("");
+            s = LEGACY_CODE_PATTERN.matcher(s).replaceAll("");
         }
+        if (s.indexOf('{') >= 0) {
+            s = HEX_CURLY_PATTERN.matcher(s).replaceAll("");
+        }
+        int lt = s.indexOf('<');
+        if (lt >= 0 && s.indexOf('>', lt + 1) > lt) {
+            try {
+                return PlainTextComponentSerializer.plainText().serialize(format(s, false));
+            } catch (Exception e) {
+                return s.replaceAll("<[^>]+>", "");
+            }
+        }
+        return s;
     }
 }

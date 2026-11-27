@@ -76,6 +76,7 @@ public final class RoyItems extends JavaPlugin {
     private com.github.orenaidaucac.royItems.station.CraftingStationManager craftingStationManager;
     private com.github.orenaidaucac.royItems.dummy.DummyManager dummyManager;
     private com.github.orenaidaucac.royItems.extraction.ExtractionManager extractionManager;
+    private final java.util.concurrent.atomic.AtomicLong activeReloadGeneration = new java.util.concurrent.atomic.AtomicLong(0L);
 
     public static RoyItems getInstance() {
         return instance;
@@ -242,6 +243,7 @@ public final class RoyItems extends JavaPlugin {
     @Override
     public void onDisable() {
         getLogger().info("Disabling RoyItems...");
+        activeReloadGeneration.incrementAndGet();
 
         // 1. Close all active GUI windows across all players synchronously before tearing down resources
         closeAllActiveGuis(true);
@@ -359,33 +361,107 @@ public final class RoyItems extends JavaPlugin {
         reloadAll(null);
     }
 
+    private record PreparedReloadData(
+            MessageManager.PreparedMessages messages,
+            DynamicLoreEngine.PreparedLoreFormats formats,
+            java.util.Map<String, com.github.orenaidaucac.royItems.tier_set.ItemTier> tiers,
+            java.util.Map<String, com.github.orenaidaucac.royItems.tier_set.ItemSet> sets,
+            java.util.List<ItemDefinition> definitions,
+            java.util.Map<String, com.github.orenaidaucac.royItems.station.CraftingStation> stations
+    ) {}
+
     /**
-     * Reloads all configurations, lore templates, tiers, sets, messages, and triggers LiveUpdate on all players,
-     * sending a professional synchronization report to the sender and server console.
+     * Reloads all configurations, lore templates, tiers, sets, messages, and triggers LiveUpdate on all players.
+     * File I/O and SnakeYAML parsing run asynchronously to prevent T=0 TPS spikes, then swap cleanly on the Global thread.
      */
     public void reloadAll(org.bukkit.command.CommandSender sender) {
-        // 0. Automatically migrate updated configuration files and refresh messages before closing GUIs
+        final long reloadGen = activeReloadGeneration.incrementAndGet();
+
+        // 0. Immediately cancel in-flight LiveUpdate tasks & close active GUIs on caller thread
+        if (liveUpdateService != null) {
+            liveUpdateService.cancelActiveUpdates();
+        }
+        closeAllActiveGuis(false);
+
+        boolean runAsyncPrep = platformScheduler != null && Bukkit.getServer() != null && isEnabled();
+        if (!runAsyncPrep) {
+            PreparedReloadData prepared = prepareReloadDataAsyncSafe();
+            if (reloadGen == activeReloadGeneration.get()) {
+                applyPreparedReloadData(prepared, sender, reloadGen);
+            }
+            return;
+        }
+
+        platformScheduler.runAsync(() -> {
+            if (reloadGen != activeReloadGeneration.get() || !isEnabled()) return;
+            PreparedReloadData prepared;
+            try {
+                prepared = prepareReloadDataAsyncSafe();
+            } catch (Throwable t) {
+                getLogger().log(java.util.logging.Level.SEVERE, "Failed during async config preparation: " + t.getMessage(), t);
+                return;
+            }
+            if (reloadGen != activeReloadGeneration.get() || !isEnabled()) return;
+
+            platformScheduler.runGlobal(() -> {
+                if (reloadGen != activeReloadGeneration.get() || !isEnabled()) return;
+                applyPreparedReloadData(prepared, sender, reloadGen);
+            });
+        });
+    }
+
+    private PreparedReloadData prepareReloadDataAsyncSafe() {
         if (configMigrator != null) {
             configMigrator.migrateAll();
         }
+        java.io.File configFile = new java.io.File(getDataFolder(), "config.yml");
+        org.bukkit.configuration.file.FileConfiguration parsedRoot = configFile.exists()
+                ? org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(configFile)
+                : getConfig();
+
+        MessageManager.PreparedMessages msgs = messageManager != null
+                ? messageManager.prepareMessages(parsedRoot, false)
+                : null;
+        DynamicLoreEngine.PreparedLoreFormats fmts = dynamicLoreEngine != null
+                ? dynamicLoreEngine.prepareFormats(parsedRoot)
+                : null;
+        java.util.Map<String, com.github.orenaidaucac.royItems.tier_set.ItemTier> tiers = itemTierManager != null
+                ? itemTierManager.prepareTiers()
+                : java.util.Collections.emptyMap();
+        java.util.Map<String, com.github.orenaidaucac.royItems.tier_set.ItemSet> sets = itemSetManager != null
+                ? itemSetManager.prepareSets()
+                : java.util.Collections.emptyMap();
+        java.util.List<ItemDefinition> defs = itemConfigManager != null
+                ? itemConfigManager.prepareAllDefinitions()
+                : java.util.Collections.emptyList();
+        java.util.Map<String, com.github.orenaidaucac.royItems.station.CraftingStation> stations = craftingStationManager != null
+                ? craftingStationManager.prepareStations()
+                : java.util.Collections.emptyMap();
+
+        return new PreparedReloadData(msgs, fmts, tiers, sets, defs, stations);
+    }
+
+    private void applyPreparedReloadData(PreparedReloadData prepared, org.bukkit.command.CommandSender sender, long reloadGen) {
+        if (reloadGen != activeReloadGeneration.get()) return;
+
         reloadConfig();
-        if (messageManager != null) {
-            messageManager.loadMessages();
+        if (messageManager != null && prepared.messages() != null) {
+            messageManager.applyPreparedMessages(prepared.messages());
         }
 
-        // 1. Close active GUI editor sessions and station GUIs safely with reload notification
+        // Ensure no GUI stayed open during the brief async prep window
         closeAllActiveGuis(false);
         if (editorGUIManager != null) {
             editorGUIManager.reloadConfig();
         }
         if (craftingStationManager != null) {
-            craftingStationManager.loadAll();
+            craftingStationManager.applyPreparedStations(prepared.stations());
         }
         if (extractionManager != null) {
             extractionManager.loadConfig();
         }
 
-        // 2. Reload integration hooks, combat defense engine, and feature configs
+        // Reload integration hooks, combat defense engine, and feature configs
         if (integrationManager != null) {
             integrationManager.recheckHooks();
         }
@@ -416,32 +492,33 @@ public final class RoyItems extends JavaPlugin {
             updateChecker.checkForUpdates(null);
         }
 
-        // 3. (Messages already refreshed in step 0)
-
-        // 4. Reload Lore formats
-        dynamicLoreEngine.loadFormats();
-
-        // 5. Reload Tiers and Sets
-        itemTierManager.loadTiers();
-        itemSetManager.loadSets();
+        // Apply pre-parsed lore formats, tiers, sets, and items
+        if (dynamicLoreEngine != null && prepared.formats() != null) {
+            dynamicLoreEngine.applyPreparedFormats(prepared.formats());
+        }
+        if (itemTierManager != null) {
+            itemTierManager.applyPreparedTiers(prepared.tiers());
+        }
+        if (itemSetManager != null) {
+            itemSetManager.applyPreparedSets(prepared.sets());
+        }
         if (setBonusNotificationManager != null) {
             setBonusNotificationManager.loadConfig();
+        }
+        if (itemConfigManager != null) {
+            itemConfigManager.applyPreparedDefinitions(prepared.definitions());
         }
         if (tierDropGlowListener != null) {
             tierDropGlowListener.applyToAllGroundItems();
         }
 
-        // 6. Reload Items from item/<TYPE>.yml
-        itemConfigManager.loadAll();
-
-        // 7. Refresh Packet Training Dummies (cleans up & reloads client models)
+        // Refresh Packet Training Dummies (cancels timers cleanly, destroys old hooks & reloads)
         if (dummyManager != null) {
             dummyManager.cleanup();
             dummyManager.initialize();
         }
 
-        // 7.5. Recalculate stats for all online players immediately when LiveUpdate is not about to run
-        // (When LiveUpdate runs, it recalculates each player's stats as their batch executes)
+        // Recalculate stats immediately when LiveUpdate will not run
         boolean willRunLiveUpdate = liveUpdateService != null
                 && liveUpdateService.isEnabled()
                 && liveUpdateService.isAutoUpdateOnReload();
@@ -461,7 +538,7 @@ public final class RoyItems extends JavaPlugin {
             }
         }
 
-        // 8. Trigger LiveUpdate across all online players and report statistics
+        // Trigger LiveUpdate across all online players and report statistics
         if (liveUpdateService != null && liveUpdateService.isEnabled() && liveUpdateService.isAutoUpdateOnReload()) {
             liveUpdateService.updateAllOnlinePlayers(report -> {
                 if (messageManager != null) {
@@ -483,7 +560,7 @@ public final class RoyItems extends JavaPlugin {
             messageManager.send(sender, "reload-success", "&aAll configurations, items, and lore templates reloaded successfully!");
         }
 
-        // 8.5. Fire public RoyItemsReloadEvent for external integrations (such as RoyMC-VirtualStorage)
+        // Fire public RoyItemsReloadEvent for external integrations
         try {
             getServer().getPluginManager().callEvent(new com.github.orenaidaucac.royItems.api.event.RoyItemsReloadEvent());
         } catch (Throwable t) {
